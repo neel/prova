@@ -7,9 +7,10 @@
 #include <string>
 #include <vector>
 #include <tash/arango.h>
-#include "sysaudit/log.h"
 
 namespace prova::sysaudit{
+
+    struct log;
 
     struct reporter{
         reporter(const std::string& agent);

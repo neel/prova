@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "sysaudit/parser.h"
+#include "sysaudit/log.h"
 #include <iostream>
 
 prova::sysaudit::parser::parser(const std::string_view& view){

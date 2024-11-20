@@ -5,10 +5,12 @@
 #define SYSAUDIT_PARSER_H
 
 #include <string_view>
-#include "sysaudit/log.h"
 #include <auparse.h>
+#include <vector>
 
 namespace prova::sysaudit{
+
+    struct log;
 
     struct parser{
         parser(const std::string_view& view);

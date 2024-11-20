@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "sysaudit/reporter.h"
+#include "sysaudit/log.h"
 
 prova::sysaudit::reporter::reporter(const std::string& agent):  _shell("provenance"), _events(_shell, "audit"), _agent(agent) {
     if(_shell.exists() == boost::beast::http::status::not_found){
