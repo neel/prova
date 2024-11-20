@@ -1,0 +1,63 @@
+[Buildset]
+BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x14\x00p\x00r\x00o\x00v\x00e\x00n\x00a\x00n\x00c\x00e)
+
+[CMake]
+Build Directory Count=1
+Current Build Directory Index-Host System=0
+
+[CMake][CMake Build Directory 0]
+Build Directory Path=/home/sunanda/Projects/provenance/build
+Build Type=Debug
+CMake Binary=/usr/bin/cmake
+CMake Executable=/usr/bin/cmake
+Environment Profile=
+Extra Arguments=
+Install Directory=/usr/local
+Runtime=Host System
+
+[Launch]
+Launch Configurations=Launch Configuration 0,Launch Configuration 1
+
+[Launch][Launch Configuration 0]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=provenance
+Type=Native Application
+
+[Launch][Launch Configuration 0][Data]
+Arguments=m1 -c --ip 127.0.0.1 --port 20
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x02\x00\x00\x00\x14\x00p\x00r\x00o\x00v\x00e\x00n\x00a\x00n\x00c\x00e\x00\x00\x00\x14\x00p\x00r\x00o\x00v\x00e\x00n\x00a\x00n\x00c\x00e)
+Dependency Action=Build
+EnvironmentGroup=
+Executable=file:///home/sunanda/Projects/provenance
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+Kill Before Executing Again=4194304
+Project Target=provenance,agent-audit
+Use External Terminal=false
+Working Directory=
+isExecutable=false
+
+[Launch][Launch Configuration 1]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=server
+Type=Native Application
+
+[Launch][Launch Configuration 1][Data]
+Arguments=
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x03\x00\x00\x00\x14\x00p\x00r\x00o\x00v\x00e\x00n\x00a\x00n\x00c\x00e\x00\x00\x00\x0c\x00s\x00e\x00r\x00v\x00e\x00r\x00\x00\x00\x0c\x00s\x00e\x00r\x00v\x00e\x00r)
+Dependency Action=Build
+EnvironmentGroup=
+Executable=file:///home/sunanda/Projects/provenance
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+Kill Before Executing Again=4194304
+Project Target=provenance,server,server
+Use External Terminal=false
+Working Directory=
+isExecutable=false
+
+[Project]
+VersionControlSupport=
+
+[SourceFileTemplates]
+LastUsedTemplate=/home/sunanda/.local/share/kdevfiletemplates/template_descriptions/cpp_basic.desktop

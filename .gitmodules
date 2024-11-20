@@ -1,0 +1,6 @@
+[submodule "deps/azmq"]
+	path = deps/azmq
+	url = https://github.com/zeromq/azmq.git
+[submodule "deps/tash"]
+	path = deps/tash
+	url = git@github.com:neel/tash.git
