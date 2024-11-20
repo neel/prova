@@ -1,7 +1,9 @@
 #include "server.h"
 #include <format>
 #include <boost/asio.hpp>
-#include <>
+#include <iostream>
+#include "sysaudit/parser.h"
+#include "sysaudit/reporter.h"
 
 prova::server::server(boost::asio::io_service& io, std::size_t port): _port(port), _io(io), _connection(io) {
     _connection.bind(std::format("tcp://*:{}", _port));
