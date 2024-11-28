@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'h':
-                printf("Help: Use --ip <ip address>, --port <port>\n");
+                printf("Help: Use AGENT_NAME --ip <ip address>, --port <port>\n");
                 exit(EXIT_SUCCESS);
             case '?':
                 // getopt_long already printed an error message.
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
         while (optind < argc) {
             printf("%s\n", argv[optind++]);
         }
-        printf("Help: Use -c or --capture, -f or --file <filename>, --ip <ip address>, --port <port>\n");
+        printf("Help: Use AGENT_NAME --ip <ip address>, --port <port>\n");
         exit(EXIT_FAILURE);
     }
 

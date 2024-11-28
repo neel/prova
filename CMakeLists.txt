@@ -18,4 +18,6 @@ add_executable(agent-audit ${AGENT_SOURCES})
 target_link_libraries(agent-audit zmq)
 set_property(TARGET agent-audit PROPERTY C_STANDARD 11)
 
+add_subdirectory(tools)
+
 install(TARGETS agent-audit RUNTIME DESTINATION bin)
