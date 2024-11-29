@@ -325,7 +325,7 @@ int main(){
         LET src = DOCUMENT(vertices, sessions[0].original_from)
         LET tgt = DOCUMENT(vertices, sessions[0].original_to)
         FILTER src.type == 'Process' || tgt.type == 'Process'
-        FILTER src.exe == '/usr/sbin/nginx' || tgt.exe == '/usr/sbin/nginx'
+        // FILTER src.exe == '/usr/sbin/nginx' || tgt.exe == '/usr/sbin/nginx'
         LET N = LENGTH(sessions)
         FILTER N > 1
         RETURN {
@@ -506,15 +506,24 @@ int main(){
         std::cout << std::format("P{} --> {}: <<release>> {} [{}]", pid, sess->artifact()->properties()["_key"].get<std::string>(), sess->at(1)->operation(), sess->at(1)->id()) << std::endl;
     };
 
+    std::cout << "@startuml" << std::endl;
     for(const auto& p: ps){
         std::cout << std::format("participant \"{}\" as P{}", p.second->exe(), p.first) << std::endl;
     }
     for(const auto& a: artifacts){
         std::string artifact_name;
-        if(a.second->properties().contains("path")){
+        if(a.second->subtype() == "file"){
             artifact_name = a.second->properties()["path"];
-        } else if(a.second->properties().contains("remote address")){
+        } else if(a.second->subtype() == "network socket"){
             artifact_name = std::format("{}:{}", a.second->properties()["remote address"].get<std::string>(), a.second->properties()["remote port"].get<std::string>());
+        } else if(a.second->subtype() == "unnamed pipe") {
+            artifact_name = std::format("{} w{} -> r{}", a.second->properties()["_key"].get<std::string>(),  a.second->properties()["write fd"].get<std::string>(), a.second->properties()["read fd"].get<std::string>());
+        } else if(a.second->subtype() == "directory") {
+            artifact_name = a.second->properties()["path"];
+        } else if(a.second->subtype() == "character device") {
+            artifact_name = a.second->properties()["path"];
+        } else {
+           artifact_name = "Unknown";
         }
         std::cout << std::format("participant \"{}\" as {}", artifact_name, a.first) << std::endl;
     }
@@ -527,7 +536,7 @@ int main(){
             std::cout << "end " << std::endl;
         }
     }
-
+    std::cout << "@enduml" << std::endl;
 
 
     return 0;
