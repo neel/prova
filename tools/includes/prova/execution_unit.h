@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <vector>
+#include <filesystem>
 
 namespace prova{
 
@@ -21,7 +22,9 @@ struct execution_unit{
 	inline void add_artifact(std::shared_ptr<prova::artifact> artifact){ _artifacts.emplace_back(artifact); }
 	inline std::size_t artifacts_count() const { return _artifacts.size(); }
 	std::ostream& uml(std::ostream& stream) const;
-
+    inline const std::shared_ptr<prova::process>& process() const { return _process; }
+    void save_uml(const std::filesystem::path& uml_path) const;
+    void render_svg(const std::filesystem::path& svg_path) const;
 	private:
 		std::shared_ptr<prova::process> _process;
 		std::shared_ptr<prova::session> _root_session;

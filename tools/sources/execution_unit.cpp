@@ -8,6 +8,8 @@
 #include <string>
 #include "prova/process.h"
 #include "prova/artifact.h"
+#include <fstream>
+#include <boost/process.hpp>
 
 std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
     std::function<void (std::size_t, const prova::session::ptr&, std::uint8_t)> decorate_session;
@@ -47,4 +49,39 @@ std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
     stream << "@enduml" << "\n";
 
     return stream;
+}
+
+void prova::execution_unit::save_uml(const std::filesystem::path& uml_path) const {
+    std::ofstream uml_file{uml_path};
+    uml(uml_file);
+    uml_file.close();
+}
+
+void prova::execution_unit::render_svg(const std::filesystem::path& image_path) const {
+    std::stringstream uml_buffer;
+    uml(uml_buffer);
+
+    std::ostringstream os;
+    boost::process::opstream in_stream;
+    boost::process::ipstream out_stream;
+    boost::process::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::std_in < in_stream, boost::process::std_out > out_stream);
+
+    in_stream << uml_buffer.rdbuf();
+    in_stream.flush();
+    in_stream.pipe().close(); // Close the input stream to signal end of input
+
+    // Read the output from the child process while it is running
+    std::ofstream image_file{image_path};
+    std::string line;
+    while (plantuml.running() && std::getline(out_stream, line)) {
+        image_file << line << std::endl;
+    }
+
+    // Drain any remaining output after the process has finished
+    while (std::getline(out_stream, line)) {
+        image_file << line << std::endl;
+    }
+
+    // Wait for the child process to finish
+    plantuml.wait();
 }

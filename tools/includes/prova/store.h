@@ -83,6 +83,7 @@ struct store{
 		void fetch();
     std::ostream& uml(std::ostream& stream) const;
     void extract(std::vector<std::shared_ptr<prova::execution_unit>>& units);
+    std::size_t extract_all();
 
 		std::map<std::size_t, prova::process::ptr> _processes;
     std::map<std::string, prova::artifact::ptr> _artifacts;
