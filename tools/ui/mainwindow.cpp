@@ -45,6 +45,6 @@ void MainWindow::exuSelected(const QModelIndex& index){
 
     // Create a subwindow and set its widget to the SVG widget
     QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(svgWidget);
-    subWindow->setWindowTitle(QString::fromStdString(image_path.filename().string()));
+    subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
     subWindow->show();
 }
