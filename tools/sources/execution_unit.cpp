@@ -14,6 +14,7 @@
 std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
     std::function<void (std::size_t, const prova::session::ptr&, std::uint8_t)> decorate_session;
     decorate_session = [&decorate_session, &stream](std::size_t pid, const prova::session::ptr& sess, std::uint8_t indent) -> void {
+        stream << std::format("group Group {} ", sess->_children.size()) << "\n";
         for(std::uint8_t i = 0; i != indent; ++i) stream << "  ";
         stream << std::format("P{} -> {}: <<acquire>> {} [{}]", pid, sess->artifact()->properties()["_key"].get<std::string>(), sess->at(0)->operation(), sess->at(0)->id()) << "\n";
         if(sess->_children.size() > 0){
@@ -23,6 +24,7 @@ std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
         }
         for(std::uint8_t i = 0; i != indent; ++i) stream << "  ";
         stream << std::format("P{} --> {}: <<release>> {} [{}]", pid, sess->artifact()->properties()["_key"].get<std::string>(), sess->at(1)->operation(), sess->at(1)->id()) << "\n";
+        stream << "end " << "\n";
     };
 
     stream << "@startuml" << "\n";
