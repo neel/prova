@@ -4,3 +4,6 @@
 [submodule "deps/tash"]
 	path = deps/tash
 	url = git@github.com:neel/tash.git
+[submodule "deps/mlpack"]
+	path = deps/mlpack
+	url = https://github.com/mlpack/mlpack.git

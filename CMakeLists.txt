@@ -5,6 +5,7 @@ project(provenance)
 
 add_subdirectory(deps/azmq)
 add_subdirectory(deps/tash)
+add_subdirectory(deps/mlpack)
 add_subdirectory(server)
 
 find_package(ZeroMQ REQUIRED)
