@@ -103,7 +103,7 @@ QVariant ExUModel::data(const QModelIndex &index, int role = Qt::DisplayRole) co
             switch (index.column()) {
                 case 0: return QVariant(session->first_id());
                 case 1: return QVariant(session->last_id());
-                case 2: return QVariant(static_cast<unsigned int>(session->_actions.size()));
+                case 2: return QVariant(static_cast<unsigned int>(session->_children.size()));
                 case 3: return QString::fromStdString(artifact_name);
                 default: return QVariant();
             }
@@ -127,7 +127,7 @@ QVariant ExUModel::headerData(int section, Qt::Orientation orientation, int role
                 switch (section) {
                   case 0: return QStringLiteral("Begin");
                   case 1: return QStringLiteral("End");
-                  case 2: return QStringLiteral("Actions");
+                  case 2: return QStringLiteral("Children");
                   case 3: return QStringLiteral("Artifact");
                   default: return QVariant();
                 }

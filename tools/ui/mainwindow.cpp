@@ -19,7 +19,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     populate();
     std::cout << "Populated" << std::endl;
     connect(ui->exuTreeView, &QTreeView::doubleClicked, this, &MainWindow::exuSelected);
-    connect(ui->exuTreeView->selectionModel(), &QItemSelectionModel::selectionChanged, _exuModel ,[this](const QItemSelection &selected, const QItemSelection &deselected)->void{
+    connect(ui->exuTreeView->selectionModel(), &QItemSelectionModel::selectionChanged, _exuModel ,[this](const QItemSelection& selected, const QItemSelection&)->void{
         const auto selectedIndexes = selected.indexes();
         if(selectedIndexes.size() == 0){
             return;
