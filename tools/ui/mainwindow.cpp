@@ -70,6 +70,8 @@ void MainWindow::exuSelected(const QModelIndex& index){
         nlohmann::json actions_properties = nlohmann::json::array();
         for(const auto& action: session->_actions){
             nlohmann::json properties = action->properties();
+            properties["time"] = std::format("{:%T %F}", action->time());
+            properties["open"] = action->operation();
             actions_properties.push_back(properties);
         }
         nlohmann::json artifact_properties = session->artifact()->properties();

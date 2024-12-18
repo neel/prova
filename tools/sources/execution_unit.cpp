@@ -14,7 +14,11 @@
 std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
     std::function<void (std::size_t, const prova::session::ptr&, std::uint8_t)> decorate_session;
     decorate_session = [&decorate_session, &stream](std::size_t pid, const prova::session::ptr& sess, std::uint8_t indent) -> void {
-        stream << std::format("group Group {} ", sess->_children.size()) << "\n";
+        if(sess->_children.empty()){
+            stream << std::format("group Lifetime {{unlabeled}}") << "\n";
+        } else {
+            stream << std::format("group Lifetime [{}] {{unlabeled}}", sess->_children.size()) << "\n";
+        }
         for(std::uint8_t i = 0; i != indent; ++i) stream << "  ";
         stream << std::format("P{} -> {}: <<acquire>> {} [{}]", pid, sess->artifact()->properties()["_key"].get<std::string>(), sess->at(0)->operation(), sess->at(0)->id()) << "\n";
         if(sess->_children.size() > 0){
@@ -28,7 +32,7 @@ std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
     };
 
     stream << "@startuml" << "\n";
-		stream << std::format("participant \"{}\" as P{}", _process->exe(), _process->pid()) << "\n";
+		stream << std::format("participant \"{}\" as P{} #lightblue", _process->exe(), _process->pid()) << "\n";
     for(const auto& a: _artifacts){
         std::string artifact_name;
         if(a->subtype() == "file"){
@@ -46,8 +50,9 @@ std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
         }
         stream << std::format("participant \"{}\" as {}", artifact_name, a->properties()["_key"].get<std::string>()) << "\n";
     }
-
+    stream << std::format("activate P{}", _process->pid()) << "\n";
 		decorate_session(_root_session->_process->pid(), _root_session, 0);
+    stream << std::format("deactivate P{}", _process->pid()) << "\n";
     stream << "@enduml" << "\n";
 
     return stream;
