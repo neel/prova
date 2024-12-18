@@ -49,6 +49,9 @@ private:
     nlohmann::json _properties;
 };
 
+void to_json(nlohmann::json& j, const action& a);
+void from_json(const nlohmann::json& j, action& a);
+
 
 }
 

@@ -14,7 +14,7 @@ qt_add_executable(prova-ui
     exumodel.h exumodel.cpp
 )
 
-target_link_libraries(prova-ui PRIVATE Qt6::Widgets Qt6::Svg Qt6::SvgWidgets prova-tools)
+target_link_libraries(prova-ui PRIVATE Qt6::Widgets Qt6::Svg Qt6::SvgWidgets prova-tools QJsonModelShared)
 
 set_target_properties(prova-ui PROPERTIES
     WIN32_EXECUTABLE ON

@@ -7,6 +7,7 @@ project(provenance)
 
 add_subdirectory(deps/azmq)
 add_subdirectory(deps/tash)
+add_subdirectory(deps/QJsonModel)
 add_subdirectory(server)
 
 # find_path(MLPACK_INCLUDE_DIRS "mlpack.hpp")

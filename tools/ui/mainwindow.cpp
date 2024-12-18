@@ -9,6 +9,7 @@
 #include <QSvgWidget>
 #include <QTextEdit>
 #include <QMdiSubWindow>
+#include <QJsonModel.hpp>
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -66,19 +67,28 @@ void MainWindow::exuSelected(const QModelIndex& index){
     } else {
         auto node = static_cast<ExUModel::tree_node*>(index.internalPointer());
         const prova::session* session = static_cast<const prova::session*>(node->data);
-        nlohmann::json all_action_properties = nlohmann::json::array();
+        nlohmann::json actions_properties = nlohmann::json::array();
         for(const auto& action: session->_actions){
             nlohmann::json properties = action->properties();
-            std::cout << properties << std::endl;
-            all_action_properties.push_back(properties);
+            actions_properties.push_back(properties);
         }
+        nlohmann::json artifact_properties = session->artifact()->properties();
+        artifact_properties.erase("_key");
+        nlohmann::json session_json = {
+            {"artifact", artifact_properties},
+            {"actions", actions_properties}
+        };
 
-        std::string json_str = all_action_properties.dump();
+        std::string json_str = session_json.dump();
+        std::cout << json_str << std::endl;
 
-        QTextEdit* properties_window = new QTextEdit(this);
-        properties_window->setText(QString::fromStdString(json_str));
+        QJsonModel* json_model = new QJsonModel;
+        QTreeView*  json_view  = new QTreeView;
+        json_view->setAlternatingRowColors(true);
+        json_view->setModel(json_model);
+        json_model->loadJson(json_str.c_str());
 
-        QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(properties_window);
+        QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(json_view);
         subWindow->setWindowTitle(QString::fromStdString(std::format("Properties")));
         subWindow->show();
     }
