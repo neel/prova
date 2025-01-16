@@ -220,3 +220,128 @@ class VarDecoder(nn.Module):
         y  = self._cross_co_attention(z1, z2)
         return y
     
+
+class StrEmbedder(nn.Module):
+    """
+    Hard-embeds all ASCII characters into a vector of 6 elements. Not Trainable
+    """
+    def __init__(self, D=6):
+        super(StrEmbedder, self).__init__()
+        self.D = D
+        self.embedding = nn.Embedding(num_embeddings=128, embedding_dim=D)  
+        self.char2idx = {}
+        self.idx2char = {}
+        codes = self.hardcodings()
+
+        weight_data = torch.zeros(128, D)
+        idx = 0
+        for ch, code in codes.items():
+            if idx < 128:
+                weight_data[idx] = torch.tensor(code, dtype=torch.float)
+                self.char2idx[ch] = idx
+                self.idx2char[idx] = ch
+                idx += 1
+        self.embedding.weight = nn.Parameter(weight_data, requires_grad=False)
+
+    def hardcodings(self):
+        char_to_encoding = {
+            ' ' : [0, 0, 0, 0, 0, 0],
+            '"' : [1, 1, 0, 0, 0, 0],
+            '(' : [1, 0, 1, 0, 0, 0],
+            '[' : [1, 0, 0, 1, 0, 0],
+            '{' : [1, 0, 0, 0, 1, 0],
+            '<' : [1, 0, 0, 0, 0, 1],
+            '\'': [1, 2, 0, 0, 0, 0],
+            ')' : [1, 0, 2, 0, 0, 0],
+            ']' : [1, 0, 0, 2, 0, 0],
+            '}' : [1, 0, 0, 0, 2, 0],
+            '>' : [1, 0, 0, 0, 0, 2],
+            0   : [1, 1, 1, 1, 1, 1], # Begin token
+            1   : [2, 2, 2, 2, 2, 2]  # End token
+        }
+        punctuation_symbols = "!#$%&*+,-./:;=?@\\^_`|~"
+        base_binary = 0  # Start counting from 0, this is arbitrary and ensures uniqueness
+        for i, sym in enumerate(punctuation_symbols):
+            binary = format(base_binary + i, '05b')  # Convert number to binary with 5 bits
+            encoding = [2] + [int(b) for b in binary]  # Prepend '2' for x_5
+            char_to_encoding[sym] = encoding
+        
+        for i in range(26):
+            char = chr(ord('a') + i)
+            # Create binary representation for character
+            binary = format(i+1, '05b')  # Convert number to binary with 5 bits
+            encoding = [0] + [int(b) for b in binary]  # Append the 0 at the start for x_5
+            char_to_encoding[char] = encoding
+        
+        for i in range(26):
+            char = chr(ord('A') + i)
+            lowercase_encoding = char_to_encoding[chr(ord('a') + i)]
+            encoding = [2*value for value in lowercase_encoding]
+            char_to_encoding[char] = encoding
+
+        char_to_encoding['0'] = [0, 1, 1, 0, 1, 1]
+        char_to_encoding['1'] = [0, 1, 1, 1, 0, 0]
+        char_to_encoding['2'] = [0, 1, 1, 1, 0, 1]
+        char_to_encoding['3'] = [0, 1, 1, 1, 1, 0]
+        char_to_encoding['4'] = [0, 1, 1, 1, 1, 1]
+        char_to_encoding['5'] = [0, 2, 2, 0, 2, 2]
+        char_to_encoding['6'] = [0, 2, 2, 2, 0, 0]
+        char_to_encoding['7'] = [0, 2, 2, 2, 0, 2]
+        char_to_encoding['8'] = [0, 2, 2, 2, 2, 0]
+        char_to_encoding['9'] = [0, 2, 2, 2, 2, 2]
+
+        return char_to_encoding
+
+    def forward(self, txt: str):
+        x = self.encode_chars(txt)
+        x = self.embedding(x)
+        return x
+    
+    def encode_chars(self, txt: str):
+        indices = []
+        for ch in txt:
+            if ch in self.char2idx:
+                indices.append(self.char2idx[ch])
+            else:
+                # Fallback (could be 0, or anything you prefer)
+                indices.append(0)
+        
+        indices = torch.tensor(indices, dtype=torch.long)
+        return indices
+
+    def decode_str(self, x):
+        decoded = []
+        for z in x:
+            dist = torch.norm(self.embedding.weight - z, dim=1)
+            idx  = torch.argmin(dist)
+            decoded.append(idx.item())
+
+        chars = [self.idx2char[i] for i in decoded]
+        str = "".join(chars)
+        return str
+    
+class VarCharEncoder(nn.Module):
+    def __init__(self, num_heads=3, d_q, d_k, embedding_dim):
+        super(VarCharEncoder, self).__init__()
+        self.embedder    = StrEmbedder()  
+        self.var_encoder = VarEncoder(num_heads, 6, d_q, d_k, num_heads)
+        
+    def forward(self, input, output = None):
+        x = self.embedder(input)
+        z = self.var_encoder(x)
+        if output is None:
+            return z
+        else:
+            return z, self.embedding(output)
+        
+class VarCharDecoder(nn.Module):
+    def __init__(self, embedding_dim, expanded_dim, dictionary_length, u):
+        super(VarCharDecoder, self).__init__()
+
+        self.embedder    = StrEmbedder()  
+        self.var_decoder = VarDecoder(embedding_dim, expanded_dim, dictionary_length, u)
+
+    def forward(self, z1, z2):
+        y = self.var_decoder(z1, z2)
+        return torch.matmul(y, self.embedder.embedding.weight)
+    
