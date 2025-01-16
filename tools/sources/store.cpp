@@ -7,6 +7,8 @@
 #include <tash/arango.h>
 #include "prova/execution_unit.h"
 #include <boost/process.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 
 bool prova::store::insert(prova::session::ptr session){
 	return _sessions.insert(session).second;
@@ -41,6 +43,8 @@ void prova::store::fetch(){
         }
     )AQL";
     tash::cursor cursor = spade.aql(aql);
+
+    nlohmann::json events = nlohmann::json::array();
 
     // { parse json and make the objects
     for(const nlohmann::json& record: cursor.results()){
@@ -245,6 +249,34 @@ std::ostream& prova::store::uml(std::ostream& stream) const{
 
     return stream;
 }
+
+std::ostream& prova::store::dataset(std::ostream& stream) const{
+    nlohmann::json units = nlohmann::json::array();
+
+    std::function<void (std::size_t, const prova::session::ptr&, std::uint8_t)> decorate_session;
+    decorate_session = [&decorate_session, &stream](std::size_t pid, const prova::session::ptr& sess, std::uint8_t indent) -> void {
+        for(std::uint8_t i = 0; i != indent; ++i) stream << "  ";
+        stream << std::format("P{} -> {}: <<acquire>> {} [{}]", pid, sess->artifact()->properties()["_key"].get<std::string>(), sess->at(0)->operation(), sess->at(0)->id()) << "\n";
+        if(sess->_children.size() > 0){
+            for(const auto& sess_child: sess->_children){
+                decorate_session(pid, sess_child, indent +1);
+            }
+        }
+        for(std::uint8_t i = 0; i != indent; ++i) stream << "  ";
+        stream << std::format("P{} --> {}: <<release>> {} [{}]", pid, sess->artifact()->properties()["_key"].get<std::string>(), sess->at(1)->operation(), sess->at(1)->id()) << "\n";
+    };
+    auto& index_by_start = index_by_first_id();
+    for (auto it = index_by_start.begin(); it != index_by_start.end(); ++it) {
+        prova::session::ptr sess = *it;
+        if(!sess->_parent && sess->_children.size() > 0){
+            stream << "group " << "\n";
+            decorate_session(sess->_process->pid(), sess, 0);
+            stream << "end " << "\n";
+        }
+    }
+    return stream;
+}
+
 
 void prova::store::extract(std::vector<std::shared_ptr<prova::execution_unit>>& units){
     std::function<void (const prova::session::ptr&, std::shared_ptr<prova::execution_unit>&)> extract_artifacts;

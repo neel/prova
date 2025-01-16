@@ -19,9 +19,9 @@ struct action;
 struct artifact;
 
 struct session{
-    using ptr = std::shared_ptr<session>;
-    using time_type = std::chrono::system_clock::time_point;
-		using action_container = std::vector<std::shared_ptr<prova::action>>;
+    using ptr               = std::shared_ptr<session>;
+    using time_type         = std::chrono::system_clock::time_point;
+		using action_container  = std::vector<std::shared_ptr<prova::action>>;
 
     ptr                              _parent;
     std::shared_ptr<prova::process>  _process;
@@ -45,6 +45,8 @@ struct session{
     std::uint32_t last_id() const;
 
     bool completely_overlaps(ptr other) const;
+
+    nlohmann::json& flatten(nlohmann::json& json) const;
 };
 
 }

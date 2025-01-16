@@ -13,15 +13,16 @@ set(SEQUENCE_SOURCES
 	sources/process.cpp
 	sources/session.cpp
 	sources/store.cpp
+	# sources/string_indexer.cpp
 	sources/execution_unit.cpp
 )
 
 add_library(prova-tools ${SEQUENCE_SOURCES})
 set_property(TARGET prova-tools PROPERTY CXX_STANDARD 20)
-target_link_libraries(prova-tools ${BOOST_LIBRARIES} nlohmann_json::nlohmann_json tash)
+target_link_libraries(prova-tools ${BOOST_LIBRARIES} nlohmann_json::nlohmann_json tash noch-lib)
 
 add_executable(sequence ${SEQUENCE_SOURCES} sequence.cpp)
 set_property(TARGET sequence PROPERTY CXX_STANDARD 20)
-target_link_libraries(sequence ${BOOST_LIBRARIES} nlohmann_json::nlohmann_json tash)
+target_link_libraries(sequence ${BOOST_LIBRARIES} nlohmann_json::nlohmann_json tash noch-lib)
 
 add_subdirectory(ui)

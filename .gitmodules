@@ -7,3 +7,6 @@
 [submodule "deps/QJsonModel"]
 	path = deps/QJsonModel
 	url = https://github.com/dridk/QJsonModel.git
+[submodule "deps/noch"]
+	path = deps/noch
+	url = https://github.com/neel/noch.git

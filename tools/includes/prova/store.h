@@ -14,7 +14,6 @@
 #include <boost/multi_index/identity.hpp>
 #include <boost/multi_index/mem_fun.hpp>
 
-
 #include "prova/process.h"
 #include "prova/session.h"
 #include "prova/artifact.h"
@@ -22,6 +21,12 @@
 namespace prova{
 
 struct execution_unit;
+
+struct event{
+    enum class type{
+
+    };
+};
 
 struct store{
     struct by_first_id {};
@@ -50,8 +55,6 @@ struct store{
             >
         >
     >;
-
-    session_set _sessions;
 
     inline const boost::multi_index::index<session_set, by_first_id>::type&  index_by_first_id() const { return _sessions.get<by_first_id>();  }
     inline const boost::multi_index::index<session_set, by_last_id>::type& index_by_last_id() const { return _sessions.get<by_last_id>(); }
@@ -82,11 +85,14 @@ struct store{
 
 		void fetch();
     std::ostream& uml(std::ostream& stream) const;
+    std::ostream& dataset(std::ostream& stream) const;
     void extract(std::vector<std::shared_ptr<prova::execution_unit>>& units);
     std::size_t extract_all();
 
-		std::map<std::size_t, prova::process::ptr> _processes;
-    std::map<std::string, prova::artifact::ptr> _artifacts;
+    private:
+        session_set                                 _sessions;
+        std::map<std::size_t, prova::process::ptr>  _processes;
+        std::map<std::string, prova::artifact::ptr> _artifacts;
 };
 
 }

@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+# set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
 project(provenance)
 
 add_subdirectory(deps/azmq)
 add_subdirectory(deps/tash)
 add_subdirectory(deps/QJsonModel)
+add_subdirectory(deps/noch)
 add_subdirectory(server)
 
 # find_path(MLPACK_INCLUDE_DIRS "mlpack.hpp")

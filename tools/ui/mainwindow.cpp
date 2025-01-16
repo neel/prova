@@ -10,6 +10,7 @@
 #include <QTextEdit>
 #include <QMdiSubWindow>
 #include <QJsonModel.hpp>
+#include <fstream>
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -46,6 +47,22 @@ void MainWindow::populate(){
         _exuModel->add_unit(unit);
     }
     std::cout << "Fetched " << exu_units.size() << std::endl;
+
+    std::size_t i = 0;
+    for(const auto& unit: exu_units){
+        nlohmann::json dataset = nlohmann::json::array();
+        unit->root()->flatten(dataset);
+        std::string json_str = dataset.dump(4);
+        std::string out_path = std::format("{}.syscalls.json", i++);
+        std::ofstream outfile(out_path.c_str());
+        if (outfile.is_open()) {
+            outfile << json_str;
+            outfile.close();
+            std::cout << "Data successfully written to " << out_path << std::endl;
+        } else {
+            std::cerr << "Unable to open file for writing." << std::endl;
+        }
+    }
 }
 
 void MainWindow::exuSelected(const QModelIndex& index){
@@ -71,7 +88,7 @@ void MainWindow::exuSelected(const QModelIndex& index){
         for(const auto& action: session->_actions){
             nlohmann::json properties = action->properties();
             properties["time"] = std::format("{:%T %F}", action->time());
-            properties["open"] = action->operation();
+            properties["operation"] = action->operation();
             actions_properties.push_back(properties);
         }
         nlohmann::json artifact_properties = session->artifact()->properties();
