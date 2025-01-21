@@ -7,12 +7,12 @@ class NormalizedProjector(nn.Module):
     def __init__(self):
         super(NormalizedProjector, self).__init__()
     def forward(self, x, w):
-        assert x.shape[-2] == w.shape[-1], "The dimensions of x and w are incompatible for matrix multiplication."
+        # assert x.shape[-2] == w.shape[-1], "The dimensions of x and w are incompatible for matrix multiplication."
 
         scale = torch.sqrt(torch.tensor(w.shape[-2], dtype=torch.float32))
-        
+
         x = torch.matmul(x, w)
-        x = x / scale
+        # x = x / scale
         x = F.softmax(x, dim=1)
         return x
 
@@ -22,7 +22,7 @@ class GenericAttention(nn.Module):
         self.projector = NormalizedProjector()
 
     def forward(self, Q, K):
-        assert Q.shape[1] == K.shape[1], "The dimensions of Q and K are incompatible in the second dimension."
+        # assert Q.shape[1] == K.shape[1], "The dimensions of Q and K are incompatible in the second dimension."
 
         Kt = K.transpose(-2, -1)
         return self.projector(Q, Kt)
@@ -43,9 +43,13 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
         self.D = D 
         self.u = u 
+        
         self._attention = GenericAttention()
         self._phi = nn.Parameter(torch.zeros(D, u))
         self._psi = nn.Parameter(torch.zeros(D, u))
+
+        nn.init.xavier_uniform_(self._phi)
+        nn.init.xavier_uniform_(self._psi)
 
     def forward(self, x):
         assert x.shape[1] == self.D, ("X must be of the shape [L, {D}] for some L, but it is of the shape [{L}, {D}]").format(L=x.shape[0], D=self.D) 
@@ -64,6 +68,9 @@ class CoAttention(nn.Module):
         self._phi = nn.Parameter(torch.zeros(D, u))
         self._psi = nn.Parameter(torch.zeros(D, v))
 
+        nn.init.xavier_uniform_(self._phi)
+        nn.init.xavier_uniform_(self._psi)
+
     def forward(self, x):
         assert x.shape[-1] == self.D, ("X must be of the shape [L, {D}] for some L, but it is of the shape [{L}, {D}]").format(L=x.shape[0], D=self.D) 
 
@@ -80,6 +87,9 @@ class DualHeadCondenser(nn.Module):
 
         self._omega = nn.Parameter(torch.zeros(v, eta))
         self._zeta  = nn.Parameter(torch.zeros(v, 1))
+
+        nn.init.xavier_uniform_(self._omega)
+        nn.init.xavier_uniform_(self._zeta)
 
     def forward(self, h1, h2):
         assert h1.shape[0] == h2.shape[0], "Both h1 and h2 must have same size in the first dimension"
@@ -102,15 +112,17 @@ class FeatureCrossover(nn.Module):
         self._phi = nn.Parameter(torch.zeros(zeta, u))
         self._psi = nn.Parameter(torch.zeros(eta, u))
 
-        self._projector = NormalizedProjector()
+        nn.init.xavier_uniform_(self._phi)
+        nn.init.xavier_uniform_(self._psi)
+
         self._attention = GenericAttention()
 
     def forward(self, m1, m2):
-        assert m1.shape == [self.eta, self.zeta], "Incompatible m1, it must be of the shape [{}, {}]".format(self.eta, self.zeta)
-        assert m2.shape == [self.eta, self.zeta], "Incompatible m2, it must be of the shape [{}, {}]".format(self.eta, self.zeta)
+        # assert m1.shape == [self.eta, self.zeta], "Incompatible m1, it must be of the shape [{}, {}]".format(self.eta, self.zeta)
+        # assert m2.shape == [self.eta, self.zeta], "Incompatible m2, it must be of the shape [{}, {}]".format(self.eta, self.zeta)
 
-        hm1 = self._projector(m1, self._phi)
-        hm2 = self._projector(torch.transpose(m2, 0, 1), self._psi)
+        hm1 = torch.matmul(m1, self._phi)
+        hm2 = torch.matmul(m2.transpose(-2, -1), self._psi)
         return self._attention(hm1, hm2)
     
 class CrossCrossoverCovarianceAttention(nn.Module):
@@ -132,9 +144,17 @@ class CrossCrossoverCovarianceAttention(nn.Module):
         self._crossover_k  = FeatureCrossover(eta, zeta, u)
         self._co_attention = GenericCoAttention()
 
+
+        nn.init.xavier_uniform_(self._wq)
+        nn.init.xavier_uniform_(self._wk)
+        nn.init.xavier_uniform_(self._phi_q)
+        nn.init.xavier_uniform_(self._phi_k)
+        nn.init.xavier_uniform_(self._psi_q)
+        nn.init.xavier_uniform_(self._psi_k)
+
     def forward(self, z1, z2):
-        assert z1.shape == [self.eta, self.tau], "Incompatible m1, it must be of the shape [{}, {}]".format(self.eta, self.tau)
-        assert z2.shape == [self.eta, self.tau], "Incompatible m2, it must be of the shape [{}, {}]".format(self.eta, self.tau)
+        # assert z1.shape[1:] == [self.eta, self.tau], "Incompatible z1, it must be of the shape [{}, {}]".format(self.eta, self.tau)
+        # assert z2.shape[1:] == [self.eta, self.tau], "Incompatible z2, it must be of the shape [{}, {}]".format(self.eta, self.tau)
 
         Qp = self._crossover_q(
             torch.matmul(z1, self._wq),
@@ -144,9 +164,11 @@ class CrossCrossoverCovarianceAttention(nn.Module):
             torch.matmul(z1, self._wk),
             torch.matmul(z2, self._wk)
         )
+        
         A = self._co_attention(Qp, Kp)
         Ar = F.relu(A)
-        Zg = F.gumbel_softmax(Ar, 0.08, dim=1, hard=False)
+        # Zg = F.gumbel_softmax(Ar, 0.2, dim=1, hard=False)
+        Zg = F.softmax(Ar, dim=1)
         return Zg
     
 class Enricher(nn.Module):
@@ -158,11 +180,16 @@ class Enricher(nn.Module):
         self._s    = nn.Parameter(torch.zeros(1, tau))
         self._mu   = nn.Parameter(torch.zeros(2*tau, tau))
 
+        nn.init.xavier_uniform_(self._beta)
+        nn.init.xavier_uniform_(self._s)
+        nn.init.xavier_uniform_(self._mu)
+
     def forward(self, z):
         z_beta = torch.matmul(z, self._beta)
         z_s    = torch.matmul(z, self._s)
         z_s    = F.softmax(z_s, dim=1)
-        cat    = torch.cat([z_beta, F.relu(z_s)], dim=1)
+        cat    = torch.cat([z_beta, F.relu(z_s)], dim=-1)
+
         return torch.matmul(cat, self._mu)
 
 
@@ -251,7 +278,7 @@ class StrEmbedder(nn.Module):
 
     def hardcodings(self):
         char_to_encoding = {
-            ' ' : [0, 0, 0, 0, 0, 0],
+            0   : [0, 0, 0, 0, 0, 0], # Begin token
             '"' : [1, 1, 0, 0, 0, 0],
             '(' : [1, 0, 1, 0, 0, 0],
             '[' : [1, 0, 0, 1, 0, 0],
@@ -262,7 +289,7 @@ class StrEmbedder(nn.Module):
             ']' : [1, 0, 0, 2, 0, 0],
             '}' : [1, 0, 0, 0, 2, 0],
             '>' : [1, 0, 0, 0, 0, 2],
-            0   : [1, 1, 1, 1, 1, 1], # Begin token
+            ' ' : [1, 1, 1, 1, 1, 1], 
             1   : [2, 2, 2, 2, 2, 2]  # End token
         }
         punctuation_symbols = "!#$%&*+,-./:;=?@\\^_`|~"
