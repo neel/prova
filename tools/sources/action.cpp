@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: 2024 Sunanda Bose <sunanda@simula.no>
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <set>
+#include <string>
 #include "prova/action.h"
+#include <boost/algorithm/string.hpp>
 
 void prova::action::parse_time(const std::string& ts_str) {
 	std::size_t dot_pos = ts_str.find('.');
@@ -47,3 +50,4 @@ void prova::to_json(nlohmann::json& j, const prova::action& a) {
 void prova::from_json(const nlohmann::json& j, prova::action& a) {
 	a.deserialize(j);
 }
+

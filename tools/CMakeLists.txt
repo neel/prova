@@ -15,6 +15,7 @@ set(SEQUENCE_SOURCES
 	sources/store.cpp
 	# sources/string_indexer.cpp
 	sources/execution_unit.cpp
+	sources/distance.cpp
 )
 
 add_library(prova-tools ${SEQUENCE_SOURCES})

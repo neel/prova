@@ -3,20 +3,9 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split
 import numpy as np
 import torch.optim as optim
+from colorama import Fore, Back, Style
+
 from varchar import *
-
-e = StrEmbedder()
-
-# batch_strs = ["Hello", "World", "Test", "Example"]
-
-# batch_embeddings = [e(b) for b in batch_strs]
-
-# max_length = max(tensor.shape[0] for tensor in batch_embeddings)
-# padded_batch = torch.stack([F.pad(tensor, (0, 0, 0, max_length - tensor.shape[0])) for tensor in batch_embeddings])
-
-# batch = padded_batch
-
-# print(batch.shape)
 
 class LinearStrDataset(Dataset):
     def __init__(self, filepath):
@@ -42,10 +31,19 @@ def PaddedCollator(e: StrEmbedder):
     return collate_batch
 
 class FixedAutoEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, dq=32, dk=32, expanded_dim=4, embedding_dim=128, u=32, num_heads=3):
         super(FixedAutoEncoder, self).__init__()
-        self.encoder = VarCharEncoder(d_q=32, d_k=32, embedding_dim=128, num_heads=3)
-        self.decoder = VarCharDecoder(embedding_dim=128, expanded_dim=4, dictionary_length=128, u=32)
+        self.encoder = VarCharEncoder(d_q=dq, d_k=dk, embedding_dim=embedding_dim, num_heads=num_heads)
+        self.decoder = VarCharDecoder(embedding_dim=embedding_dim, expanded_dim=expanded_dim, dictionary_length=97, u=u)
+
+        encoder_parameters = sum(p.numel() for p in self.encoder.parameters() if p.requires_grad)
+        decoder_parameters = sum(p.numel() for p in self.decoder.parameters() if p.requires_grad)
+
+        print("Parameters: ", encoder_parameters, decoder_parameters)
+
+    def randomize(self):
+        self.encoder.randomize()
+        self.decoder.randomize()
 
     def forward(self, x):
         encoded = self.encoder(x)
@@ -60,6 +58,8 @@ class VarCharModelRunner:
         dataset         = LinearStrDataset(path)
         collator        = PaddedCollator(embedder)
         self.model      = autoencoder
+
+        self.model.randomize()
 
         train_size = int(len(dataset) * train_ratio)
         test_size  = len(dataset) - train_size
@@ -82,12 +82,16 @@ class VarCharModelRunner:
         self.model.load_state_dict(torch.load(path))
 
     def test(self, str):
-        # test with a single string
-        pass
+        embedder = StrEmbedder()
+        ascii = embedder(str)
+        output = self.model(ascii.unsqueeze(0))  
+        out_str = embedder.decode_str(output)
+        return out_str
 
     def train(self, num_epochs):
-        lossf     = nn.L1Loss()  
-        optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        embedder  = StrEmbedder()
+        lossf     = nn.MSELoss()  
+        optimizer = optim.SGD(self.model.parameters(), lr=0.001)
 
         least_train_loss = math.inf 
         least_test_loss  = math.inf
@@ -137,20 +141,37 @@ class VarCharModelRunner:
             if stagnant > 200:
                 break
 
+            if train_loss_change < 0:
+                print(Fore.GREEN + f'Epoch {epoch+1}, Avg Train Loss: {avg_train_loss:.10f}, Train Change: {train_loss_change:.10f}, stagnant: {stagnant}, Avg Test Loss: {avg_test_loss:.10f}, Test Change: {test_loss_change:.10f}')
+            elif test_loss_change < 0:
+                print(Fore.BLUE + f'Epoch {epoch+1}, Avg Train Loss: {avg_train_loss:.10f}, Train Change: {train_loss_change:.10f}, stagnant: {stagnant}, Avg Test Loss: {avg_test_loss:.10f}, Test Change: {test_loss_change:.10f}')
+            else:
+                print(Fore.RED + f'Epoch {epoch+1}, Avg Train Loss: {avg_train_loss:.10f}, Train Change: {train_loss_change:.10f}, stagnant: {stagnant}, Avg Test Loss: {avg_test_loss:.10f}, Test Change: {test_loss_change:.10f}')
 
-            print(f'Epoch {epoch+1}, Avg Train Loss: {avg_train_loss:.10f}, Train Change: {train_loss_change:.10f}, stagnant: {stagnant}, Avg Test Loss: {avg_test_loss:.10f}, Test Change: {test_loss_change:.10f}')
+    print(Style.RESET_ALL)
 
-autoencoder = FixedAutoEncoder()
+autoencoder = FixedAutoEncoder(dq=65, dk=34, expanded_dim=16, embedding_dim=128, u=64, num_heads=8)
 trainer = VarCharModelRunner(autoencoder, 'Apache_2k.log')
-trainer.train(100)
+# trainer.load("wp45linear-l0.4401.pth")
+trainer.train(1000)
+output = trainer.test("[Sun Dec 04 04:51:18 2005] [error] mod_jk child workerEnv in error state 6")
+print(output)
 
-# e = VarCharEncoder(d_q=32, d_k=32, embedding_dim=128, num_heads=3)
-# z = e(batch)
+# e = StrEmbedder()
+# batch_strs       = ["Hello", "World", "Test", "Example"]
+# batch_embeddings = [e(b) for b in batch_strs]
+# max_length       = max(tensor.shape[0] for tensor in batch_embeddings)
+# padded_batch     = torch.stack([F.pad(tensor, (0, 0, 0, max_length - tensor.shape[0])) for tensor in batch_embeddings])
+# expected_output  = torch.stack([F.pad(tensor, (0, 0, 0, e.num_embeddings - tensor.shape[0])) for tensor in batch_embeddings])
 
+# print("padded batch", padded_batch.shape)
+# ven = VarCharEncoder(d_q=32, d_k=32, embedding_dim=128, num_heads=3)
+# z = ven(padded_batch)
+# print("z", z.shape)
 # z = z.unsqueeze(-1)
-# print(z.shape)
-
-# d = VarCharDecoder(embedding_dim=128, expanded_dim=4, dictionary_length=128, u=32)
-# s = d(z, z)
-
-# print(s.shape)
+# vde = VarCharDecoder(embedding_dim=128, expanded_dim=4, dictionary_length=97, u=32)
+# s = vde(z, z)
+# print("output", s.shape)
+# print("expected output", expected_output.shape)
+# print(padded_batch[0])
+# print(expected_output[0])

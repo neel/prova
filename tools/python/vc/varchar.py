@@ -3,40 +3,47 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math 
 
-class NormalizedProjector(nn.Module):
-    def __init__(self):
-        super(NormalizedProjector, self).__init__()
-    def forward(self, x, w):
-        # assert x.shape[-2] == w.shape[-1], "The dimensions of x and w are incompatible for matrix multiplication."
+# class NormalizedProjector(nn.Module):
+#     def __init__(self):
+#         super(NormalizedProjector, self).__init__()
+#     def forward(self, x, w):
+#         # assert x.shape[-2] == w.shape[-1], "The dimensions of x and w are incompatible for matrix multiplication."
 
-        scale = torch.sqrt(torch.tensor(w.shape[-2], dtype=torch.float32))
+#         scale = torch.sqrt(torch.tensor(w.shape[-2], dtype=torch.float32))
 
-        x = torch.matmul(x, w)
-        # x = x / scale
-        x = F.softmax(x, dim=1)
-        return x
+#         x = torch.matmul(x, w)
+#         x = x / scale
+#         return x
 
 class GenericAttention(nn.Module):
     def __init__(self):
         super(GenericAttention, self).__init__()
-        self.projector = NormalizedProjector()
+        # self.projector = NormalizedProjector()
 
     def forward(self, Q, K):
         # assert Q.shape[1] == K.shape[1], "The dimensions of Q and K are incompatible in the second dimension."
 
+        scale = torch.sqrt(torch.tensor(Q.shape[-1], dtype=torch.float32))
+
         Kt = K.transpose(-2, -1)
-        return self.projector(Q, Kt)
+        pr = torch.matmul(Q, Kt) / scale
+        return pr
+        return F.softmax(pr, dim=1)
     
 class GenericCoAttention(nn.Module):
     def __init__(self):
         super(GenericCoAttention, self).__init__()
-        self.projector = NormalizedProjector()
+        # self.projector = NormalizedProjector()
 
     def forward(self, Q, K):
         assert Q.shape[0] == K.shape[0], "The dimensions of Q and K are incompatible in the first dimension."
 
+        scale = torch.sqrt(torch.tensor(K.shape[-2], dtype=torch.float32))
+
         Qt = Q.transpose(-2, -1)
-        return self.projector(Qt, K)
+        pr = torch.matmul(Qt, K) / scale
+        return pr
+        return F.softmax(pr, dim=1)
     
 class Attention(nn.Module):
     def __init__(self, D, u):
@@ -48,6 +55,7 @@ class Attention(nn.Module):
         self._phi = nn.Parameter(torch.zeros(D, u))
         self._psi = nn.Parameter(torch.zeros(D, u))
 
+    def randomize(self):
         nn.init.xavier_uniform_(self._phi)
         nn.init.xavier_uniform_(self._psi)
 
@@ -68,6 +76,7 @@ class CoAttention(nn.Module):
         self._phi = nn.Parameter(torch.zeros(D, u))
         self._psi = nn.Parameter(torch.zeros(D, v))
 
+    def randomize(self):
         nn.init.xavier_uniform_(self._phi)
         nn.init.xavier_uniform_(self._psi)
 
@@ -88,13 +97,14 @@ class DualHeadCondenser(nn.Module):
         self._omega = nn.Parameter(torch.zeros(v, eta))
         self._zeta  = nn.Parameter(torch.zeros(v, 1))
 
+    def randomize(self):
         nn.init.xavier_uniform_(self._omega)
         nn.init.xavier_uniform_(self._zeta)
 
     def forward(self, h1, h2):
-        assert h1.shape[0] == h2.shape[0], "Both h1 and h2 must have same size in the first dimension"
-        assert h1.shape[1] == self.v, "Incompatible h1, it must be of the shape [_, {}]".format(self.v)
-        assert h2.shape[1] == self.v, "Incompatible h2, it must be of the shape [_, {}]".format(self.v)
+        assert h1.shape[-2] == h2.shape[-2], "Both h1 and h2 must have same size in the first dimension"
+        assert h1.shape[-1] == self.v, "Incompatible h1, it must be of the shape [_, {}]".format(self.v)
+        assert h2.shape[-1] == self.v, "Incompatible h2, it must be of the shape [_, {}]".format(self.v)
 
         h1 = torch.matmul(h1, self._omega)
         h2 = torch.matmul(h2, self._zeta)
@@ -112,10 +122,11 @@ class FeatureCrossover(nn.Module):
         self._phi = nn.Parameter(torch.zeros(zeta, u))
         self._psi = nn.Parameter(torch.zeros(eta, u))
 
+        self._attention = GenericAttention()
+
+    def randomize(self):
         nn.init.xavier_uniform_(self._phi)
         nn.init.xavier_uniform_(self._psi)
-
-        self._attention = GenericAttention()
 
     def forward(self, m1, m2):
         # assert m1.shape == [self.eta, self.zeta], "Incompatible m1, it must be of the shape [{}, {}]".format(self.eta, self.zeta)
@@ -144,7 +155,7 @@ class CrossCrossoverCovarianceAttention(nn.Module):
         self._crossover_k  = FeatureCrossover(eta, zeta, u)
         self._co_attention = GenericCoAttention()
 
-
+    def randomize(self):
         nn.init.xavier_uniform_(self._wq)
         nn.init.xavier_uniform_(self._wk)
         nn.init.xavier_uniform_(self._phi_q)
@@ -167,8 +178,8 @@ class CrossCrossoverCovarianceAttention(nn.Module):
         
         A = self._co_attention(Qp, Kp)
         Ar = F.relu(A)
-        # Zg = F.gumbel_softmax(Ar, 0.2, dim=1, hard=False)
-        Zg = F.softmax(Ar, dim=1)
+        Zg = F.gumbel_softmax(Ar, 0.5, dim=1, hard=False)
+        # Zg = F.softmax(Ar, dim=1)
         return Zg
     
 class Enricher(nn.Module):
@@ -180,6 +191,7 @@ class Enricher(nn.Module):
         self._s    = nn.Parameter(torch.zeros(1, tau))
         self._mu   = nn.Parameter(torch.zeros(2*tau, tau))
 
+    def randomize(self):
         nn.init.xavier_uniform_(self._beta)
         nn.init.xavier_uniform_(self._s)
         nn.init.xavier_uniform_(self._mu)
@@ -223,13 +235,25 @@ class VarEncoder(nn.Module):
         self._attentions  = nn.ModuleList([CoAttention(D, d_q, d_k) for _ in range(num_heads)])
         self._condensers  = nn.ModuleList([DualHeadCondenser(embedding_dim, d_k) for _ in range(num_heads-1)])
 
+    def randomize(self):
+        for a in self._attentions:
+            a.randomize()
+
+        for c in self._condensers:
+            c.randomize()
+
     def forward(self, x):
         assert x.shape[-1] == self.D
         
         x = self._pos_encoder(x)
         a = [att(x) for att in self._attentions]
-        h = [self._condensers[i](a[i], a[i+1]) for i in range(self.num_heads - 1)]
-        H = torch.mean(torch.stack(h), dim=0)
+        condensed = []
+        for i in range(self.num_heads - 1):
+            if i % 2 == 0:
+                condensed.append(self._condensers[i](a[i], a[i+1]))
+
+        h = torch.stack(condensed)
+        H = torch.mean(h, dim=0)
         return H
 
 class VarDecoder(nn.Module):
@@ -242,6 +266,11 @@ class VarDecoder(nn.Module):
         self._enricher_main = Enricher(expanded_dim)
         self._enricher_sub  = Enricher(expanded_dim)
         self._cross_co_attention = CrossCrossoverCovarianceAttention(eta=embedding_dim, zeta=dictionary_length, tau=expanded_dim, u=u)
+
+    def randomize(self):
+        self._enricher_main.randomize()
+        self._enricher_sub.randomize()
+        self._cross_co_attention.randomize()
 
     def forward(self, z1, z2):
         assert z1.shape == z2.shape
@@ -260,21 +289,22 @@ class StrEmbedder(nn.Module):
     """
     def __init__(self, D=6):
         super(StrEmbedder, self).__init__()
+        self.num_embeddings = 97
         self.D = D
-        self.embedding = nn.Embedding(num_embeddings=128, embedding_dim=D)  
+        self.embedding = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=D)  
         self.char2idx = {}
         self.idx2char = {}
         codes = self.hardcodings()
 
-        weight_data = torch.zeros(128, D)
+        weight_data = torch.zeros(self.num_embeddings, D)
         idx = 0
         for ch, code in codes.items():
-            if idx < 128:
+            if idx < self.num_embeddings:
                 weight_data[idx] = torch.tensor(code, dtype=torch.float)
                 self.char2idx[ch] = idx
                 self.idx2char[idx] = ch
                 idx += 1
-        self.embedding.weight = nn.Parameter(weight_data, requires_grad=False)
+        self.embedding.weight = nn.Parameter(weight_data, requires_grad=True) # set to false to use fixed embeddings
 
     def hardcodings(self):
         char_to_encoding = {
@@ -344,20 +374,23 @@ class StrEmbedder(nn.Module):
 
     def decode_str(self, x):
         decoded = []
-        for z in x:
+        for z in x.squeeze(0):
             dist = torch.norm(self.embedding.weight - z, dim=1)
             idx  = torch.argmin(dist)
             decoded.append(idx.item())
 
         chars = [self.idx2char[i] for i in decoded]
-        str = "".join(chars)
-        return str
+        ostr = "".join([c if isinstance(c, str) else '' for c in chars])
+        return ostr
     
 class VarCharEncoder(nn.Module):
     def __init__(self, d_q, d_k, embedding_dim=128, num_heads=3):
         super(VarCharEncoder, self).__init__()
         self.var_encoder = VarEncoder(D=6, d_q=d_q, d_k=d_k, embedding_dim=embedding_dim, num_heads=num_heads)
         
+    def randomize(self):
+        self.var_encoder.randomize()
+
     def forward(self, input, output = None):
         z = self.var_encoder(input).squeeze(-1)
         if output is None:
@@ -371,6 +404,9 @@ class VarCharDecoder(nn.Module):
 
         self.embedder    = StrEmbedder()  
         self.var_decoder = VarDecoder(embedding_dim, expanded_dim, dictionary_length, u)
+
+    def randomize(self):
+        self.var_decoder.randomize()
 
     def forward(self, z1, z2):
         y = self.var_decoder(z1, z2)

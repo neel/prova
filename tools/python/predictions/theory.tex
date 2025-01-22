@@ -223,11 +223,9 @@ Given input $x \in \mathbb{R}^{L \times D}$ and trainable unknowns $\phi, \psi$,
 		\begin{aligned}
 		\mathcal{A}(Q,K) \coloneqq&  \sigma\Bigg(\frac{Q K^{T}}{\sqrt{u}}\Bigg) \in \mathbb{R}^{L \times L} \\
 		& \text{where} \;  Q \in \mathbb{R}^{L \times u}, K \in \mathbb{R}^{L \times u}  \\
-		=& \mathcal{H}(Q)\vert_{K^{T}} \\ 
 		\\
 		\mathcal{A}^{c}(Q,K) \coloneqq& \sigma\Bigg(\frac{Q^T K}{\sqrt{L}}\Bigg) \in \mathbb{R}^{u \times v} \\
 		& \text{where} \;  Q \in \mathbb{R}^{L \times u}, K \in \mathbb{R}^{L \times v} \\
-		=& \mathcal{H}(Q^{T})\vert_{K} \\
 		\\
 		\end{aligned}
 	\end{eqnarray*}
@@ -237,8 +235,6 @@ Given input $x \in \mathbb{R}^{L \times D}$ and trainable unknowns $\phi, \psi$,
 		\begin{aligned}
 		\widehat{\mathcal{A}}(x)\vert_{\phi, \psi} \coloneqq& \mathcal{A}(x\phi, x\psi) \in \mathbb{R}^{L \times L} \\
 		& \text{where} \; \phi \in \mathbb{R}^{D\times u}, \psi \in \mathbb{R}^{D \times u} \\
-		\\
-		\\
 		\\
 		\\
 		\\
@@ -262,8 +258,8 @@ Given input $x \in \mathbb{R}^{L \times D}$ and trainable unknowns $\phi, \psi$,
 Given $m_{1}, m_{2} \in \mathbb{R}^{\eta \times \zeta}$, $\phi\in \mathbb{R}^{\zeta\times u}$, $\psi \in \mathbb{R}^{\eta\times u}$  \textbf{Feature Crossover Covariance (FCC)} function $\Gamma$
 \begin{eqnarray*}
 	\begin{aligned}
-	\Gamma(m_{1}, m_{2})\vert_{\phi, \psi} \coloneqq& \sigma\Bigg(\frac{\mathcal{H}(m_{1})\vert_{\phi} \Big(\mathcal{H}(m_{2}^{T})\vert_{\psi}\Big)^{T} }{\sqrt{u}}\Bigg) \in \mathbb{R}^{\eta\times \zeta} \\
-	=& \mathcal{A}(\mathcal{H}(m_{1})\vert_{\phi}, \mathcal{H}(m_{2}^{T})\vert_{\psi})
+	\Gamma(m_{1}, m_{2})\vert_{\phi, \psi} \coloneqq& \sigma\Bigg(\frac{m_{1}\phi \Big(m_{2}^{T}\psi\Big)^{T} }{\sqrt{u}}\Bigg) \in \mathbb{R}^{\eta\times \zeta} \\
+	=& \mathcal{A}(m_{1}\phi, m_{2}^{T}\psi)
 	\end{aligned}
 \end{eqnarray*}
 \end{tcolorbox}
