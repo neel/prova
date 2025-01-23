@@ -178,7 +178,7 @@ class CrossCrossoverCovarianceAttention(nn.Module):
         
         A = self._co_attention(Qp, Kp)
         Ar = F.relu(A)
-        Zg = F.gumbel_softmax(Ar, 0.5, dim=1, hard=False)
+        Zg = F.gumbel_softmax(Ar, 0.1, dim=1, hard=False)
         # Zg = F.softmax(Ar, dim=1)
         return Zg
     
@@ -218,7 +218,7 @@ class FixedPositionalEncoding(nn.Module):
     def forward(self, x):
         seq_length = x.size(1)
         pos_encoding = self.pe[:seq_length]
-        pos_encoding = pos_encoding.unsqueeze(0)
+        pos_encoding = pos_encoding.unsqueeze(0).to(x.device)
         x = x + pos_encoding
         return x
     
@@ -386,29 +386,34 @@ class StrEmbedder(nn.Module):
 class VarCharEncoder(nn.Module):
     def __init__(self, d_q, d_k, embedding_dim=128, num_heads=3):
         super(VarCharEncoder, self).__init__()
+        self.embedder    = nn.Embedding(num_embeddings=97, embedding_dim=6)
         self.var_encoder = VarEncoder(D=6, d_q=d_q, d_k=d_k, embedding_dim=embedding_dim, num_heads=num_heads)
         
     def randomize(self):
         self.var_encoder.randomize()
 
     def forward(self, input, output = None):
-        z = self.var_encoder(input).squeeze(-1)
+        z = self.embedder(input)
+        z = self.var_encoder(z).squeeze(-1)
         if output is None:
             return z
         else:
             return z, self.embedder(output)
         
 class VarCharDecoder(nn.Module):
-    def __init__(self, embedding_dim, expanded_dim, dictionary_length, u):
+    def __init__(self, embedder, embedding_dim, expanded_dim, dictionary_length, u):
         super(VarCharDecoder, self).__init__()
 
-        self.embedder    = StrEmbedder()  
+        self.embedder    = embedder  
         self.var_decoder = VarDecoder(embedding_dim, expanded_dim, dictionary_length, u)
+        self.simplifier  = nn.Parameter(torch.zeros(embedder.embedding_dim, 1))
 
     def randomize(self):
         self.var_decoder.randomize()
 
     def forward(self, z1, z2):
         y = self.var_decoder(z1, z2)
-        return torch.matmul(y, self.embedder.embedding.weight)
+        y = torch.matmul(y, self.embedder.weight)
+        y = torch.matmul(y, self.simplifier).squeeze(-1)
+        return y
     
