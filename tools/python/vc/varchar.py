@@ -291,6 +291,7 @@ class StrEmbedder(nn.Module):
         super(StrEmbedder, self).__init__()
         self.num_embeddings = 97
         self.D = D
+        self.embedding_dim = D
         self.embedding = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=D)  
         self.char2idx = {}
         self.idx2char = {}
@@ -304,7 +305,8 @@ class StrEmbedder(nn.Module):
                 self.char2idx[ch] = idx
                 self.idx2char[idx] = ch
                 idx += 1
-        self.embedding.weight = nn.Parameter(weight_data, requires_grad=True) # set to false to use fixed embeddings
+        self.embedding.weight = nn.Parameter(weight_data, requires_grad=False) # set to false to use fixed embeddings
+        self.weight = self.embedding.weight
 
     def hardcodings(self):
         char_to_encoding = {
@@ -355,8 +357,7 @@ class StrEmbedder(nn.Module):
 
         return char_to_encoding
 
-    def forward(self, txt: str):
-        x = self.encode_chars(txt)
+    def forward(self, x):
         x = self.embedding(x)
         return x
     
@@ -386,19 +387,14 @@ class StrEmbedder(nn.Module):
 class VarCharEncoder(nn.Module):
     def __init__(self, d_q, d_k, embedding_dim=128, num_heads=3):
         super(VarCharEncoder, self).__init__()
-        self.embedder    = nn.Embedding(num_embeddings=97, embedding_dim=6)
         self.var_encoder = VarEncoder(D=6, d_q=d_q, d_k=d_k, embedding_dim=embedding_dim, num_heads=num_heads)
         
     def randomize(self):
         self.var_encoder.randomize()
 
-    def forward(self, input, output = None):
-        z = self.embedder(input)
-        z = self.var_encoder(z).squeeze(-1)
-        if output is None:
-            return z
-        else:
-            return z, self.embedder(output)
+    def forward(self, input):
+        z = self.var_encoder(input).squeeze(-1)
+        return z
         
 class VarCharDecoder(nn.Module):
     def __init__(self, embedder, embedding_dim, expanded_dim, dictionary_length, u):
@@ -414,6 +410,5 @@ class VarCharDecoder(nn.Module):
     def forward(self, z1, z2):
         y = self.var_decoder(z1, z2)
         y = torch.matmul(y, self.embedder.weight)
-        y = torch.matmul(y, self.simplifier).squeeze(-1)
         return y
     

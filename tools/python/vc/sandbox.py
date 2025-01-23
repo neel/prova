@@ -31,12 +31,14 @@ class LinearStrDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
-def PaddedCollator():
+def PaddedCollator(e, dev):
 
     def collate_batch(batch):
-        max_length       = max(len(x) for x in batch)
-        batch_embeddings = [torch.tensor([95-(ord(c)-32) for c in b]) for b in batch]
-        expected     = torch.stack([F.pad(tensor, (0, max_length - tensor.shape[0]), value=0) for tensor in batch_embeddings])
+        max_length  = max(len(x) for x in batch)
+        indexes     = [torch.tensor(e.encode_chars(x)) for x in batch]
+        indexes     = [F.pad(tensor, (0, max_length - tensor.shape[0]), value=0) for tensor in indexes]
+        embeddings  = [e(torch.tensor(i).to(dev)) for i in indexes]
+        expected    = torch.stack(embeddings)
         return expected.to(torch.int32)
     
     return collate_batch
@@ -45,7 +47,7 @@ class FixedAutoEncoder(nn.Module):
     def __init__(self, dq=32, dk=32, expanded_dim=4, embedding_dim=128, u=32, num_heads=3):
         super(FixedAutoEncoder, self).__init__()
         self.encoder  = VarCharEncoder(d_q=dq, d_k=dk, embedding_dim=embedding_dim, num_heads=num_heads)
-        self.embedder = self.encoder.embedder
+        self.embedder = StrEmbedder()
         self.decoder  = VarCharDecoder(embedder=self.embedder, embedding_dim=embedding_dim, expanded_dim=expanded_dim, dictionary_length=97, u=u)
 
         encoder_parameters = sum(p.numel() for p in self.encoder.parameters() if p.requires_grad)
@@ -58,20 +60,23 @@ class FixedAutoEncoder(nn.Module):
         self.decoder.randomize()
 
     def forward(self, x):
-        encoded, embedded = self.encoder(x, x)
+        encoded = self.encoder(x)
         encoded = encoded.unsqueeze(-1)  
         decoded = self.decoder(encoded, encoded)
-        return embedded, decoded
+        return decoded
     
 class VarCharModelRunner:
     def __init__(self, autoencoder, path, train_ratio=0.8):
         super(VarCharModelRunner, self).__init__()
         self.model      = autoencoder
         dataset         = LinearStrDataset(path)
-        collator        = PaddedCollator()
 
         # self.model.randomize()
 
+        self.device          = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device)  
+
+        collator   = PaddedCollator(autoencoder.embedder, self.device)
         train_size = int(len(dataset) * train_ratio)
         test_size  = len(dataset) - train_size
 
@@ -79,9 +84,6 @@ class VarCharModelRunner:
 
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=32, collate_fn=collator)
         self.test_dataloader  = DataLoader(self.test_dataset,  batch_size=32, collate_fn=collator)
-
-        self.device          = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model.to(self.device)  
 
         print(f"Training on: {self.device}")
         if self.device.type == 'cuda':
@@ -107,6 +109,7 @@ class VarCharModelRunner:
         return torch.sum(dist_diag)
 
     def train(self, num_epochs):
+        lossf = nn.MSELoss()
         # optimizer = optim.SGD(self.model.parameters(), lr=0.001)
         optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
@@ -121,19 +124,19 @@ class VarCharModelRunner:
                 batch = batch.to(self.device)
 
                 optimizer.zero_grad()
-                embedded, output = self.model(batch)  
+                output = self.model(batch)  
 
                 # print("<>", output.shape, batch.shape)
 
                 diff = output.size(1) - batch.size(1)
                 if diff < 0:
-                    output = F.pad(output, (0, -diff), 'constant', value=0)
+                    output = F.pad(output, (0, 0, 0, -diff), 'constant', value=0)
                 else:
-                    batch = F.pad(batch, (0, diff), 'constant', value=0)
+                    batch = F.pad(batch, (0, 0, 0, diff), 'constant', value=0)
                 expected = batch
                 # print("<>", output.shape, expected.shape)
 
-                loss   = self.lossf(output.float(), expected.float())
+                loss   = lossf(output.float(), expected.float())
                 train_losses.append(loss.item())
                 loss.backward()
                 optimizer.step()
@@ -146,19 +149,19 @@ class VarCharModelRunner:
                 test_losses = []
                 for batch in self.test_dataloader:
                     batch = batch.to(self.device)
-                    embedded, output = self.model(batch)  
+                    output = self.model(batch)  
 
                     # print("<>", output.shape, batch.shape)
 
                     diff = output.size(1) - batch.size(1)
                     if diff < 0:
-                        output = F.pad(output, (0, -diff), 'constant', value=0)
+                        output = F.pad(output, (0, 0, 0, -diff), 'constant', value=0)
                     else:
-                        batch = F.pad(batch, (0, diff), 'constant', value=0)
+                        batch = F.pad(batch, (0, 0, 0, diff), 'constant', value=0)
                     expected = batch
                     # print("<>", output.shape, expected.shape)
 
-                    loss   = self.lossf(output.float(), expected.float())  
+                    loss   = lossf(output.float(), expected.float())  
                     test_losses.append(loss.item())
             
             avg_test_loss = sum(test_losses) / len(test_losses)
@@ -193,7 +196,7 @@ class VarCharModelRunner:
 
 autoencoder = FixedAutoEncoder(dq=65, dk=34, expanded_dim=16, embedding_dim=128, u=64, num_heads=8)
 trainer = VarCharModelRunner(autoencoder, 'Apache_2k.log')
-trainer.load("wp45linear-l5608724.3400.pth")
+# trainer.load("wp45linear-l5608724.3400.pth")
 trainer.train(50000)
 output = trainer.test("[Sun Dec 04 04:52:05 2005] [notice] jk2_init() Found child 6737 in scoreboard slot 8")
 print(output)
