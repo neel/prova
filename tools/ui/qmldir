@@ -1,0 +1,3 @@
+module CVE
+CVECard    1.0 CVECard.qml
+CVEResults 1.0 CVEResults.qml

@@ -1,4 +1,5 @@
 import os
+import sys
 import glob
 import torch
 import torch.nn.functional as F
@@ -18,37 +19,12 @@ if torch.cuda.is_available():
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-class LinearStrDataset(Dataset):
-    def __init__(self, filepath):
-        self.data = []
-        with open(filepath, 'r') as file:
-            for line in file:
-                self.data.append(line.strip())
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx]
-
-def PaddedCollator(e, dev):
-
-    def collate_batch(batch):
-        max_length  = max(len(x) for x in batch)
-        indexes     = [torch.tensor(e.encode_chars(x)) for x in batch]
-        indexes     = [F.pad(tensor, (0, max_length - tensor.shape[0]), value=0) for tensor in indexes]
-        embeddings  = [e(torch.tensor(i).to(dev)) for i in indexes]
-        expected    = torch.stack(embeddings)
-        return expected.to(torch.int32)
-    
-    return collate_batch
-
 class FixedAutoEncoder(nn.Module):
     def __init__(self, dq=32, dk=32, expanded_dim=4, embedding_dim=128, u=32, num_heads=3):
         super(FixedAutoEncoder, self).__init__()
         self.encoder  = VarCharEncoder(d_q=dq, d_k=dk, embedding_dim=embedding_dim, num_heads=num_heads)
         self.embedder = StrEmbedder()
-        self.decoder  = VarCharDecoder(embedder=self.embedder, embedding_dim=embedding_dim, expanded_dim=expanded_dim, dictionary_length=97, u=u)
+        self.decoder  = VarCharDecoder(embedding_dim=embedding_dim, expanded_dim=expanded_dim, dictionary_length=97, u=u)
 
         encoder_parameters = sum(p.numel() for p in self.encoder.parameters() if p.requires_grad)
         decoder_parameters = sum(p.numel() for p in self.decoder.parameters() if p.requires_grad)
@@ -63,7 +39,7 @@ class FixedAutoEncoder(nn.Module):
         encoded = self.encoder(x)
         encoded = encoded.unsqueeze(-1)  
         decoded = self.decoder(encoded, encoded)
-        return decoded
+        return decoded, encoded
     
 class VarCharModelRunner:
     def __init__(self, autoencoder, path, train_ratio=0.8):
@@ -76,14 +52,13 @@ class VarCharModelRunner:
         self.device          = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)  
 
-        collator   = PaddedCollator(autoencoder.embedder, self.device)
         train_size = int(len(dataset) * train_ratio)
         test_size  = len(dataset) - train_size
 
         self.train_dataset, self.test_dataset = random_split(dataset, [train_size, test_size])
 
-        self.train_dataloader = DataLoader(self.train_dataset, batch_size=32, collate_fn=collator)
-        self.test_dataloader  = DataLoader(self.test_dataset,  batch_size=32, collate_fn=collator)
+        self.train_dataloader = DataLoader(self.train_dataset, batch_size=32, collate_fn=padded_collator)
+        self.test_dataloader  = DataLoader(self.test_dataset,  batch_size=32, collate_fn=padded_collator)
 
         print(f"Training on: {self.device}")
         if self.device.type == 'cuda':
@@ -94,14 +69,15 @@ class VarCharModelRunner:
     def load(self, path):
         self.model.load_state_dict(torch.load(path))
 
-    def test(self, input):
+    def test(self, txt):
         self.model.eval()
-        ascii_values = torch.tensor([95-(ord(c)-32) for c in input])
-        ascii_values = ascii_values.to(self.device).unsqueeze(0)
-        embedded, output = self.model(ascii_values)
-        output = output.squeeze(0)
-        out_chars = [chr(int(95-o)+32) for o in output]
-        return "".join(out_chars)
+        collator   = PaddedCollator(self.model.embedder, self.device)
+        inputs, selections = collator([txt])
+        output, z = self.model(inputs)
+        out_indices = self.model.embedder.decode_selection(output)
+        out_str = self.model.embedder.decode_str(out_indices)
+        print(z.squeeze(0).squeeze(1))
+        return out_str
 
     def lossf(self, output, target):
         dist_mat  = torch.cdist(output, target)**2
@@ -109,9 +85,10 @@ class VarCharModelRunner:
         return torch.sum(dist_diag)
 
     def train(self, num_epochs):
+        # lossf = nn.BCEWithLogitsLoss()
         lossf = nn.MSELoss()
         # optimizer = optim.SGD(self.model.parameters(), lr=0.001)
-        optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        optimizer = optim.Adam(self.model.parameters(), lr=1e-5)
 
         least_train_loss = math.inf 
         least_test_loss  = math.inf
@@ -121,22 +98,28 @@ class VarCharModelRunner:
             self.model.train()
             train_losses = []
             for batch in self.train_dataloader:
-                batch = batch.to(self.device)
+                inputs      = batch["variations"].to(self.device)
+                selections  = batch["selections"].to(self.device)
 
                 optimizer.zero_grad()
-                output = self.model(batch)  
-
+                output, z = self.model(inputs)  
+                z = z.squeeze(-1)
+                
                 # print("<>", output.shape, batch.shape)
 
-                diff = output.size(1) - batch.size(1)
+                diff = output.size(1) - selections.size(1)
                 if diff < 0:
                     output = F.pad(output, (0, 0, 0, -diff), 'constant', value=0)
                 else:
-                    batch = F.pad(batch, (0, 0, 0, diff), 'constant', value=0)
-                expected = batch
+                    selections = F.pad(selections, (0, 0, 0, diff), 'constant', value=0)
+                expected = selections
                 # print("<>", output.shape, expected.shape)
 
-                loss   = lossf(output.float(), expected.float())
+                reconstruction_loss = lossf(output.float(), expected.float())
+                # latent_variance = 1/torch.var(z, dim=0).mean()
+
+                loss   = reconstruction_loss #+ latent_variance
+
                 train_losses.append(loss.item())
                 loss.backward()
                 optimizer.step()
@@ -148,20 +131,28 @@ class VarCharModelRunner:
             with torch.no_grad():
                 test_losses = []
                 for batch in self.test_dataloader:
-                    batch = batch.to(self.device)
-                    output = self.model(batch)  
+                    inputs      = batch["variations"].to(self.device)
+                    selections  = batch["selections"].to(self.device)
 
+                    optimizer.zero_grad()
+                    output, z = self.model(inputs)  
+                    z = z.squeeze(-1)
+                    
                     # print("<>", output.shape, batch.shape)
 
-                    diff = output.size(1) - batch.size(1)
+                    diff = output.size(1) - selections.size(1)
                     if diff < 0:
                         output = F.pad(output, (0, 0, 0, -diff), 'constant', value=0)
                     else:
-                        batch = F.pad(batch, (0, 0, 0, diff), 'constant', value=0)
-                    expected = batch
+                        selections = F.pad(selections, (0, 0, 0, diff), 'constant', value=0)
+                    expected = selections
                     # print("<>", output.shape, expected.shape)
 
-                    loss   = lossf(output.float(), expected.float())  
+                    reconstruction_loss = lossf(output.float(), expected.float())
+                    # latent_variance = 1/torch.var(z, dim=0).mean()
+
+                    loss   = reconstruction_loss #+ latent_variance
+
                     test_losses.append(loss.item())
             
             avg_test_loss = sum(test_losses) / len(test_losses)
@@ -182,7 +173,7 @@ class VarCharModelRunner:
                 for old_file in checkpoint_files[5:]:
                     os.remove(old_file)
 
-            if stagnant > 100:
+            if stagnant > 1000:
                 break
 
             if train_loss_change < 0:
@@ -194,12 +185,32 @@ class VarCharModelRunner:
 
     print(Style.RESET_ALL)
 
-autoencoder = FixedAutoEncoder(dq=65, dk=34, expanded_dim=16, embedding_dim=128, u=64, num_heads=8)
-trainer = VarCharModelRunner(autoencoder, 'Apache_2k.log')
-# trainer.load("wp45linear-l5608724.3400.pth")
-trainer.train(50000)
-output = trainer.test("[Sun Dec 04 04:52:05 2005] [notice] jk2_init() Found child 6737 in scoreboard slot 8")
-print(output)
+def train():
+    autoencoder = FixedAutoEncoder(dq=65, dk=34, expanded_dim=16, embedding_dim=128, u=64, num_heads=8)
+    autoencoder.randomize()
+    trainer = VarCharModelRunner(autoencoder, 'Apache_2k.log')
+    trainer.train(50000)
+
+def test():
+    checkpoint_files = glob.glob('wp45linear-*.pth')
+    checkpoint_files.sort(key=os.path.getmtime, reverse=True)
+    for checkpoint in checkpoint_files:
+        autoencoder = FixedAutoEncoder(dq=65, dk=34, expanded_dim=16, embedding_dim=128, u=64, num_heads=8)
+        trainer = VarCharModelRunner(autoencoder, 'Apache_2k.log')
+        trainer.load(checkpoint)
+        output = trainer.test("[Sun Dec 04 04:51:18 2005] [error] mod_jk child workerEnv in error state 6")
+        print(checkpoint, output)
+
+if len(sys.argv) < 2:
+    print("Usage: python script_name.py train|test [additional-arguments]")
+    sys.exit(1)
+    
+mode = sys.argv[1].lower()
+
+if mode == 'train':
+    train()
+elif mode == 'test':
+    test()
 
 # e = StrEmbedder()
 # batch_strs       = ["Hello", "World", "Test", "Example"]

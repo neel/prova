@@ -24,6 +24,12 @@ class MainWindow : public QMainWindow{
   private slots:
     void exuSelected(const QModelIndex& index);
   private:
+    bool eventFilter(QObject* target, QEvent* event);
+  signals:
+    void vulnerabilitiesClicked(int row);
+  private slots:
+    void showVulnerabilities(int row);
+  private:
     Ui::MainWindow *ui;
     ExUModel* _exuModel;
   private:

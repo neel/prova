@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math 
+from torch.utils.data import Dataset, DataLoader, random_split
 
 # class NormalizedProjector(nn.Module):
 #     def __init__(self):
@@ -24,10 +25,11 @@ class GenericAttention(nn.Module):
         # assert Q.shape[1] == K.shape[1], "The dimensions of Q and K are incompatible in the second dimension."
 
         scale = torch.sqrt(torch.tensor(Q.shape[-1], dtype=torch.float32))
+        # scale = 1
 
         Kt = K.transpose(-2, -1)
         pr = torch.matmul(Q, Kt) / scale
-        return pr
+        # return pr
         return F.softmax(pr, dim=1)
     
 class GenericCoAttention(nn.Module):
@@ -39,10 +41,11 @@ class GenericCoAttention(nn.Module):
         assert Q.shape[0] == K.shape[0], "The dimensions of Q and K are incompatible in the first dimension."
 
         scale = torch.sqrt(torch.tensor(K.shape[-2], dtype=torch.float32))
+        # scale = 1
 
         Qt = Q.transpose(-2, -1)
         pr = torch.matmul(Qt, K) / scale
-        return pr
+        # return pr
         return F.softmax(pr, dim=1)
     
 class Attention(nn.Module):
@@ -178,7 +181,7 @@ class CrossCrossoverCovarianceAttention(nn.Module):
         
         A = self._co_attention(Qp, Kp)
         Ar = F.relu(A)
-        Zg = F.gumbel_softmax(Ar, 0.1, dim=1, hard=False)
+        Zg = F.gumbel_softmax(Ar, 0.5, dim=1, hard=False)
         # Zg = F.softmax(Ar, dim=1)
         return Zg
     
@@ -275,8 +278,8 @@ class VarDecoder(nn.Module):
     def forward(self, z1, z2):
         assert z1.shape == z2.shape
         
-        z1 = self._pos_encoder(z1)
-        z2 = self._pos_encoder(z2)
+        # z1 = self._pos_encoder(z1)
+        # z2 = self._pos_encoder(z2)
         z1 = self._enricher_main(z1)
         z2 = self._enricher_sub(z2)
         y  = self._cross_co_attention(z1, z2)
@@ -383,6 +386,21 @@ class StrEmbedder(nn.Module):
         chars = [self.idx2char[i] for i in decoded]
         ostr = "".join([c if isinstance(c, str) else '' for c in chars])
         return ostr
+
+    def decode_selection(self, S):
+        result = torch.matmul(S, self.embedding.weight)
+        return result
+
+    def selection(self, indices):
+        S = []
+        for idx in indices:
+            Sv = torch.zeros(97)
+            Sv[idx] = 1
+            S.append(Sv)
+
+        S = torch.stack(S, dim = 0)
+        return S
+
     
 class VarCharEncoder(nn.Module):
     def __init__(self, d_q, d_k, embedding_dim=128, num_heads=3):
@@ -397,18 +415,151 @@ class VarCharEncoder(nn.Module):
         return z
         
 class VarCharDecoder(nn.Module):
-    def __init__(self, embedder, embedding_dim, expanded_dim, dictionary_length, u):
+    def __init__(self, embedding_dim, expanded_dim, dictionary_length, u):
         super(VarCharDecoder, self).__init__()
 
-        self.embedder    = embedder  
         self.var_decoder = VarDecoder(embedding_dim, expanded_dim, dictionary_length, u)
-        self.simplifier  = nn.Parameter(torch.zeros(embedder.embedding_dim, 1))
 
     def randomize(self):
         self.var_decoder.randomize()
 
     def forward(self, z1, z2):
         y = self.var_decoder(z1, z2)
-        y = torch.matmul(y, self.embedder.weight)
         return y
     
+def PaddedCollator(e, dev):
+
+    def collate_batch(batch):
+        max_length  = max(len(x) for x in batch)
+        indexes     = [e.encode_chars(x) for x in batch]
+
+        embeddings  = [e(i.to(dev)) for i in indexes.copy()]
+        embeddings  = [F.pad(tensor, (0, 0, 0, max_length - tensor.shape[0]), value=0) for tensor in embeddings]
+        expected    = torch.stack(embeddings)
+
+        selections  = [e.selection(i.to(dev)) for i in indexes]
+        selections  = [F.pad(tensor, (0, 0, 0, max_length - tensor.shape[0]), value=0) for tensor in selections]
+        selections  = torch.stack(selections)
+
+        return expected.to(torch.int32), selections.to(torch.int32)
+    
+    return collate_batch
+
+class Preprocessor:
+    def __init__(self, embedder, num_variations=3, mask_ratio=0.3):
+        self.embedder       = embedder
+        self.num_variations = num_variations
+        self.mask_ratio     = mask_ratio
+
+    def process_one(self, x: str): 
+        length      = len(x)
+        indexes     = self.embedder.encode_chars(x)
+        embeddings  = self.embedder(indexes)
+        selections  = self.embedder.selection(indexes)
+
+        variations  = []
+        for i in range(self.num_variations):
+            membeddings = self.mask_embeddings(embeddings, self.mask_ratio)
+            variations.append(membeddings)
+
+        return {
+            "input":        embeddings,
+            "selection":    selections,
+            "variations":   variations,
+            "length":       length
+        }
+
+    def process_batch(self, batch):
+        batch   = [self.process_one(x) for x in batch]
+        lengths = [b["length"] for b in batch]
+        maxlen  = max(lengths)
+
+        inputs     = [b["input"] for b in batch]
+        selections = [b["selection"] for b in batch]
+
+        inputs     = []
+        variations = []
+        selections = []
+        for i, b in enumerate(batch):
+            input = b["input"]
+            selection = b["selection"]
+            for v in b["variations"]:
+                variations.append(v)
+                inputs.append(input)
+                selections.append(selection)
+
+        return {
+            "inputs":       inputs,
+            "selections":   selections,
+            "variations":   variations,
+        }
+        
+    def __call__(self, batch):
+        arranged  = []
+        processed = self.process_batch(batch)
+        for i, p in enumerate(processed["inputs"]):
+            arranged.append({
+                "input": processed["inputs"][i],
+                "variation": processed["variations"][i],
+                "selection": processed["selections"][i],
+            })
+        return arranged
+
+    def mask_embeddings(self, em, r=0.3):
+        space = torch.tensor([1, 1, 1, 1, 1, 1]).unsqueeze(0)
+        em = torch.cat([space, em.squeeze(0), space])
+        
+        space_indices = (em == space).all(dim=1).nonzero().squeeze()
+        pre_idx = None
+        groups  = []
+        for idx in space_indices:
+            if pre_idx == None:
+                pre_idx = idx
+                continue
+            groups.append(em[pre_idx+1:idx])
+            pre_idx = idx
+        mask = 2*space
+        num_groups = len(groups)
+        mask_indices = torch.randperm(num_groups)[:int(r * num_groups)]
+        
+        for mi in mask_indices:
+            groups[mi] = mask.expand_as(groups[mi])
+
+        spaced_groups = []
+        for g in groups:
+            spaced_groups.append(g)
+            spaced_groups.append(space)
+
+        return torch.cat(spaced_groups)[:-1]
+
+class LinearStrDataset(Dataset):
+    def __init__(self, filepath):
+        self.raw_data  = []
+        self.embedder  = StrEmbedder()
+        self.processor = Preprocessor(self.embedder, 3, 0.2)
+        with open(filepath, 'r') as file:
+            for line in file:
+                self.raw_data.append(line.strip())
+
+        self.processed = self.processor(self.raw_data)
+
+    def __len__(self):
+        return len(self.processed)
+
+    def __getitem__(self, idx):
+        return self.processed[idx]
+
+def padded_collator(batch):
+    maxlen = max([b["input"].shape[0] for b in batch])
+    padded_inputs     = torch.stack([F.pad(b["input"], (0, 0, 0, maxlen - b["input"].shape[0]), value=0) for b in batch])
+    padded_selections = torch.stack([F.pad(b["selection"], (0, 0, 0, maxlen - b["selection"].shape[0]), value=0) for b in batch])
+    padded_variations = torch.stack([F.pad(b["variation"], (0, 0, 0, maxlen - b["variation"].shape[0]), value=0) for b in batch])
+
+    padded_batch = {
+        "inputs": padded_inputs,
+        "selections": padded_selections,
+        "variations": padded_variations,
+        "length": maxlen
+    }
+
+    return padded_batch
