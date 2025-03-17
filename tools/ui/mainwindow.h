@@ -26,8 +26,10 @@ class MainWindow : public QMainWindow{
   private:
     bool eventFilter(QObject* target, QEvent* event);
   signals:
+    void resourcesClicked(int row);
     void vulnerabilitiesClicked(int row);
   private slots:
+    void showResources(int row);
     void showVulnerabilities(int row);
   private:
     Ui::MainWindow *ui;

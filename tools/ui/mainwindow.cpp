@@ -14,6 +14,7 @@
 #include <QContextMenuEvent>
 
 #include "exuvulnerabilitiesviewer.h"
+#include "exuresourcechartviewer.h"
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -38,6 +39,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
         }
     });
 
+    connect(this, &MainWindow::resourcesClicked, this, &MainWindow::showResources);
     connect(this, &MainWindow::vulnerabilitiesClicked, this, &MainWindow::showVulnerabilities);
 }
 
@@ -136,6 +138,10 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
             auto res_action = context_menu.addAction("Resources");
             auto vul_action = context_menu.addAction("Vulnerabilities");
 
+            connect(res_action, &QAction::triggered, [index, this](){
+                emit resourcesClicked(index.row());
+            });
+
             connect(vul_action, &QAction::triggered, [index, this](){
                 emit vulnerabilitiesClicked(index.row());
             });
@@ -146,6 +152,13 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
         }
     }
     return false;
+}
+
+void MainWindow::showResources(int row){
+    const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
+
+    ExUResourceChartViewer* viewer = new ExUResourceChartViewer{unit};
+    viewer->show();
 }
 
 void MainWindow::showVulnerabilities(int row){

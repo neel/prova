@@ -21,12 +21,12 @@ struct artifact;
 struct session{
     using ptr               = std::shared_ptr<session>;
     using time_type         = std::chrono::system_clock::time_point;
-		using action_container  = std::vector<std::shared_ptr<prova::action>>;
+    using action_container   = std::vector<std::shared_ptr<prova::action>>;
 
     ptr                              _parent;
     std::shared_ptr<prova::process>  _process;
     std::shared_ptr<prova::artifact> _artifact;
-    action_container								 _actions;
+    action_container				 _actions;
     std::vector<ptr>                 _children;
 
     inline session(std::shared_ptr<prova::artifact> artifact): _artifact(artifact) {}
@@ -37,6 +37,10 @@ struct session{
     inline auto end()   const { return _actions.end(); }
     inline auto size()  const { return _actions.size(); }
     inline std::shared_ptr<prova::action> at(std::size_t n) { return _actions.at(n); }
+
+    inline auto children_begin() const { return _children.begin(); }
+    inline auto children_end()   const { return _children.end(); }
+
     inline std::shared_ptr<prova::artifact> artifact() const { return _artifact; }
 
     std::uint32_t first_id() const;

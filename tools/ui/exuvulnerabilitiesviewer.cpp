@@ -83,6 +83,9 @@ void ExUVulnerabilitiesViewer::replyReceived(){
         }
 
         for(const QString& result: results){
+            if(_cves.contains(result))
+                continue;
+            _cves.insert(result);
             QNetworkRequest request;
             request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
             request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");

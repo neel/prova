@@ -17,7 +17,9 @@ qt_add_executable(prova-ui
     exuvulnerabilitiesviewer.h exuvulnerabilitiesviewer.cpp exuvulnerabilitiesviewer.ui
     ${RESOURCES}
     qmldir
-    qmldir
+    exuresourcechartviewer.h exuresourcechartviewer.cpp exuresourcechartviewer.ui
+    sessionrect.h sessionrect.cpp
+    sessionrectgroup.h sessionrectgroup.cpp
 )
 
 target_link_libraries(prova-ui PRIVATE Qt6::Core Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Svg Qt6::SvgWidgets Qt6::Network prova-tools QJsonModelShared)

@@ -31,6 +31,7 @@ private:
     Ui::ExUVulnerabilitiesViewer *ui;
     QNetworkAccessManager*       _network;
     QQuickWidget*                _quickWidget;
+    QSet<QString>                _cves;
 };
 
 #endif // EXUVULNERABILITIESVIEWER_H
