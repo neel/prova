@@ -15,6 +15,7 @@
 
 #include "exuvulnerabilitiesviewer.h"
 #include "exuresourcechartviewer.h"
+#include "exuwidget.h"
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -80,48 +81,56 @@ void MainWindow::exuSelected(const QModelIndex& index){
     // QMessageBox::information(this, "Row Selected", QString("Row %1, Column %2 clicked").arg(index.row()).arg(index.column()));
 
     if(!index.parent().isValid()){
-        const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(index.row());
-        std::filesystem::path image_path{std::format("{}.svg", index.row())};
-        unit->render_svg(image_path);
-        std::cout << "Rendered " << image_path<< std::endl;
-
-        // Create a new SVG Widget
-        QSvgWidget* svgWidget = new QSvgWidget(QString::fromStdString(image_path.string()));
-
-        // Create a subwindow and set its widget to the SVG widget
-        QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(svgWidget);
+        std::shared_ptr<prova::execution_unit> unit = _exuModel->unit(index.row());
+        ExUWidget* exuWidget = new ExUWidget{unit};
+        QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(exuWidget);
         subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
         subWindow->show();
-    } else {
-        auto node = static_cast<ExUModel::tree_node*>(index.internalPointer());
-        const prova::session* session = static_cast<const prova::session*>(node->data);
-        nlohmann::json actions_properties = nlohmann::json::array();
-        for(const auto& action: session->_actions){
-            nlohmann::json properties = action->properties();
-            properties["time"] = std::format("{:%T %F}", action->time());
-            properties["operation"] = action->operation();
-            actions_properties.push_back(properties);
-        }
-        nlohmann::json artifact_properties = session->artifact()->properties();
-        artifact_properties.erase("_key");
-        nlohmann::json session_json = {
-            {"artifact", artifact_properties},
-            {"actions", actions_properties}
-        };
-
-        std::string json_str = session_json.dump();
-        std::cout << json_str << std::endl;
-
-        QJsonModel* json_model = new QJsonModel;
-        QTreeView*  json_view  = new QTreeView;
-        json_view->setAlternatingRowColors(true);
-        json_view->setModel(json_model);
-        json_model->loadJson(json_str.c_str());
-
-        QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(json_view);
-        subWindow->setWindowTitle(QString::fromStdString(std::format("Properties")));
-        subWindow->show();
     }
+
+    // if(!index.parent().isValid()){
+    //     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(index.row());
+    //     std::filesystem::path image_path{std::format("{}.svg", index.row())};
+    //     unit->render_svg(image_path);
+    //     std::cout << "Rendered " << image_path<< std::endl;
+
+    //     // Create a new SVG Widget
+    //     QSvgWidget* svgWidget = new QSvgWidget(QString::fromStdString(image_path.string()));
+
+    //     // Create a subwindow and set its widget to the SVG widget
+    //     QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(svgWidget);
+    //     subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
+    //     subWindow->show();
+    // } else {
+    //     auto node = static_cast<ExUModel::tree_node*>(index.internalPointer());
+    //     const prova::session* session = static_cast<const prova::session*>(node->data);
+    //     nlohmann::json actions_properties = nlohmann::json::array();
+    //     for(const auto& action: session->_actions){
+    //         nlohmann::json properties = action->properties();
+    //         properties["time"] = std::format("{:%T %F}", action->time());
+    //         properties["operation"] = action->operation();
+    //         actions_properties.push_back(properties);
+    //     }
+    //     nlohmann::json artifact_properties = session->artifact()->properties();
+    //     artifact_properties.erase("_key");
+    //     nlohmann::json session_json = {
+    //         {"artifact", artifact_properties},
+    //         {"actions", actions_properties}
+    //     };
+
+    //     std::string json_str = session_json.dump();
+    //     std::cout << json_str << std::endl;
+
+    //     QJsonModel* json_model = new QJsonModel;
+    //     QTreeView*  json_view  = new QTreeView;
+    //     json_view->setAlternatingRowColors(true);
+    //     json_view->setModel(json_model);
+    //     json_model->loadJson(json_str.c_str());
+
+    //     QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(json_view);
+    //     subWindow->setWindowTitle(QString::fromStdString(std::format("Properties")));
+    //     subWindow->show();
+    // }
 }
 
 bool MainWindow::eventFilter(QObject* target, QEvent *event){

@@ -7,7 +7,8 @@
 #include <QBrush>
 #include <QGraphicsSceneHoverEvent>
 #include "prova/artifact.h"
-
+#include "sessionrectgroup.h"
+#include "exuscene.h"
 #include <QApplication>
 #include <QStyle>
 
@@ -30,22 +31,25 @@ std::tuple<uint8_t, uint8_t, uint8_t> toLighterColor(uint16_t value) {
 }
 
 SessionRect::SessionRect(prova::session::ptr s, QGraphicsItem* parent): QGraphicsRectItem(parent), _session(s) {
-    _text = new QGraphicsTextItem{this};
+    _color = Qt::lightGray;
+
+    // _text = new QGraphicsTextItem{this};
 
     setPen(QPen(Qt::transparent));
-    setBrush(QBrush(Qt::lightGray));
     setFlags(ItemIsSelectable | ItemSendsGeometryChanges);
     _properties = s->artifact()->properties();
 
-    _text->setPos(5, 5);
+    // _text->setPos(5, 5);
     if(_properties.contains("path")){
         std::string path = _properties["path"].get<std::string>();
         setToolTip(QString::fromStdString(path));
         QByteArrayView path_bytes{path.c_str()};
         quint16 checksum = qChecksum(path_bytes);
         auto colors = toLighterColor(checksum);
-        setBrush(QBrush{QColor{std::get<0>(colors), std::get<1>(colors), std::get<2>(colors)}});
+        _color = QColor{std::get<0>(colors), std::get<1>(colors), std::get<2>(colors)};
     }
+
+    setBrush(QBrush{_color});
 
     _circle = new QGraphicsEllipseItem{this};
     _circle->setPen(QPen(Qt::transparent));
@@ -65,6 +69,32 @@ SessionRect::SessionRect(prova::session::ptr s, QGraphicsItem* parent): QGraphic
         color = QColor(Qt::gray);
     }
     _circle->setBrush(color);
+
+    setAcceptedMouseButtons(Qt::LeftButton);
+    _circle->setAcceptedMouseButtons(Qt::NoButton);
+}
+
+QVariant SessionRect::itemChange(GraphicsItemChange change, const QVariant &value) {
+    if (change == QGraphicsItem::ItemSelectedHasChanged) {
+        qDebug() << "Item selected";
+        bool selected = value.toBool();
+        if (selected) {
+            setPen(QPen(_color.darker(150), 2));
+        } else{
+            setPen(QPen(Qt::transparent));
+        }
+        if(scene() != nullptr){
+            ExUScene* pscene = qobject_cast<ExUScene*>(scene());
+            if(pscene){
+                emit pscene->exuSessionSelected(_session, selected);
+            }
+            // SessionRectGroup* group = dynamic_cast<SessionRectGroup*>(parentItem());
+            // if(group){
+            //     group->sessionSelected(_session, selected);
+            // }
+        }
+    }
+    return QGraphicsRectItem::itemChange(change, value);
 }
 
 void SessionRect::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) {

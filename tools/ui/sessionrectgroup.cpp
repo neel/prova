@@ -1,20 +1,27 @@
 #include "sessionrectgroup.h"
 #include "sessionrect.h"
 
-SessionRectGroup::SessionRectGroup(prova::session::ptr session, QGraphicsItem* parent): QGraphicsItemGroup(parent), _session(session) {
+SessionRectGroup::SessionRectGroup(prova::session::ptr session, QGraphicsItem* parent): QGraphicsRectItem(parent), _session(session) {
     setHandlesChildEvents(false);
 
-    _root = new SessionRect(_session);
-    addToGroup(_root);
+    _root = new SessionRect(_session, this);
 
     for(auto it = _session->children_begin(); it != _session->children_end(); ++it){
         auto* childItem = new SessionRectGroup(*it, _root);
         _items.push_back(childItem);
-        addToGroup(childItem);
     }
 
     layoutChildren();
 }
+
+// void SessionRectGroup::sessionSelected(prova::session::ptr session, bool selected){
+//     if(parentItem() != nullptr){
+//         SessionRect* p = dynamic_cast<SessionRect*>(parentItem());
+//         if(p){
+//             p->sessionSelected(session, selected);
+//         }
+//     }
+// }
 
 void SessionRectGroup::layoutChildren(){
     setPos(0, 0);

@@ -7,16 +7,17 @@
 
 class SessionRect;
 
-class SessionRectGroup : public QGraphicsItemGroup{
+class SessionRectGroup : public QGraphicsRectItem{
 public:
     static constexpr qreal margin_hz = 20.0f;
 public:
     SessionRectGroup(prova::session::ptr session, QGraphicsItem* parent = nullptr);
+    // void sessionSelected(prova::session::ptr, bool);
 private:
     void layoutChildren();
 private:
     prova::session::ptr             _session;
-    SessionRect*            _root;
+    SessionRect*                    _root;
     std::vector<SessionRectGroup*>  _items;
     qreal   _twidth;
 };

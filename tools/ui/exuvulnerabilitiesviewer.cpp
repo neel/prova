@@ -39,9 +39,6 @@ void ExUVulnerabilitiesViewer::request(const QString &keyword){
 }
 
 void ExUVulnerabilitiesViewer::updateJsonData(const QVariant& data){
-    // QQmlContext* context = _quickWidget->rootContext();
-    // context->setContextProperty("cveData", data);
-
     QObject* root = _quickWidget->rootObject();
     if (root) {
         bool ok = QMetaObject::invokeMethod(root, "addCveData", Q_ARG(QVariant, data));

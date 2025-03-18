@@ -14,11 +14,13 @@ public:
 public:
     SessionRect(prova::session::ptr s, QGraphicsItem* parent = nullptr);
 protected:
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
 private:
     prova::session::ptr   _session;
+    QColor                _color;
     nlohmann::json        _properties;
-    QGraphicsTextItem*    _text;
+    // QGraphicsTextItem*    _text;
     QGraphicsEllipseItem* _circle;
 
 };
