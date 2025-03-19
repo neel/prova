@@ -35,7 +35,9 @@ void ExUVulnerabilitiesViewer::request(const QString &keyword){
     request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
 
     QNetworkReply* reply = _network->get(request);
-    connect(reply, &QNetworkReply::readyRead, this, &ExUVulnerabilitiesViewer::replyReceived);
+    connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
+        replyReceived(keyword, reply);
+    });
 }
 
 void ExUVulnerabilitiesViewer::updateJsonData(const QVariant& data){
@@ -53,59 +55,62 @@ void ExUVulnerabilitiesViewer::updateJsonData(const QVariant& data){
     qDebug() << "Updating CVE Viewer with JSON";
 }
 
-void ExUVulnerabilitiesViewer::replyReceived(){
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    if (reply) {
-        QByteArray responseData = reply->readAll();
-        QString responseString = QString::fromUtf8(responseData);
+void ExUVulnerabilitiesViewer::replyReceived(const QString &keyword, QNetworkReply* reply){
+    QByteArray responseData = reply->readAll();
+    QString responseString = QString::fromUtf8(responseData);
 
-        QStringList results;
-        const QString lookup = "https://www.cve.org/CVERecord?id=CVE-";
-        QRegularExpression regex("https://www\\.cve\\.org\\/CVERecord\\?id=(\\w+-\\w+-\\w+)");
+    QStringList results;
+    const QString lookup = "https://www.cve.org/CVERecord?id=CVE-";
+    QRegularExpression regex("https://www\\.cve\\.org\\/CVERecord\\?id=(\\w+-\\w+-\\w+)");
 
-        QRegularExpressionMatch match;
-        QStringList lines = responseString.split("\n");
-        for (const QString &line : lines) {
-            if (line.contains(lookup)) {
-                match = regex.match(line);
-                if (match.hasMatch()) {
-                    QString id = match.captured(1);
-                    results << id;
-                }
+    QRegularExpressionMatch match;
+    QStringList lines = responseString.split("\n");
+    for (const QString &line : lines) {
+        if (line.contains(lookup)) {
+            match = regex.match(line);
+            if (match.hasMatch()) {
+                QString id = match.captured(1);
+                results << id;
             }
         }
-
-        if (reply->error() != QNetworkReply::NoError) {
-            qDebug() << "Network error: " << reply->errorString();
-        }
-
-        for(const QString& result: results){
-            if(_cves.contains(result))
-                continue;
-            _cves.insert(result);
-            QNetworkRequest request;
-            request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
-            request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-            QNetworkReply* reply = _network->get(request);
-            connect(reply, &QNetworkReply::readyRead, this, &ExUVulnerabilitiesViewer::cveReplyReceived);
-        }
-
-        reply->deleteLater();
     }
+
+    if (reply->error() != QNetworkReply::NoError) {
+        qDebug() << "Network error: " << reply->errorString();
+    }
+
+    if(results.empty()){
+        replyEmpty(keyword);
+    }
+
+    for(const QString& result: results){
+        if(_cves.contains(result))
+            continue;
+        _cves.insert(result);
+        QNetworkRequest request;
+        request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
+        request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
+        QNetworkReply* reply = _network->get(request);
+        connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
+            cveReplyReceived(keyword, reply);
+        });
+    }
+
+    reply->deleteLater();
 }
 
-void ExUVulnerabilitiesViewer::cveReplyReceived(){
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    if (reply) {
-        std::cout << "JSON reply received" << std::endl;
-        QByteArray responseData = reply->readAll();
-        QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
-        qDebug() << jsonDoc;
-         if (!jsonDoc.isNull() && jsonDoc.isObject()) {
-            QVariant jsonData = jsonDoc.object().toVariantMap();
-            emit jsonReady(jsonData);
-        }
+void ExUVulnerabilitiesViewer::replyEmpty(const QString &keyword){
 
+}
+
+void ExUVulnerabilitiesViewer::cveReplyReceived(const QString &keyword, QNetworkReply* reply){
+    std::cout << "JSON reply received" << std::endl;
+    QByteArray responseData = reply->readAll();
+    QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+    qDebug() << jsonDoc;
+     if (!jsonDoc.isNull() && jsonDoc.isObject()) {
+        QVariant jsonData = jsonDoc.object().toVariantMap();
+        emit jsonReady(jsonData);
     }
 }
 

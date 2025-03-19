@@ -12,20 +12,20 @@ ExUWidget::ExUWidget(QWidget *parent): QWidget{parent} {
     _vSplitter       = new QSplitter{Qt::Vertical, this};
     _hSplitter       = new QSplitter{Qt::Horizontal, _vSplitter};
 
-    _chart           = new ExUResourceChartViewer{this};
-    _vulnerabilities = new ExUVulnerabilitiesViewer{this};
-    _sessionPropertyViewer = new QTreeView{this};
+    _resourceLifetimeViewer = new ExUResourceChartViewer{this};
+    _vulnerabilitiesViewer  = new ExUVulnerabilitiesViewer{this};
+    _sessionPropertyViewer  = new QTreeView{this};
 
     _sessionPropertyModel = new QJsonModel{this};
     _sessionPropertyViewer->setModel(_sessionPropertyModel);
     _sessionPropertyViewer->setAlternatingRowColors(true);
 
     _layout->addWidget(_vSplitter);
-    _vSplitter->addWidget(_chart);
-    _hSplitter->addWidget(_vulnerabilities);
+    _vSplitter->addWidget(_resourceLifetimeViewer);
+    _hSplitter->addWidget(_vulnerabilitiesViewer);
     _hSplitter->addWidget(_sessionPropertyViewer);
 
-    connect(_chart, &ExUResourceChartViewer::exuSessionSelected, this, &ExUWidget::exuSessionSelected);
+    connect(_resourceLifetimeViewer, &ExUResourceChartViewer::exuSessionSelected, this, &ExUWidget::exuSessionSelected);
     connect(this, &ExUWidget::exuSessionSelected, this, &ExUWidget::exuSessionSelectedSlot);
 }
 
@@ -35,7 +35,7 @@ ExUWidget::ExUWidget(std::shared_ptr<prova::execution_unit> unit, QWidget *paren
 
 void ExUWidget::setUnit(std::shared_ptr<prova::execution_unit> unit){
     _unit = unit;
-    _chart->setUnit(_unit);
+    _resourceLifetimeViewer->setUnit(_unit);
 }
 
 std::shared_ptr<prova::execution_unit> ExUWidget::unit(){
@@ -66,10 +66,10 @@ void ExUWidget::exuSessionSelectedSlot(prova::session::ptr session, bool selecte
     _sessionPropertyModel->loadJson(json_str.c_str());
     _sessionPropertyViewer->expandAll();
 
-    _vulnerabilities->clearResults();
+    _vulnerabilitiesViewer->clearResults();
     if(artifact_properties.count("path") > 0){
         std::string path = artifact_properties["path"].get<std::string>();
-        _vulnerabilities->request(QString::fromStdString(path));
+        _vulnerabilitiesViewer->request(QString::fromStdString(path));
     }
 }
 

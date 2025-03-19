@@ -23,8 +23,8 @@ private:
     QHBoxLayout* _layout;
     QSplitter*   _vSplitter;
     QSplitter*   _hSplitter;
-    ExUResourceChartViewer* _chart;
-    ExUVulnerabilitiesViewer* _vulnerabilities;
+    ExUResourceChartViewer* _resourceLifetimeViewer;
+    ExUVulnerabilitiesViewer* _vulnerabilitiesViewer;
     QTreeView*                _sessionPropertyViewer;
     QJsonModel*               _sessionPropertyModel;
 private:

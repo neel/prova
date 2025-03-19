@@ -5,6 +5,7 @@
 
 class QNetworkAccessManager;
 class QQuickWidget;
+class QNetworkReply;
 
 namespace Ui {
 class ExUVulnerabilitiesViewer;
@@ -25,8 +26,9 @@ signals:
 private slots:
     void updateJsonData(const QVariant& data);
 public slots:
-    void replyReceived();
-    void cveReplyReceived();
+    void replyReceived(const QString &keyword, QNetworkReply* reply);
+    void replyEmpty(const QString &keyword);
+    void cveReplyReceived(const QString &keyword, QNetworkReply* reply);
     void clearResults();
 private:
     Ui::ExUVulnerabilitiesViewer *ui;
