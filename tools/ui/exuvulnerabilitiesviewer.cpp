@@ -108,3 +108,16 @@ void ExUVulnerabilitiesViewer::cveReplyReceived(){
 
     }
 }
+
+void ExUVulnerabilitiesViewer::clearResults(){
+    QObject* root = _quickWidget->rootObject();
+    if (root) {
+        bool ok = QMetaObject::invokeMethod(root, "clearCveData");
+        if (!ok)
+            qWarning() << "Failed to invoke clearCveData on QML root object.";
+        else
+            qDebug() << "Cleared CVE record into QML ListModel.";
+    } else {
+        qWarning() << "Root object not found!";
+    }
+}

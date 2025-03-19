@@ -27,6 +27,7 @@ private slots:
 public slots:
     void replyReceived();
     void cveReplyReceived();
+    void clearResults();
 private:
     Ui::ExUVulnerabilitiesViewer *ui;
     QNetworkAccessManager*       _network;

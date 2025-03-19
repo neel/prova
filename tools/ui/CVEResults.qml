@@ -17,6 +17,9 @@ Item {
     function addCveData(newCve) {
         cveListModel.append(newCve);
     }
+    function clearCveData() {
+        cveListModel.clear();
+    }
 
     ScrollView {
         anchors.fill: parent
