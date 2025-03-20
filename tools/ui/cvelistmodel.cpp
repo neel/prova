@@ -1,7 +1,8 @@
 #include "cvelistmodel.h"
+#include <QNetworkReply>
 
-CVEListModel::CVEListModel(QObject* parent): QAbstractListModel(parent){
-    _network = new QNetworkAccessManager{this};
+CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent){
+    _network = network;
 }
 
 int CVEListModel::rowCount(const QModelIndex &parent) const{
@@ -35,6 +36,64 @@ QHash<int, QByteArray> CVEListModel::roleNames() const{
         { DetailsRole, "details" }
     };
     return roles;
+}
+
+void CVEListModel::search(const QString &keyword){
+    QString url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
+    QNetworkRequest request;
+    request.setUrl(QUrl(url));
+    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
+
+    QNetworkReply* reply = _network->get(request);
+    connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
+        replyReceived(keyword, reply);
+    });
+}
+
+void CVEListModel::replyReceived(const QString &keyword, QNetworkReply *reply){
+    QByteArray responseData = reply->readAll();
+    QString responseString = QString::fromUtf8(responseData);
+
+    QStringList results;
+    const QString lookup = "https://www.cve.org/CVERecord?id=CVE-";
+    QRegularExpression regex("https://www\\.cve\\.org\\/CVERecord\\?id=(\\w+-\\w+-\\w+)");
+
+    QRegularExpressionMatch match;
+    QStringList lines = responseString.split("\n");
+    for (const QString &line : lines) {
+        if (line.contains(lookup)) {
+            match = regex.match(line);
+            if (match.hasMatch()) {
+                QString id = match.captured(1);
+                results << id;
+            }
+        }
+    }
+
+    if (reply->error() != QNetworkReply::NoError) {
+        qDebug() << "Network error: " << reply->errorString();
+    }
+
+    if(results.empty()){
+        // replyEmpty(keyword);
+    }
+
+    for(const QString& result: results){
+        // if(_cves.contains(result))
+        //     continue;
+        // _cves.insert(result);
+        QNetworkRequest request;
+        request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
+        request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
+        QNetworkReply* reply = _network->get(request);
+        connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
+            // cveReplyReceived(keyword, reply);
+        });
+
+        addCveEntry(keyword, result);
+    }
+
+    reply->deleteLater();
 }
 
 int CVEListModel::addCveEntry(const QString &keyword, const QString &id){

@@ -23,11 +23,13 @@ public:
     };
     Q_ENUM(Roles)
 
-    explicit CVEListModel(QObject *parent = nullptr);
+    explicit CVEListModel(QNetworkAccessManager* network, QObject *parent = nullptr);
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 public:
+    void search(const QString& keyword);
+    void replyReceived(const QString &keyword, QNetworkReply* reply);
     Q_INVOKABLE int addCveEntry(const QString &keyword, const QString &id);
     Q_INVOKABLE void updateDetails(int row, const QJsonObject &details);
     int findCveEntry(const QString &keyword, const QString &id) const;
