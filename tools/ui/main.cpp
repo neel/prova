@@ -1,15 +1,13 @@
 #include <QApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include "mainwindow.h"
-
-#include "prova/store.h"
+#include "cvelistmodel.h"
 
 int main(int argc, char *argv[]){
-    // prova::store store;
-    // store.fetch();
-    // // store.uml(std::cout);
-    // store.extract_all();
-
     QApplication app(argc, argv);
+
+    qmlRegisterType<CVEListModel>("CVE", 1, 0, "CVEListModel");
 
     MainWindow window;
     window.show();

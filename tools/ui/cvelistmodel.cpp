@@ -1,5 +1,6 @@
 #include "cvelistmodel.h"
 #include <QNetworkReply>
+#include <QJsonDocument>
 
 CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent){
     _network = network;
@@ -78,58 +79,41 @@ void CVEListModel::replyReceived(const QString &keyword, QNetworkReply *reply){
         // replyEmpty(keyword);
     }
 
-    for(const QString& result: results){
-        // if(_cves.contains(result))
-        //     continue;
-        // _cves.insert(result);
-        QNetworkRequest request;
-        request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
-        request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-        QNetworkReply* reply = _network->get(request);
-        connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
-            // cveReplyReceived(keyword, reply);
-        });
+    for(const QString& cve_id: results){
+        if(_cve_ids.contains(cve_id)){
+            continue;
+        }
 
-        addCveEntry(keyword, result);
+        _cve_ids.insert(cve_id);
+        fetchCVEDetails(keyword, cve_id);
     }
 
     reply->deleteLater();
 }
 
-int CVEListModel::addCveEntry(const QString &keyword, const QString &id){
-    // Check if we already have it
-    int row = findCveEntry(keyword, id);
-    if (row != -1) {
-        return row; // Already in the list, just return that row
-    }
+void CVEListModel::fetchCVEDetails(const QString& keyword, const QString& cve_id) {
+    QNetworkRequest request;
+    request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(cve_id)));
+    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
+    QNetworkReply* reply = _network->get(request);
+    connect(reply, &QNetworkReply::readyRead, [this, reply, keyword, cve_id](){
+        QByteArray responseData = reply->readAll();
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+        if (!jsonDoc.isNull() && jsonDoc.isObject()) {
+            QJsonObject jsonData = jsonDoc.object();
+            updateDetails(keyword, cve_id, jsonData);
+        }
+    });
+}
 
-    // Insert a new entry
+
+void CVEListModel::updateDetails(const QString& keyword, const QString& cve_id, const QJsonObject &details){
     beginInsertRows(QModelIndex(), _entries.size(), _entries.size());
     CVEEntry entry;
     entry.keyword = keyword;
-    entry.id = id;
-    // entry.details is empty initially
+    entry.id = cve_id;
+    entry.details = details;
     _entries.append(entry);
     endInsertRows();
-
-    return _entries.size() - 1; // row of the newly added entry
 }
 
-void CVEListModel::updateDetails(int row, const QJsonObject &details){
-    if (row < 0 || row >= _entries.size())
-        return;
-    _entries[row].details = details;
-    // Emit dataChanged so that QML sees the updated role
-    QModelIndex idx = index(row);
-    emit dataChanged(idx, idx, {DetailsRole});
-}
-
-int CVEListModel::findCveEntry(const QString &keyword, const QString &id) const{
-    for (int i = 0; i < _entries.size(); i++) {
-        const CVEEntry &entry = _entries.at(i);
-        if (entry.keyword == keyword && entry.id == id) {
-            return i;
-        }
-    }
-    return -1;
-}

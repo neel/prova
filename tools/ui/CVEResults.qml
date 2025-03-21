@@ -10,17 +10,6 @@ Item {
     width: 640
     height: 480
 
-    ListModel {
-        id: cveListModel
-    }
-
-    function addCveData(newCve) {
-        cveListModel.append(newCve);
-    }
-    function clearCveData() {
-        cveListModel.clear();
-    }
-
     ScrollView {
         anchors.fill: parent
 
@@ -28,16 +17,16 @@ Item {
             id: listView
             anchors.fill: parent
             spacing: 10
-            model: cveListModel
+            model: cveModel
 
             delegate: CVECard {
-                cveId:          model.cveMetadata.cveId
-                datePublished:  model.cveMetadata.datePublished
-                dateReserved:   model.cveMetadata.dateReserved
-                dateUpdated:    model.cveMetadata.dateUpdated
-                provider:       model.providerMetadata ? model.providerMetadata.shortName : ""
-                assigner:       model.assignerShortName ? model.assignerShortName : ""
-                descriptions:   model.containers.cna.descriptions
+                cveId:          model.id
+                datePublished:  model.details["cveMetadata"] ? model.details["cveMetadata"]["datePublished"] : ""
+                dateReserved:   model.details["cveMetadata"] ? model.details["cveMetadata"]["dateReserved"] : ""
+                dateUpdated:    model.details["cveMetadata"] ? model.details["cveMetadata"]["dateUpdated"] : ""
+                provider:       model.details["providerMetadata"] ? model.details["providerMetadata"]["shortName"] : ""
+                assigner:       model.details["providerMetadata"] ? model.details["providerMetadata"]["assignerShortName"] : ""
+                descriptions:   model.details["containers"] ? model.details["containers"]["cna"]["descriptions"] : ""
             }
         }
     }

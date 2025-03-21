@@ -12,17 +12,23 @@ Rectangle {
     property string assigner: ""
     property var    descriptions: []
 
-    width: parent.width
     height: childrenRect.height + 10
-    color: "#f9f9f9"
+    // color: "green"
     border.color: "#e1e1e1"
     radius: 5
 
+    anchors.margins: 20
+    width: parent.width-20
+
     Rectangle{
-        width: parent.width - 20
-        anchors.centerIn: parent
-        anchors.margins: 10
-        height: childrenRect.height
+        anchors.left: parent.left
+        anchors.topMargin: 10
+        anchors.bottomMargin: 10
+        anchors.leftMargin: 10
+        anchors.rightMargin: 30
+        width: parent.width - 40
+        height: childrenRect.height + 20
+        // color: "red"
 
         ColumnLayout {
             spacing: 10
@@ -39,10 +45,11 @@ Rectangle {
                 width: parent.width
                 spacing: 10
                 Rectangle{
+                    // color: "yellow"
                     radius: 5
                     width: childrenRect.width
                     height: childrenRect.height
-                    color: "#f0f0f0"
+                    // color: "#f0f0f0"
                     Column {
                         Text{text: "Published"}
                         Text{
@@ -52,10 +59,11 @@ Rectangle {
                 }
 
                 Rectangle{
+                    // color: "yellow"
                     radius: 5
                     width: childrenRect.width
                     height: childrenRect.height
-                    color: "#f0f0f0"
+                    // color: "#f0f0f0"
                     Column {
                         Text{text: "Reserved"}
                         Text{
@@ -65,10 +73,11 @@ Rectangle {
                 }
 
                 Rectangle{
+                    // color: "yellow"
                     radius: 5
                     width: childrenRect.width
                     height: childrenRect.height
-                    color: "#f0f0f0"
+                    // color: "#f0f0f0"
                     Column {
                         Text{text: "Updated"}
                         Text{
@@ -97,8 +106,7 @@ Rectangle {
                     model: card.descriptions
                     delegate: Rectangle {
                         width: parent.width
-                        color: "#ffffff"
-                        border.color: "#cccccc"
+                        color: "#f8f8f8"
                         radius: 5
                         TextEdit {
                             id: descText

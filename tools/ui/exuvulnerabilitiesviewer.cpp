@@ -9,19 +9,20 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickItem>
+#include "cvelistmodel.h"
 
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer){
-    _network = new QNetworkAccessManager(this);
     ui->setupUi(this);
+    _network = new QNetworkAccessManager(this);
+    _cveModel = new CVEListModel{_network};
 
     _quickWidget = new QQuickWidget(this);
     _quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     _quickWidget->engine()->addImportPath("qrc:/x");
+    _quickWidget->engine()->rootContext()->setContextProperty("cveModel", _cveModel);
     _quickWidget->setSource(QUrl("qrc:/x/CVE/CVEResults.qml"));
 
     ui->centralLayout->addWidget(_quickWidget);
-
-    connect(this, &ExUVulnerabilitiesViewer::jsonReady, this, &ExUVulnerabilitiesViewer::updateJsonData);
 }
 
 ExUVulnerabilitiesViewer::~ExUVulnerabilitiesViewer(){
@@ -29,100 +30,11 @@ ExUVulnerabilitiesViewer::~ExUVulnerabilitiesViewer(){
 }
 
 void ExUVulnerabilitiesViewer::request(const QString &keyword){
-    QString url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
-    QNetworkRequest request;
-    request.setUrl(QUrl(url));
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-
-    QNetworkReply* reply = _network->get(request);
-    connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
-        replyReceived(keyword, reply);
-    });
-}
-
-void ExUVulnerabilitiesViewer::updateJsonData(const QVariant& data){
-    QObject* root = _quickWidget->rootObject();
-    if (root) {
-        bool ok = QMetaObject::invokeMethod(root, "addCveData", Q_ARG(QVariant, data));
-        if (!ok)
-            qWarning() << "Failed to invoke addCveData on QML root object.";
-        else
-            qDebug() << "Inserted new CVE record into QML ListModel.";
-    } else {
-        qWarning() << "Root object not found!";
-    }
-
-    qDebug() << "Updating CVE Viewer with JSON";
-}
-
-void ExUVulnerabilitiesViewer::replyReceived(const QString &keyword, QNetworkReply* reply){
-    QByteArray responseData = reply->readAll();
-    QString responseString = QString::fromUtf8(responseData);
-
-    QStringList results;
-    const QString lookup = "https://www.cve.org/CVERecord?id=CVE-";
-    QRegularExpression regex("https://www\\.cve\\.org\\/CVERecord\\?id=(\\w+-\\w+-\\w+)");
-
-    QRegularExpressionMatch match;
-    QStringList lines = responseString.split("\n");
-    for (const QString &line : lines) {
-        if (line.contains(lookup)) {
-            match = regex.match(line);
-            if (match.hasMatch()) {
-                QString id = match.captured(1);
-                results << id;
-            }
-        }
-    }
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qDebug() << "Network error: " << reply->errorString();
-    }
-
-    if(results.empty()){
-        replyEmpty(keyword);
-    }
-
-    for(const QString& result: results){
-        if(_cves.contains(result))
-            continue;
-        _cves.insert(result);
-        QNetworkRequest request;
-        request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
-        request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-        QNetworkReply* reply = _network->get(request);
-        connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
-            cveReplyReceived(keyword, reply);
-        });
-    }
-
-    reply->deleteLater();
-}
-
-void ExUVulnerabilitiesViewer::replyEmpty(const QString &keyword){
+    _cveModel->search(keyword);
 
 }
 
-void ExUVulnerabilitiesViewer::cveReplyReceived(const QString &keyword, QNetworkReply* reply){
-    std::cout << "JSON reply received" << std::endl;
-    QByteArray responseData = reply->readAll();
-    QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
-    qDebug() << jsonDoc;
-     if (!jsonDoc.isNull() && jsonDoc.isObject()) {
-        QVariant jsonData = jsonDoc.object().toVariantMap();
-        emit jsonReady(jsonData);
-    }
+void ExUVulnerabilitiesViewer::filter(const QString &keyword){
+
 }
 
-void ExUVulnerabilitiesViewer::clearResults(){
-    QObject* root = _quickWidget->rootObject();
-    if (root) {
-        bool ok = QMetaObject::invokeMethod(root, "clearCveData");
-        if (!ok)
-            qWarning() << "Failed to invoke clearCveData on QML root object.";
-        else
-            qDebug() << "Cleared CVE record into QML ListModel.";
-    } else {
-        qWarning() << "Root object not found!";
-    }
-}

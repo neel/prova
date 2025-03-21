@@ -66,10 +66,10 @@ void ExUWidget::exuSessionSelectedSlot(prova::session::ptr session, bool selecte
     _sessionPropertyModel->loadJson(json_str.c_str());
     _sessionPropertyViewer->expandAll();
 
-    _vulnerabilitiesViewer->clearResults();
     if(artifact_properties.count("path") > 0){
         std::string path = artifact_properties["path"].get<std::string>();
         _vulnerabilitiesViewer->request(QString::fromStdString(path));
+        _vulnerabilitiesViewer->filter(QString::fromStdString(path));
     }
 }
 
