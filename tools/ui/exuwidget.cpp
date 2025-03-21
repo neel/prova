@@ -12,6 +12,9 @@ ExUWidget::ExUWidget(QWidget *parent): QWidget{parent} {
     _vSplitter       = new QSplitter{Qt::Vertical, this};
     _hSplitter       = new QSplitter{Qt::Horizontal, _vSplitter};
 
+    _layout->setSpacing(0);
+    _layout->setContentsMargins(0, 0, 0, 0);
+
     _resourceLifetimeViewer = new ExUResourceChartViewer{this};
     _vulnerabilitiesViewer  = new ExUVulnerabilitiesViewer{this};
     _sessionPropertyViewer  = new QTreeView{this};

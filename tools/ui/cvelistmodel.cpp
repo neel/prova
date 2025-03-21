@@ -71,6 +71,8 @@ void CVEListModel::replyReceived(const QString &keyword, QNetworkReply *reply){
         }
     }
 
+    emit searchFinished(keyword);
+
     if (reply->error() != QNetworkReply::NoError) {
         qDebug() << "Network error: " << reply->errorString();
     }

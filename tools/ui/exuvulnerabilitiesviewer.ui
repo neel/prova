@@ -6,19 +6,33 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>772</width>
+    <height>497</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2">
+  <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <layout class="QVBoxLayout" name="centralLayout"/>
+    <layout class="QVBoxLayout" name="progressLayout"/>
+   </item>
+   <item>
+    <widget class="QQuickWidget" name="quickWidget">
+     <property name="resizeMode">
+      <enum>QQuickWidget::SizeRootObjectToView</enum>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QQuickWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">QtQuickWidgets/QQuickWidget</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

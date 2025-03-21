@@ -12,16 +12,17 @@ Rectangle {
     property string assigner: ""
     property var    descriptions: []
 
-    height: childrenRect.height + 10
     // color: "green"
     border.color: "#e1e1e1"
     radius: 5
 
     anchors.margins: 20
     width: parent.width-20
+    height: childrenRect.height + 20
 
     Rectangle{
         anchors.left: parent.left
+        anchors.top: parent.top
         anchors.topMargin: 10
         anchors.bottomMargin: 10
         anchors.leftMargin: 10

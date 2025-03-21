@@ -7,13 +7,15 @@ class QNetworkAccessManager;
 class QQuickWidget;
 class QNetworkReply;
 class CVEListModel;
+class ExUVulnerabilitiesProgressWidget;
 
 namespace Ui {
 class ExUVulnerabilitiesViewer;
 }
 
-class ExUVulnerabilitiesViewer : public QWidget
-{
+
+
+class ExUVulnerabilitiesViewer : public QWidget{
     Q_OBJECT
 
 public:
@@ -29,6 +31,10 @@ private:
     CVEListModel*                _cveModel;
     QQuickWidget*                _quickWidget;
     QSet<QString>                _cves;
+private:
+    QMap<QString, ExUVulnerabilitiesProgressWidget*> _progressWidgets;
+private slots:
+    void responseReceivedSlot(const QString& keyword);
 };
 
 #endif // EXUVULNERABILITIESVIEWER_H

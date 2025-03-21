@@ -37,6 +37,8 @@ private:
     QList<CVEEntry>        _entries;
     QSet<QString>          _cve_ids;
     QNetworkAccessManager* _network;
+signals:
+    void searchFinished(const QString& keyword);
 };
 
 #endif // CVELISTMODEL_H
