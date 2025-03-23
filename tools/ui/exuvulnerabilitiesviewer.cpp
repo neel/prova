@@ -11,11 +11,16 @@
 #include <QQuickItem>
 #include "cvelistmodel.h"
 #include "exuvulnerabilitiesprogresswidget.h"
+#include "exucvesearchprogressscrollarea.h"
 
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer){
     ui->setupUi(this);
     _network = new QNetworkAccessManager(this);
     _cveModel = new CVEListModel{_network};
+
+    _progressArea = new ExUCVESearchProgressScrollArea{this};
+    QVBoxLayout* l = dynamic_cast<QVBoxLayout*>(layout());
+    l->insertWidget(0, _progressArea);
 
     ui->quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     ui->quickWidget->engine()->addImportPath("qrc:/x");
@@ -33,7 +38,7 @@ void ExUVulnerabilitiesViewer::request(const QString &keyword){
     _cveModel->search(keyword);
     ExUVulnerabilitiesProgressWidget* progressWidget = new ExUVulnerabilitiesProgressWidget{keyword, this};
     _progressWidgets.insert(keyword, progressWidget);
-    ui->progressLayout->addWidget(progressWidget);
+    _progressArea->add(progressWidget);
 }
 
 void ExUVulnerabilitiesViewer::filter(const QString &keyword){
@@ -44,10 +49,12 @@ void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString &keyword){
     auto it = _progressWidgets.find(keyword);
     if(it != _progressWidgets.end()){
         ExUVulnerabilitiesProgressWidget* progressWidget = it.value();
-        ui->progressLayout->removeWidget(progressWidget);
+        _progressArea->remove(progressWidget);
         _progressWidgets.remove(keyword);
         delete progressWidget;
         progressWidget = 0x0;
     }
+    updateGeometry();
+    adjustSize();
 }
 

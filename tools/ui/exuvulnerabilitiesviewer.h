@@ -8,6 +8,8 @@ class QQuickWidget;
 class QNetworkReply;
 class CVEListModel;
 class ExUVulnerabilitiesProgressWidget;
+class QVBoxLayout;
+class ExUCVESearchProgressScrollArea;
 
 namespace Ui {
 class ExUVulnerabilitiesViewer;
@@ -31,6 +33,7 @@ private:
     CVEListModel*                _cveModel;
     QQuickWidget*                _quickWidget;
     QSet<QString>                _cves;
+    ExUCVESearchProgressScrollArea* _progressArea;
 private:
     QMap<QString, ExUVulnerabilitiesProgressWidget*> _progressWidgets;
 private slots:
