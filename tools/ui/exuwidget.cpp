@@ -39,14 +39,7 @@ ExUWidget::ExUWidget(std::shared_ptr<prova::execution_unit> unit, QWidget *paren
 void ExUWidget::setUnit(std::shared_ptr<prova::execution_unit> unit){
     _unit = unit;
     _resourceLifetimeViewer->setUnit(_unit);
-
-    for(auto artifact: *_unit){
-        nlohmann::json artifact_properties = artifact->properties();
-        if(artifact_properties.count("path") > 0){
-            std::string path = artifact_properties["path"].get<std::string>();
-            _vulnerabilitiesViewer->request(QString::fromStdString(path));
-        }
-    }
+    _vulnerabilitiesViewer->setUnit(_unit);
 }
 
 std::shared_ptr<prova::execution_unit> ExUWidget::unit(){

@@ -2,6 +2,7 @@
 #define EXUVULNERABILITIESVIEWER_H
 
 #include <QWidget>
+#include <prova/execution_unit.h>
 
 class QNetworkAccessManager;
 class QQuickWidget;
@@ -25,7 +26,8 @@ public:
     ~ExUVulnerabilitiesViewer();
 
 public:
-    void request(const QString& keyword);
+    void setUnit(std::shared_ptr<prova::execution_unit> unit);
+    // void request(const QString& keyword);
     void filter(const QString& keyword);
 private:
     Ui::ExUVulnerabilitiesViewer *ui;
@@ -33,9 +35,9 @@ private:
     CVEListModel*                _cveModel;
     QQuickWidget*                _quickWidget;
     QSet<QString>                _cves;
-    ExUCVESearchProgressScrollArea* _progressArea;
-private:
-    QMap<QString, ExUVulnerabilitiesProgressWidget*> _progressWidgets;
+    ExUVulnerabilitiesProgressWidget* _progressArea;
+    std::shared_ptr<prova::execution_unit> _unit;
+    QSet<QString>               _paths;
 private slots:
     void responseReceivedSlot(const QString& keyword);
 };

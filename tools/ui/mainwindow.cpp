@@ -171,22 +171,23 @@ void MainWindow::showResources(int row){
 }
 
 void MainWindow::showVulnerabilities(int row){
-    std::vector<std::string> paths;
+    // std::vector<std::string> paths;
 
     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
-    for(const std::shared_ptr<prova::artifact>& artifact: *unit){
-        const nlohmann::json& properties = artifact->properties();
-        if(properties.count("path") > 0){
-            std::string path = properties["path"].get<std::string>();
-            paths.push_back(path);
+    // for(const std::shared_ptr<prova::artifact>& artifact: *unit){
+    //     const nlohmann::json& properties = artifact->properties();
+    //     if(properties.count("path") > 0){
+    //         std::string path = properties["path"].get<std::string>();
+    //         paths.push_back(path);
 
-            std::cout << path << std::endl;
-        }
-    }
+    //         std::cout << path << std::endl;
+    //     }
+    // }
 
     ExUVulnerabilitiesViewer* viewer = new ExUVulnerabilitiesViewer;
-    for(const std::string& path: paths){
-        viewer->request(QString::fromStdString(path));
-    }
+    viewer->setUnit(unit);
+    // for(const std::string& path: paths){
+    //     viewer->request(QString::fromStdString(path));
+    // }
     viewer->show();
 }

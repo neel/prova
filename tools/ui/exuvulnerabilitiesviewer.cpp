@@ -12,15 +12,18 @@
 #include "cvelistmodel.h"
 #include "exuvulnerabilitiesprogresswidget.h"
 #include "exucvesearchprogressscrollarea.h"
+#include <nlohmann/json.hpp>
+#include "prova/artifact.h"
 
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer){
     ui->setupUi(this);
     _network = new QNetworkAccessManager(this);
     _cveModel = new CVEListModel{_network};
 
-    _progressArea = new ExUCVESearchProgressScrollArea{this};
+    _progressArea = new ExUVulnerabilitiesProgressWidget{this};
     QVBoxLayout* l = dynamic_cast<QVBoxLayout*>(layout());
     l->insertWidget(0, _progressArea);
+
 
     ui->quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     ui->quickWidget->engine()->addImportPath("qrc:/x");
@@ -34,27 +37,44 @@ ExUVulnerabilitiesViewer::~ExUVulnerabilitiesViewer(){
     delete ui;
 }
 
-void ExUVulnerabilitiesViewer::request(const QString &keyword){
-    _cveModel->search(keyword);
-    ExUVulnerabilitiesProgressWidget* progressWidget = new ExUVulnerabilitiesProgressWidget{keyword, this};
-    _progressWidgets.insert(keyword, progressWidget);
-    _progressArea->add(progressWidget);
+void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> unit){
+    _unit = unit;
+    for(auto artifact: *_unit){
+        nlohmann::json artifact_properties = artifact->properties();
+        if(artifact_properties.count("path") > 0){
+            std::string path = artifact_properties["path"].get<std::string>();
+            _paths.insert(QString::fromStdString(path));
+        }
+    }
+    _progressArea->setMaxValue(_unit->artifacts_count());
+    QString path = *_paths.begin();
+    _cveModel->search(path);
+    _progressArea->setLabel(path);
 }
+
+// void ExUVulnerabilitiesViewer::request(const QString &keyword){
+//     _cveModel->search(keyword);
+//     ExUVulnerabilitiesProgressWidget* progressWidget = new ExUVulnerabilitiesProgressWidget{keyword, this};
+//     _progressWidgets.insert(keyword, progressWidget);
+//     _progressArea->add(progressWidget);
+// }
 
 void ExUVulnerabilitiesViewer::filter(const QString &keyword){
 
 }
 
 void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString &keyword){
-    auto it = _progressWidgets.find(keyword);
-    if(it != _progressWidgets.end()){
-        ExUVulnerabilitiesProgressWidget* progressWidget = it.value();
-        _progressArea->remove(progressWidget);
-        _progressWidgets.remove(keyword);
-        delete progressWidget;
-        progressWidget = 0x0;
-    }
+    _paths.remove(keyword);
+    _progressArea->updateProgress(_paths.size());
     updateGeometry();
     adjustSize();
+
+    if(!_paths.isEmpty()){
+        QString path = *_paths.begin();
+        _cveModel->search(path);
+        _progressArea->setLabel(path);
+    } else {
+        _progressArea->hide();
+    }
 }
 

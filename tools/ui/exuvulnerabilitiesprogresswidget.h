@@ -11,9 +11,11 @@ class ExUVulnerabilitiesProgressWidget : public QWidget{
     Q_OBJECT
 
 public:
-    explicit ExUVulnerabilitiesProgressWidget(const QString& keyword, QWidget *parent = nullptr);
+    explicit ExUVulnerabilitiesProgressWidget(QWidget *parent = nullptr);
     ~ExUVulnerabilitiesProgressWidget();
-
+    void setMaxValue(double value);
+    void setLabel(const QString& label);
+    void updateProgress(double value);
 private:
     Ui::ExUVulnerabilitiesProgressWidget *ui;
 };
