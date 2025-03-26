@@ -49,18 +49,41 @@ Rectangle {
                 }
 
                 Rectangle {
-                    width: 100
+                    width: 130
                     height: 30
                     radius: 15
-                    border.color: "#606060"
-                    border.width: 1
+                    // border.color: "#606060"
+                    border.width: 0
                     visible: card.metrics.version !== undefined
-                    color: card.metrics.data ? getColorForScore(card.metrics.data["baseScore"]) : "#5050b4"
-
+                    color: card.metrics.data ? getColorForScore(card.metrics.data["baseScore"]).background : "#5050b4"
                     Text {
-                        anchors.centerIn: parent
-                        text: card.metrics.data ? (card.metrics.version + " " + card.metrics.data["baseScore"]) : ""
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.leftMargin: 8
+                        anchors.topMargin: 4
+                        text: card.metrics.data ? card.metrics.version : ""
                         font.pixelSize: 16
+                        font.capitalization: Font.AllLowercase
+                        color: getColorForScore(card.metrics.data["baseScore"]).foreground
+                    }
+
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.rightMargin: 4
+                        anchors.topMargin: 3
+                        width: 50
+                        height: 25
+                        radius: 15
+                        // border.color: "#606060"
+                        border.width: 0
+                        color: white
+                        Text {
+                            anchors.centerIn: parent
+                            text: card.metrics.data ? card.metrics.data["baseScore"] : ""
+                            font.pixelSize: 15
+                            font.bold: true
+                        }
                     }
                 }
 
@@ -180,10 +203,30 @@ Rectangle {
         }
     }
 
+    // function getColorForScore(score) {
+    //     var red = Math.min(255, 510 * score / 10);
+    //     var green = Math.max(0, 510 - 510 * score / 10);
+    //     return Qt.rgba(red / 255, green / 255, 0, 1);
+    // }
+
     function getColorForScore(score) {
-        var red = Math.min(255, 510 * score / 10);
-        var green = Math.max(0, 510 - 510 * score / 10);
-        return Qt.rgba(red / 255, green / 255, 0, 1);
+        let red = Math.min(255, 510 * score / 10);
+        let green = Math.max(0, 510 - 510 * score / 10);
+        let blue = 0; // Static blue component for simplicity
+        let background = Qt.rgba(red / 255, green / 255, blue / 255, 1);
+
+        // Calculate the luminance of the background using the formula for relative luminance
+        let luminance = 0.299 * (red / 255) + 0.587 * (green / 255) + 0.114 * (blue / 255);
+        let foreground;
+
+        // If the background is light, use black text; if dark, use white text
+        if (luminance > 0.5) {
+            foreground = Qt.rgba(0, 0, 0, 1); // Black for light backgrounds
+        } else {
+            foreground = Qt.rgba(1, 1, 1, 1); // White for dark backgrounds
+        }
+
+        return { background: background, foreground: foreground };
     }
 }
 

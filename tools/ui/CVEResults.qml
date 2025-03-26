@@ -37,7 +37,7 @@ Item {
                         for (let key in obj) {
                             if (key.startsWith("cvss") && obj[key].hasOwnProperty("baseScore")) {
                                 // console.log("Found", model.id, JSON.stringify(obj))
-                                return { "version": key, "data": obj[key] };
+                                return { "version": key.replace('_', '.'), "data": obj[key] };
                             } else {
                                 // console.log("Not found", model.id, JSON.stringify(obj))
                             }
