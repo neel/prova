@@ -22,12 +22,11 @@ class ExUVulnerabilitiesViewer : public QWidget{
     Q_OBJECT
 
 public:
-    explicit ExUVulnerabilitiesViewer(QWidget *parent = nullptr);
+    explicit ExUVulnerabilitiesViewer(QNetworkAccessManager* network, QWidget *parent = nullptr);
     ~ExUVulnerabilitiesViewer();
 
 public:
     void setUnit(std::shared_ptr<prova::execution_unit> unit);
-    // void request(const QString& keyword);
     void filter(const QString& keyword);
 private:
     Ui::ExUVulnerabilitiesViewer *ui;

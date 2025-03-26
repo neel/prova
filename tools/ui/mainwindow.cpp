@@ -12,13 +12,22 @@
 #include <QJsonModel.hpp>
 #include <fstream>
 #include <QContextMenuEvent>
-
+#include <QNetworkAccessManager>
+#include <QNetworkDiskCache>
+#include <QStandardPaths>
 #include "exuvulnerabilitiesviewer.h"
 #include "exuresourcechartviewer.h"
 #include "exuwidget.h"
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
+    _network = new QNetworkAccessManager(this);
+    _cache = new QNetworkDiskCache{this};
+    QString directory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                        + QLatin1StringView("/cacheDir/");
+    _cache->setCacheDirectory(directory);
+    _network->setCache(_cache);
+
     _exuModel = new ExUModel{this};
     ui->exuTreeView->setModel(_exuModel);
     ui->exuTreeView->viewport()->installEventFilter(this);
@@ -82,7 +91,7 @@ void MainWindow::exuSelected(const QModelIndex& index){
 
     if(!index.parent().isValid()){
         std::shared_ptr<prova::execution_unit> unit = _exuModel->unit(index.row());
-        ExUWidget* exuWidget = new ExUWidget{unit};
+        ExUWidget* exuWidget = new ExUWidget{unit, _network};
         QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(exuWidget);
         subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
         subWindow->show();
@@ -184,7 +193,7 @@ void MainWindow::showVulnerabilities(int row){
     //     }
     // }
 
-    ExUVulnerabilitiesViewer* viewer = new ExUVulnerabilitiesViewer;
+    ExUVulnerabilitiesViewer* viewer = new ExUVulnerabilitiesViewer{_network};
     viewer->setUnit(unit);
     // for(const std::string& path: paths){
     //     viewer->request(QString::fromStdString(path));

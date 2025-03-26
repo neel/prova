@@ -44,14 +44,20 @@ void CVEListModel::search(const QString &keyword){
     QNetworkRequest request;
     request.setUrl(QUrl(url));
     request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
+    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 
     QNetworkReply* reply = _network->get(request);
-    connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
+    connect(reply, &QNetworkReply::finished, [this, reply, keyword](){
         replyReceived(keyword, reply);
     });
 }
 
-void CVEListModel::replyReceived(const QString &keyword, QNetworkReply *reply){
+void CVEListModel::replyReceived(const QString& keyword, QNetworkReply *reply){
+    if(reply->error() != QNetworkReply::NoError){
+        qDebug() << "Error " << reply->error() << " while searching for " << keyword;
+        return;
+    }
+
     QByteArray responseData = reply->readAll();
     QString responseString = QString::fromUtf8(responseData);
 
@@ -72,14 +78,6 @@ void CVEListModel::replyReceived(const QString &keyword, QNetworkReply *reply){
     }
 
     emit searchFinished(keyword);
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qDebug() << "Network error: " << reply->errorString();
-    }
-
-    if(results.empty()){
-        // replyEmpty(keyword);
-    }
 
     for(const QString& cve_id: results){
         if(_cve_ids.contains(cve_id)){
@@ -107,7 +105,6 @@ void CVEListModel::fetchCVEDetails(const QString& keyword, const QString& cve_id
         }
     });
 }
-
 
 void CVEListModel::updateDetails(const QString& keyword, const QString& cve_id, const QJsonObject &details){
     beginInsertRows(QModelIndex(), _entries.size(), _entries.size());

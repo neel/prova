@@ -11,12 +11,13 @@ class ExUResourceChartViewer;
 class ExUVulnerabilitiesViewer;
 class QTreeView;
 class QJsonModel;
+class QNetworkAccessManager;
 
 class ExUWidget : public QWidget{
     Q_OBJECT
 public:
-    explicit ExUWidget(QWidget *parent = nullptr);
-    ExUWidget(std::shared_ptr<prova::execution_unit> unit, QWidget *parent = nullptr);
+    explicit ExUWidget(QNetworkAccessManager* network, QWidget *parent = nullptr);
+    ExUWidget(std::shared_ptr<prova::execution_unit> unit, QNetworkAccessManager* network, QWidget *parent = nullptr);
     void setUnit(std::shared_ptr<prova::execution_unit> unit);
     std::shared_ptr<prova::execution_unit> unit();
 private:
@@ -27,6 +28,8 @@ private:
     ExUVulnerabilitiesViewer* _vulnerabilitiesViewer;
     QTreeView*                _sessionPropertyViewer;
     QJsonModel*               _sessionPropertyModel;
+private:
+    QNetworkAccessManager* _network;
 private:
     std::shared_ptr<prova::execution_unit> _unit;
 signals:

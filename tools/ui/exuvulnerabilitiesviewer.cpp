@@ -11,13 +11,11 @@
 #include <QQuickItem>
 #include "cvelistmodel.h"
 #include "exuvulnerabilitiesprogresswidget.h"
-#include "exucvesearchprogressscrollarea.h"
 #include <nlohmann/json.hpp>
 #include "prova/artifact.h"
 
-ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer){
+ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
-    _network = new QNetworkAccessManager(this);
     _cveModel = new CVEListModel{_network};
 
     _progressArea = new ExUVulnerabilitiesProgressWidget{this};
@@ -52,20 +50,13 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
     _progressArea->setLabel(path);
 }
 
-// void ExUVulnerabilitiesViewer::request(const QString &keyword){
-//     _cveModel->search(keyword);
-//     ExUVulnerabilitiesProgressWidget* progressWidget = new ExUVulnerabilitiesProgressWidget{keyword, this};
-//     _progressWidgets.insert(keyword, progressWidget);
-//     _progressArea->add(progressWidget);
-// }
-
 void ExUVulnerabilitiesViewer::filter(const QString &keyword){
 
 }
 
 void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString &keyword){
     _paths.remove(keyword);
-    _progressArea->updateProgress(_paths.size());
+    _progressArea->updateProgress(_unit->artifacts_count() - _paths.size());
     updateGeometry();
     adjustSize();
 

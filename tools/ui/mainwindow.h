@@ -9,6 +9,9 @@ namespace Ui {
 class MainWindow;
 }
 
+class QNetworkAccessManager;
+class QNetworkDiskCache;
+
 namespace prova{
 struct execution_unit;
 struct store;
@@ -32,8 +35,10 @@ class MainWindow : public QMainWindow{
     void showResources(int row);
     void showVulnerabilities(int row);
   private:
-    Ui::MainWindow *ui;
-    ExUModel* _exuModel;
+    Ui::MainWindow*         ui;
+    ExUModel*               _exuModel;
+    QNetworkAccessManager*  _network;
+    QNetworkDiskCache*      _cache;
   private:
     // std::vector<std::shared_ptr<prova::execution_unit>> _units;
     prova::store _store;
