@@ -6,10 +6,12 @@
 #include <QNetworkAccessManager>
 
 struct CVEEntry {
-    QString keyword;   // e.g. "openssl"
+    QStringList keywords;   // e.g. "openssl"
     QString id;        // e.g. "CVE-2021-1234"
     QJsonObject details; // The JSON details once loaded; empty initially
 };
+
+bool operator==(const CVEEntry& entry, const QString& id);
 
 
 class CVEListModel : public QAbstractListModel{

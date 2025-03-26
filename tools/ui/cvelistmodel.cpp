@@ -2,6 +2,12 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 
+
+bool operator==(const CVEEntry &entry, const QString &id){
+    return entry.id == id;
+}
+
+
 CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent){
     _network = network;
 }
@@ -20,7 +26,7 @@ QVariant CVEListModel::data(const QModelIndex &index, int role) const{
     const CVEEntry &entry = _entries[index.row()];
     switch (role) {
     case KeywordRole:
-        return entry.keyword;
+        return entry.keywords;
     case IdRole:
         return entry.id;
     case DetailsRole:
@@ -32,7 +38,7 @@ QVariant CVEListModel::data(const QModelIndex &index, int role) const{
 
 QHash<int, QByteArray> CVEListModel::roleNames() const{
     static QHash<int, QByteArray> roles {
-        { KeywordRole, "keyword" },
+        { KeywordRole, "keywords" },
         { IdRole,      "id" },
         { DetailsRole, "details" }
     };
@@ -81,11 +87,19 @@ void CVEListModel::replyReceived(const QString& keyword, QNetworkReply *reply){
 
     for(const QString& cve_id: results){
         if(_cve_ids.contains(cve_id)){
+            auto index = _entries.indexOf(cve_id);
+            if(index != -1){
+                _entries[index].keywords << keyword;
+                QModelIndex startIndex = createIndex(index, 0);
+                QModelIndex endIndex = createIndex(index, 0);
+                emit dataChanged(startIndex, endIndex);
+            }
+
             continue;
         }
 
-        _cve_ids.insert(cve_id);
         fetchCVEDetails(keyword, cve_id);
+        _cve_ids.insert(cve_id);
     }
 
     reply->deleteLater();
@@ -109,10 +123,12 @@ void CVEListModel::fetchCVEDetails(const QString& keyword, const QString& cve_id
 void CVEListModel::updateDetails(const QString& keyword, const QString& cve_id, const QJsonObject &details){
     beginInsertRows(QModelIndex(), _entries.size(), _entries.size());
     CVEEntry entry;
-    entry.keyword = keyword;
+    entry.keywords << keyword;
     entry.id = cve_id;
     entry.details = details;
     _entries.append(entry);
     endInsertRows();
 }
+
+
 

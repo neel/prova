@@ -11,6 +11,8 @@ Rectangle {
     property string provider: ""
     property string assigner: ""
     property var    descriptions: []
+    property var    artifacts: []
+    property var    metrics: {}
 
     // color: "green"
     border.color: "#e1e1e1"
@@ -35,11 +37,33 @@ Rectangle {
             spacing: 10
             width: parent.width
 
-            Text {
+            RowLayout {
                 width: parent.width
-                text: card.cveId
-                font.bold: true
-                font.pixelSize: 20
+                spacing: 10
+
+                Text {
+                    // width: parent.width
+                    text: card.cveId
+                    font.bold: true
+                    font.pixelSize: 20
+                }
+
+                Rectangle {
+                    width: 100
+                    height: 30
+                    radius: 15
+                    border.color: "#606060"
+                    border.width: 1
+                    visible: card.metrics.version !== undefined
+                    color: card.metrics.data ? getColorForScore(card.metrics.data["baseScore"]) : "#5050b4"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: card.metrics.data ? (card.metrics.version + " " + card.metrics.data["baseScore"]) : ""
+                        font.pixelSize: 16
+                    }
+                }
+
             }
 
             RowLayout {
@@ -123,6 +147,43 @@ Rectangle {
                     }
                 }
             }
+
+            Row {
+                width: parent.width
+                spacing: 10
+                anchors.leftMargin: 20
+                anchors.rightMargin: 0
+                Repeater {
+                    model: card.artifacts
+                    delegate: Rectangle {
+                        width: parent.width
+                        color: "#f8f8f8"
+                        radius: 5
+                        TextEdit {
+                            id: artifactText
+                            readOnly: true
+                            selectByMouse: true
+                            width: parent.width
+                            text: modelData
+                            textFormat: Text.PlainText
+                            wrapMode: Text.NoWrap
+                            padding: 10
+                        }
+                        implicitHeight: artifactText.implicitHeight + 10
+                    }
+                }
+
+                Component.onCompleted: {
+                    console.log("Displaying artifact:", card.artifacts);
+                }
+            }
         }
     }
+
+    function getColorForScore(score) {
+        var red = Math.min(255, 510 * score / 10);
+        var green = Math.max(0, 510 - 510 * score / 10);
+        return Qt.rgba(red / 255, green / 255, 0, 1);
+    }
 }
+

@@ -21,12 +21,53 @@ Item {
 
             delegate: CVECard {
                 cveId:          model.id
+                artifacts:      model.keywords
                 datePublished:  model.details["cveMetadata"] ? model.details["cveMetadata"]["datePublished"] : ""
                 dateReserved:   model.details["cveMetadata"] ? model.details["cveMetadata"]["dateReserved"] : ""
                 dateUpdated:    model.details["cveMetadata"] ? model.details["cveMetadata"]["dateUpdated"] : ""
                 provider:       model.details["providerMetadata"] ? model.details["providerMetadata"]["shortName"] : ""
                 assigner:       model.details["providerMetadata"] ? model.details["providerMetadata"]["assignerShortName"] : ""
                 descriptions:   model.details["containers"] ? model.details["containers"]["cna"]["descriptions"] : ""
+                metrics: {
+                    let containers = model.details["containers"];
+                    let adp = containers["adp"];
+                    let cna = containers["cna"];
+
+                    let extract_cvss = function(obj){
+                        for (let key in obj) {
+                            if (key.startsWith("cvss") && obj[key].hasOwnProperty("baseScore")) {
+                                // console.log("Found", model.id, JSON.stringify(obj))
+                                return { "version": key, "data": obj[key] };
+                            } else {
+                                // console.log("Not found", model.id, JSON.stringify(obj))
+                            }
+                        }
+                        return false;
+                    }
+
+                    for(let a in adp){
+                        if(a.hasOwnProperty("metrics")){
+                            for(let m in a["metrics"]){
+                                let metrics = a["metrics"][m]
+                                let cvss = extract_cvss(metrics);
+                                if(cvss !== false){
+                                    return cvss;
+                                }
+                            }
+                        }
+                    }
+                    if(cna.hasOwnProperty("metrics")){
+                        for(let m in cna["metrics"]){
+                            let metrics = cna["metrics"][m]
+                            let cvss = extract_cvss(metrics);
+                            if(cvss !== false){
+                                return cvss;
+                            }
+                        }
+                    }
+
+                    return {};
+                }
             }
         }
     }

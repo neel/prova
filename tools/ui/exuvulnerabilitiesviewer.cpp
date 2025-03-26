@@ -41,7 +41,7 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
         nlohmann::json artifact_properties = artifact->properties();
         if(artifact_properties.count("path") > 0){
             std::string path = artifact_properties["path"].get<std::string>();
-            _paths.insert(QString::fromStdString(path));
+            _paths.insert(QString::fromStdString(path).trimmed());
         }
     }
     _progressArea->setMaxValue(_unit->artifacts_count());
