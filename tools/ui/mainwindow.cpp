@@ -10,6 +10,8 @@
 #include <QTextEdit>
 #include <QMdiSubWindow>
 #include <QJsonModel.hpp>
+#include <QScrollArea>
+#include <QSvgRenderer>
 #include <fstream>
 #include <QContextMenuEvent>
 #include <QNetworkAccessManager>
@@ -182,14 +184,34 @@ void MainWindow::showSequenceDiagram(int row){
     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
     std::filesystem::path image_path{std::format("{}.svg", row)};
     unit->render_svg(image_path);
-    std::cout << "Rendered " << image_path<< std::endl;
+    std::cout << "Rendered " << image_path << std::endl;
 
     // Create a new SVG Widget
     QSvgWidget* svgWidget = new QSvgWidget(QString::fromStdString(image_path.string()));
 
-    // Create a subwindow and set its widget to the SVG widget
-    QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(svgWidget);
+    // Get the intrinsic size of the SVG document
+    QSize svgSize = svgWidget->renderer()->defaultSize();
+
+    // Set the SVG Widget to its intrinsic size
+    svgWidget->setFixedSize(svgSize);
+
+    // Create a scroll area to contain the SVG widget
+    QScrollArea* scrollArea = new QScrollArea;
+    scrollArea->setWidget(svgWidget);
+    scrollArea->setWidgetResizable(false); // Important to avoid resizing the SVG widget
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    // Create a subwindow and set its widget to the scroll area
+    QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(scrollArea);
+    QSize mdiAreaSize = ui->mdiArea->size();
+    QSize windowSize = svgSize + QSize(20, 20); // Add some margins or adjust as needed
+    if (windowSize.width() > mdiAreaSize.width() || windowSize.height() > mdiAreaSize.height()) {
+        windowSize = QSize(qMin(windowSize.width(), mdiAreaSize.width()), qMin(windowSize.height(), mdiAreaSize.height()) ); // If the image is larger, fit the window to the MDI area
+    }
     subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", row)));
+    subWindow->resize(windowSize);
+
     subWindow->show();
 }
 
