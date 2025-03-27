@@ -49,6 +49,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
         }
     });
 
+    connect(this, &MainWindow::sequenceClicked, this, &MainWindow::showSequenceDiagram);
     connect(this, &MainWindow::resourcesClicked, this, &MainWindow::showResources);
     connect(this, &MainWindow::vulnerabilitiesClicked, this, &MainWindow::showVulnerabilities);
 }
@@ -153,8 +154,13 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
             std::cout << index.row() << std::endl;
 
             QMenu context_menu;
+            auto seq_action = context_menu.addAction("Sequence");
             auto res_action = context_menu.addAction("Resources");
             auto vul_action = context_menu.addAction("Vulnerabilities");
+
+            connect(seq_action, &QAction::triggered, [index, this](){
+                emit sequenceClicked(index.row());
+            });
 
             connect(res_action, &QAction::triggered, [index, this](){
                 emit resourcesClicked(index.row());
@@ -170,6 +176,21 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
         }
     }
     return false;
+}
+
+void MainWindow::showSequenceDiagram(int row){
+    const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
+    std::filesystem::path image_path{std::format("{}.svg", row)};
+    unit->render_svg(image_path);
+    std::cout << "Rendered " << image_path<< std::endl;
+
+    // Create a new SVG Widget
+    QSvgWidget* svgWidget = new QSvgWidget(QString::fromStdString(image_path.string()));
+
+    // Create a subwindow and set its widget to the SVG widget
+    QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(svgWidget);
+    subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", row)));
+    subWindow->show();
 }
 
 void MainWindow::showResources(int row){

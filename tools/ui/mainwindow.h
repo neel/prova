@@ -29,9 +29,11 @@ class MainWindow : public QMainWindow{
   private:
     bool eventFilter(QObject* target, QEvent* event);
   signals:
+    void sequenceClicked(int row);
     void resourcesClicked(int row);
     void vulnerabilitiesClicked(int row);
   private slots:
+    void showSequenceDiagram(int row);
     void showResources(int row);
     void showVulnerabilities(int row);
   private:
