@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import Helpers 1.0
 
 Rectangle {
     id: card
@@ -64,7 +65,7 @@ Rectangle {
                         text: card.metrics.data ? card.metrics.version : ""
                         font.pixelSize: 16
                         font.capitalization: Font.AllLowercase
-                        color: getColorForScore(card.metrics.data["baseScore"]).foreground
+                        color: (card.metrics && card.metrics.data && "baseScore" in card.metrics.data && card.metrics.data["baseScore"] !== undefined) ? getColorForScore(card.metrics.data["baseScore"]).foreground : Qt.rgba(1, 1, 1, 1)
                     }
 
                     Rectangle {
@@ -77,10 +78,10 @@ Rectangle {
                         radius: 15
                         // border.color: "#606060"
                         border.width: 0
-                        color: white
+                        color: Qt.rgba(1, 1, 1, 1)
                         Text {
                             anchors.centerIn: parent
-                            text: card.metrics.data ? card.metrics.data["baseScore"] : ""
+                            text: (card.metrics && card.metrics.data && "baseScore" in card.metrics.data && card.metrics.data["baseScore"] !== undefined) ? card.metrics.data["baseScore"] : ""
                             font.pixelSize: 15
                             font.bold: true
                         }
@@ -171,33 +172,38 @@ Rectangle {
                 }
             }
 
-            Row {
+            RowLayout {
                 width: parent.width
                 spacing: 10
                 anchors.leftMargin: 20
-                anchors.rightMargin: 0
                 Repeater {
                     model: card.artifacts
                     delegate: Rectangle {
-                        width: parent.width
-                        color: "#f8f8f8"
-                        radius: 5
-                        TextEdit {
-                            id: artifactText
-                            readOnly: true
-                            selectByMouse: true
-                            width: parent.width
-                            text: modelData
-                            textFormat: Text.PlainText
-                            wrapMode: Text.NoWrap
-                            padding: 10
-                        }
-                        implicitHeight: artifactText.implicitHeight + 10
-                    }
-                }
+                        id: artifactRect
+                        radius: 10
+                        width: 70
+                        height: 20
+                        color: ColorHelper.colorForPath(modelData)
+                        border.color: "#cccccc"
+                        border.width: 1
+                        // implicitHeight: childrenRect.height + 10
 
-                Component.onCompleted: {
-                    console.log("Displaying artifact:", card.artifacts);
+                        HoverHandler {
+                            id: hoverHandler
+                        }
+
+                        ToolTip {
+                            visible: hoverHandler.hovered
+                            text: modelData
+                            delay: 100
+                            timeout: 5000
+                        }
+
+
+                        Component.onCompleted: {
+                            console.log("Path:", modelData, "Color:", ColorHelper.colorForPath(modelData));
+                        }
+                    }
                 }
             }
         }

@@ -4,7 +4,6 @@ import QtQuick.Layouts 1.15
 
 import CVE 1.0
 
-
 Item {
     visible: true
     width: 640
