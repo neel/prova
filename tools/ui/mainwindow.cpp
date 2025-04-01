@@ -25,9 +25,9 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     ui->setupUi(this);
     _network = new QNetworkAccessManager(this);
     _cache = new QNetworkDiskCache{this};
-    QString directory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
-                        + QLatin1StringView("/cacheDir/");
+    QString directory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QLatin1StringView("/cacheDir/");
     _cache->setCacheDirectory(directory);
+    _cache->setMaximumCacheSize(100 * 1024 * 1024);
     _network->setCache(_cache);
 
     _exuModel = new ExUModel{this};

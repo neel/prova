@@ -11,7 +11,7 @@ class CVEListModel;
 class ExUVulnerabilitiesProgressWidget;
 class QVBoxLayout;
 class ExUCVESearchProgressScrollArea;
-class QSortFilterProxyModel;
+class CVEProxyModel;
 
 namespace Ui {
 class ExUVulnerabilitiesViewer;
@@ -33,7 +33,7 @@ private:
     Ui::ExUVulnerabilitiesViewer *ui;
     QNetworkAccessManager*       _network;
     CVEListModel*                _cveModel;
-    QSortFilterProxyModel*       _cveFilterModel;
+    CVEProxyModel*               _cveFilterModel;
     QQuickWidget*                _quickWidget;
     QSet<QString>                _cves;
     ExUVulnerabilitiesProgressWidget* _progressArea;
@@ -41,6 +41,8 @@ private:
     QSet<QString>               _paths;
 private slots:
     void responseReceivedSlot(const QString& keyword);
+    void setFilterText(const QString &text);
+    void updateLabelCount();
 };
 
 #endif // EXUVULNERABILITIESVIEWER_H

@@ -50,7 +50,7 @@ void CVEListModel::search(const QString &keyword){
     QNetworkRequest request;
     request.setUrl(QUrl(url));
     request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
+    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysCache);
 
     QNetworkReply* reply = _network->get(request);
     connect(reply, &QNetworkReply::finished, [this, reply, keyword](){
