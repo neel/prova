@@ -172,7 +172,7 @@ Rectangle {
                 }
             }
 
-            RowLayout {
+            Flow {
                 width: parent.width
                 spacing: 10
                 anchors.leftMargin: 20
@@ -180,9 +180,9 @@ Rectangle {
                     model: card.artifacts
                     delegate: Rectangle {
                         id: artifactRect
-                        radius: 10
-                        width: 70
-                        height: 20
+                        radius: 8
+                        width: 50
+                        height: 18
                         color: ColorHelper.colorForPath(modelData)
                         border.color: "#cccccc"
                         border.width: 1
