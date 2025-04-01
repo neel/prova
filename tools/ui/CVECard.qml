@@ -200,9 +200,9 @@ Rectangle {
                         }
 
 
-                        Component.onCompleted: {
-                            console.log("Path:", modelData, "Color:", ColorHelper.colorForPath(modelData));
-                        }
+                        // Component.onCompleted: {
+                        //     console.log("Path:", modelData, "Color:", ColorHelper.colorForPath(modelData));
+                        // }
                     }
                 }
             }

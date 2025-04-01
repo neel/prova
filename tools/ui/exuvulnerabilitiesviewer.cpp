@@ -9,6 +9,7 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickItem>
+#include <QSortFilterProxyModel>
 #include "cvelistmodel.h"
 #include "exuvulnerabilitiesprogresswidget.h"
 #include <nlohmann/json.hpp>
@@ -17,6 +18,10 @@
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
     _cveModel = new CVEListModel{_network};
+    _cveFilterModel = new QSortFilterProxyModel;
+    _cveFilterModel->setSourceModel(_cveModel);
+    _cveFilterModel->setSortRole(CVEListModel::IdRole);
+    _cveFilterModel->sort(0, Qt::DescendingOrder);
 
     _progressArea = new ExUVulnerabilitiesProgressWidget{this};
     QVBoxLayout* l = dynamic_cast<QVBoxLayout*>(layout());
@@ -25,7 +30,7 @@ ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *networ
 
     ui->quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     ui->quickWidget->engine()->addImportPath("qrc:/x");
-    ui->quickWidget->engine()->rootContext()->setContextProperty("cveModel", _cveModel);
+    ui->quickWidget->engine()->rootContext()->setContextProperty("cveModel", _cveFilterModel);
     ui->quickWidget->setSource(QUrl("qrc:/x/CVE/CVEResults.qml"));
 
     connect(_cveModel, &CVEListModel::searchFinished, this, &ExUVulnerabilitiesViewer::responseReceivedSlot);
@@ -57,6 +62,10 @@ void ExUVulnerabilitiesViewer::filter(const QString &keyword){
 void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString &keyword){
     _paths.remove(keyword);
     _progressArea->updateProgress(_unit->artifacts_count() - _paths.size());
+
+    // _cveFilterModel->invalidate();
+    // _cveFilterModel->sort(0, Qt::AscendingOrder);
+
     updateGeometry();
     adjustSize();
 
