@@ -1,15 +1,21 @@
 #include <QApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include "mainwindow.h"
-
-#include "prova/store.h"
+#include "cvelistmodel.h"
+#include "colorhelper.h"
+#include "cveproxymodel.h"
 
 int main(int argc, char *argv[]){
-    // prova::store store;
-    // store.fetch();
-    // // store.uml(std::cout);
-    // store.extract_all();
-
     QApplication app(argc, argv);
+
+    // qmlRegisterType<CVEListModel>("CVE", 1, 0, "CVEListModel");
+    qmlRegisterType<CVEProxyModel>("CVE", 1, 0, "CVEListModel");
+    qmlRegisterSingletonType<ColorHelper>("Helpers", 1, 0, "ColorHelper", [](QQmlEngine *engine, QJSEngine *scriptEngine) -> QObject* {
+        Q_UNUSED(engine)
+        Q_UNUSED(scriptEngine)
+        return new ColorHelper();
+    });
 
     MainWindow window;
     window.show();

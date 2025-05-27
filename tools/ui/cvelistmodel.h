@@ -6,10 +6,12 @@
 #include <QNetworkAccessManager>
 
 struct CVEEntry {
-    QString keyword;   // e.g. "openssl"
+    QStringList keywords;   // e.g. "openssl"
     QString id;        // e.g. "CVE-2021-1234"
     QJsonObject details; // The JSON details once loaded; empty initially
 };
+
+bool operator==(const CVEEntry& entry, const QString& id);
 
 
 class CVEListModel : public QAbstractListModel{
@@ -29,13 +31,16 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 public:
     void search(const QString& keyword);
+private:
     void replyReceived(const QString &keyword, QNetworkReply* reply);
-    Q_INVOKABLE int addCveEntry(const QString &keyword, const QString &id);
-    Q_INVOKABLE void updateDetails(int row, const QJsonObject &details);
-    int findCveEntry(const QString &keyword, const QString &id) const;
+    void fetchCVEDetails(const QString& keyword, const QString& cve_id);
+    void updateDetails(const QString& keyword, const QString& cve_id, const QJsonObject &details);
 private:
     QList<CVEEntry>        _entries;
+    QSet<QString>          _cve_ids;
     QNetworkAccessManager* _network;
+signals:
+    void searchFinished(const QString& keyword);
 };
 
 #endif // CVELISTMODEL_H

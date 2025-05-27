@@ -24,6 +24,10 @@ qt_add_executable(prova-ui
     exuscene.h exuscene.cpp
     cvelistmodel.h cvelistmodel.cpp
     settingsdialog.h settingsdialog.cpp settingsdialog.ui
+    exuvulnerabilitiesprogresswidget.h exuvulnerabilitiesprogresswidget.cpp exuvulnerabilitiesprogresswidget.ui
+    colorhelper.h colorhelper.cpp
+    cveproxymodel.h cveproxymodel.cpp
+
 )
 
 target_link_libraries(prova-ui PRIVATE Qt6::Core Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Svg Qt6::SvgWidgets Qt6::Network prova-tools QJsonModelShared)

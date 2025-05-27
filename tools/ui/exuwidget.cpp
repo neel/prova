@@ -7,13 +7,16 @@
 #include "prova/artifact.h"
 #include <QJsonModel.hpp>
 
-ExUWidget::ExUWidget(QWidget *parent): QWidget{parent} {
+ExUWidget::ExUWidget(QNetworkAccessManager* network, QWidget *parent): QWidget{parent}, _network(network) {
     _layout          = new QHBoxLayout{this};
     _vSplitter       = new QSplitter{Qt::Vertical, this};
     _hSplitter       = new QSplitter{Qt::Horizontal, _vSplitter};
 
+    _layout->setSpacing(0);
+    _layout->setContentsMargins(0, 0, 0, 0);
+
     _resourceLifetimeViewer = new ExUResourceChartViewer{this};
-    _vulnerabilitiesViewer  = new ExUVulnerabilitiesViewer{this};
+    _vulnerabilitiesViewer  = new ExUVulnerabilitiesViewer{_network, this};
     _sessionPropertyViewer  = new QTreeView{this};
 
     _sessionPropertyModel = new QJsonModel{this};
@@ -29,13 +32,14 @@ ExUWidget::ExUWidget(QWidget *parent): QWidget{parent} {
     connect(this, &ExUWidget::exuSessionSelected, this, &ExUWidget::exuSessionSelectedSlot);
 }
 
-ExUWidget::ExUWidget(std::shared_ptr<prova::execution_unit> unit, QWidget *parent): ExUWidget(parent){
+ExUWidget::ExUWidget(std::shared_ptr<prova::execution_unit> unit, QNetworkAccessManager* network, QWidget *parent): ExUWidget(network, parent){
     setUnit(unit);
 }
 
 void ExUWidget::setUnit(std::shared_ptr<prova::execution_unit> unit){
     _unit = unit;
     _resourceLifetimeViewer->setUnit(_unit);
+    _vulnerabilitiesViewer->setUnit(_unit);
 }
 
 std::shared_ptr<prova::execution_unit> ExUWidget::unit(){
@@ -66,10 +70,9 @@ void ExUWidget::exuSessionSelectedSlot(prova::session::ptr session, bool selecte
     _sessionPropertyModel->loadJson(json_str.c_str());
     _sessionPropertyViewer->expandAll();
 
-    _vulnerabilitiesViewer->clearResults();
     if(artifact_properties.count("path") > 0){
         std::string path = artifact_properties["path"].get<std::string>();
-        _vulnerabilitiesViewer->request(QString::fromStdString(path));
+        _vulnerabilitiesViewer->filter(QString::fromStdString(path));
     }
 }
 

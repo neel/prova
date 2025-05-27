@@ -2,39 +2,47 @@
 #define EXUVULNERABILITIESVIEWER_H
 
 #include <QWidget>
+#include <prova/execution_unit.h>
 
 class QNetworkAccessManager;
 class QQuickWidget;
 class QNetworkReply;
+class CVEListModel;
+class ExUVulnerabilitiesProgressWidget;
+class QVBoxLayout;
+class ExUCVESearchProgressScrollArea;
+class CVEProxyModel;
 
 namespace Ui {
 class ExUVulnerabilitiesViewer;
 }
 
-class ExUVulnerabilitiesViewer : public QWidget
-{
+
+
+class ExUVulnerabilitiesViewer : public QWidget{
     Q_OBJECT
 
 public:
-    explicit ExUVulnerabilitiesViewer(QWidget *parent = nullptr);
+    explicit ExUVulnerabilitiesViewer(QNetworkAccessManager* network, QWidget *parent = nullptr);
     ~ExUVulnerabilitiesViewer();
 
 public:
-    void request(const QString& keyword);
-signals:
-    void jsonReady(QVariant);
-private slots:
-    void updateJsonData(const QVariant& data);
-public slots:
-    void replyReceived(const QString &keyword, QNetworkReply* reply);
-    void replyEmpty(const QString &keyword);
-    void cveReplyReceived(const QString &keyword, QNetworkReply* reply);
-    void clearResults();
+    void setUnit(std::shared_ptr<prova::execution_unit> unit);
+    void filter(const QString& keyword);
 private:
     Ui::ExUVulnerabilitiesViewer *ui;
     QNetworkAccessManager*       _network;
+    CVEListModel*                _cveModel;
+    CVEProxyModel*               _cveFilterModel;
     QQuickWidget*                _quickWidget;
     QSet<QString>                _cves;
+    ExUVulnerabilitiesProgressWidget* _progressArea;
+    std::shared_ptr<prova::execution_unit> _unit;
+    QSet<QString>               _paths;
+private slots:
+    void responseReceivedSlot(const QString& keyword);
+    void setFilterText(const QString &text);
+    void updateLabelCount();
 };
 
 #endif // EXUVULNERABILITIESVIEWER_H

@@ -10,10 +10,15 @@
 #include <QTextEdit>
 #include <QMdiSubWindow>
 #include <QJsonModel.hpp>
+#include <QScrollArea>
+#include <QSvgRenderer>
 #include <fstream>
 #include <QContextMenuEvent>
 #include <QMessageBox>
 #include "settingsdialog.h"
+#include <QNetworkAccessManager>
+#include <QNetworkDiskCache>
+#include <QStandardPaths>
 #include "exuvulnerabilitiesviewer.h"
 #include "exuresourcechartviewer.h"
 #include "exuwidget.h"
@@ -22,6 +27,13 @@
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
     connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+
+    _network = new QNetworkAccessManager(this);
+    _cache = new QNetworkDiskCache{this};
+    QString directory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QLatin1StringView("/cacheDir/");
+    _cache->setCacheDirectory(directory);
+    _cache->setMaximumCacheSize(100 * 1024 * 1024);
+    _network->setCache(_cache);
 
     _exuModel = new ExUModel{this};
     ui->exuTreeView->setModel(_exuModel);
@@ -44,6 +56,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
         }
     });
 
+    connect(this, &MainWindow::sequenceClicked, this, &MainWindow::showSequenceDiagram);
     connect(this, &MainWindow::resourcesClicked, this, &MainWindow::showResources);
     connect(this, &MainWindow::vulnerabilitiesClicked, this, &MainWindow::showVulnerabilities);
 }
@@ -97,7 +110,7 @@ void MainWindow::exuSelected(const QModelIndex& index){
 
     if(!index.parent().isValid()){
         std::shared_ptr<prova::execution_unit> unit = _exuModel->unit(index.row());
-        ExUWidget* exuWidget = new ExUWidget{unit};
+        ExUWidget* exuWidget = new ExUWidget{unit, _network};
         QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(exuWidget);
         subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
         subWindow->show();
@@ -159,8 +172,13 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
             std::cout << index.row() << std::endl;
 
             QMenu context_menu;
+            auto seq_action = context_menu.addAction("Sequence");
             auto res_action = context_menu.addAction("Resources");
             auto vul_action = context_menu.addAction("Vulnerabilities");
+
+            connect(seq_action, &QAction::triggered, [index, this](){
+                emit sequenceClicked(index.row());
+            });
 
             connect(res_action, &QAction::triggered, [index, this](){
                 emit resourcesClicked(index.row());
@@ -178,6 +196,41 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
     return false;
 }
 
+void MainWindow::showSequenceDiagram(int row){
+    const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
+    std::filesystem::path image_path{std::format("{}.svg", row)};
+    unit->render_svg(image_path);
+    std::cout << "Rendered " << image_path << std::endl;
+
+    // Create a new SVG Widget
+    QSvgWidget* svgWidget = new QSvgWidget(QString::fromStdString(image_path.string()));
+
+    // Get the intrinsic size of the SVG document
+    QSize svgSize = svgWidget->renderer()->defaultSize();
+
+    // Set the SVG Widget to its intrinsic size
+    svgWidget->setFixedSize(svgSize);
+
+    // Create a scroll area to contain the SVG widget
+    QScrollArea* scrollArea = new QScrollArea;
+    scrollArea->setWidget(svgWidget);
+    scrollArea->setWidgetResizable(false); // Important to avoid resizing the SVG widget
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    // Create a subwindow and set its widget to the scroll area
+    QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(scrollArea);
+    QSize mdiAreaSize = ui->mdiArea->size();
+    QSize windowSize = svgSize + QSize(20, 20); // Add some margins or adjust as needed
+    if (windowSize.width() > mdiAreaSize.width() || windowSize.height() > mdiAreaSize.height()) {
+        windowSize = QSize(qMin(windowSize.width(), mdiAreaSize.width()), qMin(windowSize.height(), mdiAreaSize.height()) ); // If the image is larger, fit the window to the MDI area
+    }
+    subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", row)));
+    subWindow->resize(windowSize);
+
+    subWindow->show();
+}
+
 void MainWindow::showResources(int row){
     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
 
@@ -186,23 +239,24 @@ void MainWindow::showResources(int row){
 }
 
 void MainWindow::showVulnerabilities(int row){
-    std::vector<std::string> paths;
+    // std::vector<std::string> paths;
 
     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
-    for(const std::shared_ptr<prova::artifact>& artifact: *unit){
-        const nlohmann::json& properties = artifact->properties();
-        if(properties.count("path") > 0){
-            std::string path = properties["path"].get<std::string>();
-            paths.push_back(path);
+    // for(const std::shared_ptr<prova::artifact>& artifact: *unit){
+    //     const nlohmann::json& properties = artifact->properties();
+    //     if(properties.count("path") > 0){
+    //         std::string path = properties["path"].get<std::string>();
+    //         paths.push_back(path);
 
-            std::cout << path << std::endl;
-        }
-    }
+    //         std::cout << path << std::endl;
+    //     }
+    // }
 
-    ExUVulnerabilitiesViewer* viewer = new ExUVulnerabilitiesViewer;
-    for(const std::string& path: paths){
-        viewer->request(QString::fromStdString(path));
-    }
+    ExUVulnerabilitiesViewer* viewer = new ExUVulnerabilitiesViewer{_network};
+    viewer->setUnit(unit);
+    // for(const std::string& path: paths){
+    //     viewer->request(QString::fromStdString(path));
+    // }
     viewer->show();
 }
 

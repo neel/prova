@@ -9,120 +9,91 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickItem>
+#include <QSortFilterProxyModel>
+#include "cvelistmodel.h"
+#include "cveproxymodel.h"
+#include "exuvulnerabilitiesprogresswidget.h"
+#include <nlohmann/json.hpp>
+#include "prova/artifact.h"
 
-ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer){
-    _network = new QNetworkAccessManager(this);
+ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
+    _cveModel = new CVEListModel{_network};
+    _cveFilterModel = new CVEProxyModel;
+    _cveFilterModel->setSourceModel(_cveModel);
+    _cveFilterModel->setSortRole(CVEListModel::IdRole);
+    _cveFilterModel->sort(0, Qt::DescendingOrder);
+    _cveFilterModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
-    _quickWidget = new QQuickWidget(this);
-    _quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    _quickWidget->engine()->addImportPath("qrc:/x");
-    _quickWidget->setSource(QUrl("qrc:/x/CVE/CVEResults.qml"));
+    _progressArea = new ExUVulnerabilitiesProgressWidget{this};
+    QVBoxLayout* l = dynamic_cast<QVBoxLayout*>(layout());
+    l->insertWidget(0, _progressArea);
 
-    ui->centralLayout->addWidget(_quickWidget);
 
-    connect(this, &ExUVulnerabilitiesViewer::jsonReady, this, &ExUVulnerabilitiesViewer::updateJsonData);
+    ui->quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    ui->quickWidget->engine()->addImportPath("qrc:/x");
+    ui->quickWidget->engine()->rootContext()->setContextProperty("cveModel", _cveFilterModel);
+    ui->quickWidget->setSource(QUrl("qrc:/x/CVE/CVEResults.qml"));
+
+    connect(_cveModel, &CVEListModel::searchFinished, this, &ExUVulnerabilitiesViewer::responseReceivedSlot);
+    connect(ui->searchEdit, &QLineEdit::textChanged, this, &ExUVulnerabilitiesViewer::setFilterText);
+    connect(_cveFilterModel, &QSortFilterProxyModel::dataChanged, this, &ExUVulnerabilitiesViewer::updateLabelCount);
+    connect(_cveFilterModel, &QSortFilterProxyModel::modelReset, this, &ExUVulnerabilitiesViewer::updateLabelCount);
+    connect(_cveFilterModel, &QSortFilterProxyModel::rowsInserted, this, &ExUVulnerabilitiesViewer::updateLabelCount);
+    connect(_cveFilterModel, &QSortFilterProxyModel::rowsRemoved, this, &ExUVulnerabilitiesViewer::updateLabelCount);
 }
 
 ExUVulnerabilitiesViewer::~ExUVulnerabilitiesViewer(){
     delete ui;
 }
 
-void ExUVulnerabilitiesViewer::request(const QString &keyword){
-    QString url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
-    QNetworkRequest request;
-    request.setUrl(QUrl(url));
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-
-    QNetworkReply* reply = _network->get(request);
-    connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
-        replyReceived(keyword, reply);
-    });
-}
-
-void ExUVulnerabilitiesViewer::updateJsonData(const QVariant& data){
-    QObject* root = _quickWidget->rootObject();
-    if (root) {
-        bool ok = QMetaObject::invokeMethod(root, "addCveData", Q_ARG(QVariant, data));
-        if (!ok)
-            qWarning() << "Failed to invoke addCveData on QML root object.";
-        else
-            qDebug() << "Inserted new CVE record into QML ListModel.";
-    } else {
-        qWarning() << "Root object not found!";
-    }
-
-    qDebug() << "Updating CVE Viewer with JSON";
-}
-
-void ExUVulnerabilitiesViewer::replyReceived(const QString &keyword, QNetworkReply* reply){
-    QByteArray responseData = reply->readAll();
-    QString responseString = QString::fromUtf8(responseData);
-
-    QStringList results;
-    const QString lookup = "https://www.cve.org/CVERecord?id=CVE-";
-    QRegularExpression regex("https://www\\.cve\\.org\\/CVERecord\\?id=(\\w+-\\w+-\\w+)");
-
-    QRegularExpressionMatch match;
-    QStringList lines = responseString.split("\n");
-    for (const QString &line : lines) {
-        if (line.contains(lookup)) {
-            match = regex.match(line);
-            if (match.hasMatch()) {
-                QString id = match.captured(1);
-                results << id;
-            }
+void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> unit){
+    _unit = unit;
+    for(auto artifact: *_unit){
+        nlohmann::json artifact_properties = artifact->properties();
+        if(artifact_properties.count("path") > 0){
+            std::string path = artifact_properties["path"].get<std::string>();
+            _paths.insert(QString::fromStdString(path).trimmed());
         }
     }
-
-    if (reply->error() != QNetworkReply::NoError) {
-        qDebug() << "Network error: " << reply->errorString();
-    }
-
-    if(results.empty()){
-        replyEmpty(keyword);
-    }
-
-    for(const QString& result: results){
-        if(_cves.contains(result))
-            continue;
-        _cves.insert(result);
-        QNetworkRequest request;
-        request.setUrl(QUrl(QString("https://cveawg.mitre.org/api/cve/%1").arg(result)));
-        request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
-        QNetworkReply* reply = _network->get(request);
-        connect(reply, &QNetworkReply::readyRead, [this, reply, keyword](){
-            cveReplyReceived(keyword, reply);
-        });
-    }
-
-    reply->deleteLater();
+    _progressArea->setMaxValue(_unit->artifacts_count());
+    QString path = *_paths.begin();
+    _cveModel->search(path);
+    _progressArea->setLabel(path);
 }
 
-void ExUVulnerabilitiesViewer::replyEmpty(const QString &keyword){
-
+void ExUVulnerabilitiesViewer::filter(const QString &keyword){
+    qDebug() << "Filter " << keyword;
+    ui->searchEdit->setText(keyword);
 }
 
-void ExUVulnerabilitiesViewer::cveReplyReceived(const QString &keyword, QNetworkReply* reply){
-    std::cout << "JSON reply received" << std::endl;
-    QByteArray responseData = reply->readAll();
-    QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
-    qDebug() << jsonDoc;
-     if (!jsonDoc.isNull() && jsonDoc.isObject()) {
-        QVariant jsonData = jsonDoc.object().toVariantMap();
-        emit jsonReady(jsonData);
-    }
-}
+void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString &keyword){
+    _paths.remove(keyword);
+    _progressArea->updateProgress(_unit->artifacts_count() - _paths.size());
 
-void ExUVulnerabilitiesViewer::clearResults(){
-    QObject* root = _quickWidget->rootObject();
-    if (root) {
-        bool ok = QMetaObject::invokeMethod(root, "clearCveData");
-        if (!ok)
-            qWarning() << "Failed to invoke clearCveData on QML root object.";
-        else
-            qDebug() << "Cleared CVE record into QML ListModel.";
+    updateGeometry();
+    adjustSize();
+
+    if(!_paths.isEmpty()){
+        QString path = *_paths.begin();
+        _cveModel->search(path);
+        _progressArea->setLabel(path);
     } else {
-        qWarning() << "Root object not found!";
+        _progressArea->hide();
     }
 }
+
+void ExUVulnerabilitiesViewer::setFilterText(const QString &text){
+    QString adjustedPattern = text.trimmed();
+    if (!adjustedPattern.isEmpty() && !adjustedPattern.startsWith("CVE") && !adjustedPattern.startsWith("cve")) {
+        adjustedPattern += "$";
+    }
+    _cveFilterModel->setFilterRegularExpression(QRegularExpression(adjustedPattern, QRegularExpression::CaseInsensitiveOption));
+}
+
+void ExUVulnerabilitiesViewer::updateLabelCount(){
+    int visibleCount = _cveFilterModel->rowCount();
+    int totalCount = _cveModel->rowCount();
+    ui->label->setText(QString("Showing %1 / %2").arg(visibleCount).arg(totalCount));
+}
+
