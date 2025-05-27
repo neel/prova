@@ -204,7 +204,16 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
 void MainWindow::showSequenceDiagram(int row){
     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
     std::filesystem::path image_path{std::format("{}.svg", row)};
-    unit->render_svg(_plantumlJarPath.toStdString(), image_path);
+    try{
+        unit->render_svg(_plantumlJarPath.toStdString(), image_path);
+    } catch (const std::exception& ex) {
+        QMessageBox::critical(this,
+            QString::fromStdString("Failed to run plantuml"),
+            QString::fromStdString("Filed to execute plantuml with error %1").arg(QString::fromStdString(ex.what())),
+            QMessageBox::Ok
+        );
+        return;
+    }
     std::cout << "Rendered " << image_path << std::endl;
 
     // Create a new SVG Widget
