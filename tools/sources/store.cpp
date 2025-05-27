@@ -9,13 +9,16 @@
 #include <boost/process.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/process/v1/pipe.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
 
 bool prova::store::insert(prova::session::ptr session){
 	return _sessions.insert(session).second;
 }
 
-void prova::store::fetch(){
-    tash::shell spade("spade"); // shell("school", "localhost", 8529, "root", "root")
+void prova::store::fetch(std::string host, unsigned port, std::string user, std::string pass){
+    tash::shell spade("spade", host, port, user, pass); // shell("school", "localhost", 8529, "root", "root")
     if(spade.exists() == boost::beast::http::status::not_found){
         throw std::runtime_error{"Cannot connect to ArangoDB server"};
     }
@@ -318,9 +321,9 @@ std::size_t prova::store::extract_all(){
         unit->uml(uml_buffer);
 
         std::ostringstream os;
-        boost::process::opstream in_stream;
-        boost::process::ipstream out_stream;
-        boost::process::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::std_in < in_stream, boost::process::std_out > out_stream);
+        boost::process::v1::opstream in_stream;
+        boost::process::v1::ipstream out_stream;
+        boost::process::v1::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::v1::std_in < in_stream, boost::process::v1::std_out > out_stream);
 
         in_stream << uml_buffer.rdbuf();
         in_stream.flush();

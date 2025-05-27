@@ -12,13 +12,17 @@
 #include <QJsonModel.hpp>
 #include <fstream>
 #include <QContextMenuEvent>
-
+#include <QMessageBox>
+#include "settingsdialog.h"
 #include "exuvulnerabilitiesviewer.h"
 #include "exuresourcechartviewer.h"
 #include "exuwidget.h"
+#include <QSettings>
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
+    connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+
     _exuModel = new ExUModel{this};
     ui->exuTreeView->setModel(_exuModel);
     ui->exuTreeView->viewport()->installEventFilter(this);
@@ -49,7 +53,18 @@ MainWindow::~MainWindow(){
 }
 
 void MainWindow::populate(){
-    _store.fetch();
+    QSettings settings("Simula", "SimVul");
+    std::string host = settings.value("host", "localhost").toString().toStdString();
+    unsigned port = settings.value("port", 8529).toUInt();
+    try{
+        _store.fetch(host, port);
+    } catch(std::exception& ex){
+        QMessageBox::critical(this,
+            QString::fromStdString("Failed to Fetch"),
+            QString::fromStdString("Filed to fetch auto log information from the graph database with error %1").arg(QString::fromStdString(ex.what())),
+            QMessageBox::Ok
+        );
+    }
     std::vector<std::shared_ptr<prova::execution_unit>> exu_units;
     _store.extract(exu_units);
     for(const auto& unit: exu_units){
@@ -189,4 +204,10 @@ void MainWindow::showVulnerabilities(int row){
         viewer->request(QString::fromStdString(path));
     }
     viewer->show();
+}
+
+void MainWindow::showSettingsDialog(){
+    SettingsDialog* dialog = new SettingsDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose); // to prevent memory leak
+    dialog->show();
 }

@@ -31,6 +31,7 @@ class MainWindow : public QMainWindow{
   private slots:
     void showResources(int row);
     void showVulnerabilities(int row);
+    void showSettingsDialog();
   private:
     Ui::MainWindow *ui;
     ExUModel* _exuModel;
