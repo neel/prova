@@ -45,6 +45,9 @@ class MainWindow : public QMainWindow{
   private:
     // std::vector<std::shared_ptr<prova::execution_unit>> _units;
     prova::store _store;
+  private:
+    QString _plantumlJarPath;
+    void unpackPlantUmlJar();
 };
 
 #endif // MAINWINDOW_H

@@ -86,7 +86,7 @@ struct store{
     std::ostream& uml(std::ostream& stream) const;
     std::ostream& dataset(std::ostream& stream) const;
     void extract(std::vector<std::shared_ptr<prova::execution_unit>>& units);
-    std::size_t extract_all();
+    std::size_t extract_all(const std::string& plantuml_jar_path);
 
     private:
         session_set                                 _sessions;

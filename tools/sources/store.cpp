@@ -306,7 +306,7 @@ void prova::store::extract(std::vector<std::shared_ptr<prova::execution_unit>>& 
     }
 }
 
-std::size_t prova::store::extract_all(){
+std::size_t prova::store::extract_all(const std::string& plantuml_jar_path){
     std::vector<std::shared_ptr<prova::execution_unit>> units;
     extract(units);
 
@@ -325,7 +325,8 @@ std::size_t prova::store::extract_all(){
         std::ostringstream os;
         boost::process::v1::opstream in_stream;
         boost::process::v1::ipstream out_stream;
-        boost::process::v1::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::v1::std_in < in_stream, boost::process::v1::std_out > out_stream);
+        std::string command = "java -jar \"" + plantuml_jar_path + "\" -tsvg -pipe";
+        boost::process::v1::child plantuml(command, boost::process::v1::std_in < in_stream, boost::process::v1::std_out > out_stream);
 
         in_stream << uml_buffer.rdbuf();
         in_stream.flush();

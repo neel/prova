@@ -67,14 +67,15 @@ void prova::execution_unit::save_uml(const std::filesystem::path& uml_path) cons
     uml_file.close();
 }
 
-void prova::execution_unit::render_svg(const std::filesystem::path& image_path) const {
+void prova::execution_unit::render_svg(const std::string& plantuml_jar_path, const std::filesystem::path& image_path) const {
     std::stringstream uml_buffer;
     uml(uml_buffer);
 
     std::ostringstream os;
     boost::process::v1::opstream in_stream;
     boost::process::v1::ipstream out_stream;
-    boost::process::v1::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::v1::std_in < in_stream, boost::process::v1::std_out > out_stream);
+    std::string command = "java -jar \"" + plantuml_jar_path + "\" -tsvg -pipe";
+    boost::process::v1::child plantuml(command, boost::process::v1::std_in < in_stream, boost::process::v1::std_out > out_stream);
 
     in_stream << uml_buffer.rdbuf();
     in_stream.flush();

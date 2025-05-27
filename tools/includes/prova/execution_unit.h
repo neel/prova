@@ -27,7 +27,7 @@ struct execution_unit{
 	std::ostream& uml(std::ostream& stream) const;
 	inline const std::shared_ptr<prova::process>& process() const { return _process; }
 	void save_uml(const std::filesystem::path& uml_path) const;
-	void render_svg(const std::filesystem::path& svg_path) const;
+    void render_svg(const std::string& plantuml_jar_path, const std::filesystem::path& svg_path) const;
 	std::shared_ptr<prova::session> root() const { return _root_session; }
     public:
         inline const_iterator begin() const { return _artifacts.begin(); }

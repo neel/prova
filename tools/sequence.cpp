@@ -16,7 +16,7 @@ int main(){
     prova::store store;
     store.fetch();
     // store.uml(std::cout);
-    store.extract_all();
+    // store.extract_all();
 
     return 0;
 }

@@ -23,9 +23,14 @@
 #include "exuresourcechartviewer.h"
 #include "exuwidget.h"
 #include <QSettings>
+#include <QResource>
+#include <QDir>
+#include <QTemporaryFile>
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
+    unpackPlantUmlJar();
+
     connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::showSettingsDialog);
 
     _network = new QNetworkAccessManager(this);
@@ -199,7 +204,7 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
 void MainWindow::showSequenceDiagram(int row){
     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
     std::filesystem::path image_path{std::format("{}.svg", row)};
-    unit->render_svg(image_path);
+    unit->render_svg(_plantumlJarPath.toStdString(), image_path);
     std::cout << "Rendered " << image_path << std::endl;
 
     // Create a new SVG Widget
@@ -264,4 +269,28 @@ void MainWindow::showSettingsDialog(){
     SettingsDialog* dialog = new SettingsDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose); // to prevent memory leak
     dialog->show();
+}
+
+void MainWindow::unpackPlantUmlJar(){
+    QString jarResourcePath(":/jar/plantuml.jar");
+    QTemporaryFile tempJar(QDir::tempPath() + "/plantuml.jar");
+    tempJar.setAutoRemove(false);  // Optional: remove manually after process exits
+
+    if (tempJar.open()) {
+        QFile jarInResource(jarResourcePath);
+        if (jarInResource.open(QIODevice::ReadOnly)) {
+            tempJar.write(jarInResource.readAll());
+            tempJar.flush();
+            jarInResource.close();
+        } else {
+            qWarning() << "Failed to open resource JAR";
+            return;
+        }
+        tempJar.close();
+    } else {
+        qWarning() << "Failed to create temp JAR";
+        return;
+    }
+
+    _plantumlJarPath = tempJar.fileName();
 }
