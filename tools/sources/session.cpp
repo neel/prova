@@ -5,6 +5,7 @@
 #include "prova/process.h"
 #include "prova/artifact.h"
 #include "prova/action.h"
+#include "prova/linux_open_flags.h"
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <fcntl.h>

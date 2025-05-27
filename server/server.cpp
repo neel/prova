@@ -1,6 +1,7 @@
+#include "win32_winsock_shim.hpp"
+#include <boost/asio.hpp>
 #include "server.h"
 #include <format>
-#include <boost/asio.hpp>
 #include <iostream>
 #include "sysaudit/parser.h"
 #include "sysaudit/reporter.h"

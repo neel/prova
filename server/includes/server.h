@@ -4,8 +4,9 @@
 #ifndef PROVA_SERVER_H
 #define PROVA_SERVER_H
 
-#include <string>
+#include "win32_winsock_shim.hpp"
 #include <boost/asio.hpp>
+#include <string>
 #include <azmq/socket.hpp>
 
 namespace prova{

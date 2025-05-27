@@ -10,6 +10,9 @@
 #include "prova/artifact.h"
 #include <fstream>
 #include <boost/process.hpp>
+#include <boost/process/v1/pipe.hpp>
+#include <boost/process/v1/child.hpp>
+#include <boost/process/v1/io.hpp>
 
 std::ostream& prova::execution_unit::uml(std::ostream& stream) const{
     std::function<void (std::size_t, const prova::session::ptr&, std::uint8_t)> decorate_session;
@@ -69,9 +72,9 @@ void prova::execution_unit::render_svg(const std::filesystem::path& image_path) 
     uml(uml_buffer);
 
     std::ostringstream os;
-    boost::process::opstream in_stream;
-    boost::process::ipstream out_stream;
-    boost::process::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::std_in < in_stream, boost::process::std_out > out_stream);
+    boost::process::v1::opstream in_stream;
+    boost::process::v1::ipstream out_stream;
+    boost::process::v1::child plantuml("java -jar /home/sunanda/Projects/provenance/plantuml.jar -tsvg -pipe", boost::process::v1::std_in < in_stream, boost::process::v1::std_out > out_stream);
 
     in_stream << uml_buffer.rdbuf();
     in_stream.flush();

@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.6)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
-
+set(CMAKE_TOOLCHAIN_FILE "C:/Users/sunan/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 project(provenance)
 
 # add_subdirectory(deps/azmq)
@@ -15,17 +14,17 @@ add_subdirectory(deps/noch)
 # target_include_directories(main PRIVATE ${MLPACK_INCLUDE_DIRS})
 
 
-find_package(ZeroMQ REQUIRED)
+# find_package(ZeroMQ REQUIRED)
 
-set(AGENT_SOURCES
-    agent.c
-)
+# set(AGENT_SOURCES
+#     agent.c
+# )
 
-add_executable(agent-audit ${AGENT_SOURCES})
+# add_executable(agent-audit ${AGENT_SOURCES})
 
-target_link_libraries(agent-audit zmq)
-set_property(TARGET agent-audit PROPERTY C_STANDARD 11)
+# target_link_libraries(agent-audit zmq)
+# set_property(TARGET agent-audit PROPERTY C_STANDARD 11)
 
 add_subdirectory(tools)
 
-install(TARGETS agent-audit RUNTIME DESTINATION bin)
+# install(TARGETS agent-audit RUNTIME DESTINATION bin)

@@ -1,3 +1,4 @@
+#include "win32_winsock_shim.hpp"
 #include <boost/asio.hpp>
 #include "server.h"
 

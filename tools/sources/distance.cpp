@@ -138,5 +138,6 @@ double prova::distance(const prova::artifact& l, const prova::artifact& r){
 
 double prova::distance(const prova::session& l, const prova::session& r){
 
+    return 0.0;
 }
 
