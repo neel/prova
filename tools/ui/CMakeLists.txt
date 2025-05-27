@@ -27,10 +27,14 @@ qt_add_executable(prova-ui
     exuvulnerabilitiesprogresswidget.h exuvulnerabilitiesprogresswidget.cpp exuvulnerabilitiesprogresswidget.ui
     colorhelper.h colorhelper.cpp
     cveproxymodel.h cveproxymodel.cpp
-
 )
 
-target_link_libraries(prova-ui PRIVATE Qt6::Core Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Svg Qt6::SvgWidgets Qt6::Network prova-tools QJsonModelShared)
+target_link_libraries(prova-ui PRIVATE Qt6::Core Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Svg Qt6::SvgWidgets Qt6::Network prova-tools QJsonModelStatic)
+if (MSVC)
+  target_compile_definitions(prova-ui PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
+  target_compile_options(prova-ui PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/win32_winsock_shim.hpp)
+  target_compile_definitions(prova-ui PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
+endif()
 
 set_target_properties(prova-ui PROPERTIES
     WIN32_EXECUTABLE ON
