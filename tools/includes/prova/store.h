@@ -82,8 +82,7 @@ struct store{
     }
 
     bool insert(prova::session::ptr session);
-
-		void fetch();
+    void fetch( std::string host = "localhost", unsigned port = 8529, std::string user = "root", std::string pass = "");
     std::ostream& uml(std::ostream& stream) const;
     std::ostream& dataset(std::ostream& stream) const;
     void extract(std::vector<std::shared_ptr<prova::execution_unit>>& units);

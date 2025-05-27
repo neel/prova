@@ -23,6 +23,7 @@ qt_add_executable(prova-ui
     exuwidget.h exuwidget.cpp
     exuscene.h exuscene.cpp
     cvelistmodel.h cvelistmodel.cpp
+    settingsdialog.h settingsdialog.cpp settingsdialog.ui
     exuvulnerabilitiesprogresswidget.h exuvulnerabilitiesprogresswidget.cpp exuvulnerabilitiesprogresswidget.ui
     colorhelper.h colorhelper.cpp
     cveproxymodel.h cveproxymodel.cpp
