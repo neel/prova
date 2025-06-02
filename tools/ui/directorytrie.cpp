@@ -4,124 +4,105 @@
 #include <QHash>
 
 // ---------- Node --------------------------------------------------------------
-DirectoryTrie::Node::~Node()
-{
-    qDeleteAll(children);
+DirectoryTrie::Node::~Node(){
+    for(auto& pair: children) {
+        delete pair.second;
+        pair.second = 0x0;
+    }
+}
+
+std::size_t DirectoryTrie::Node::tails(QList<QStringList>& list, const Node* top) const {
+    std::size_t len = 0;
+    if(isEnd) {
+        list << tail(top);
+        len += 1;
+    } else {
+        for(const auto& pair: children) {
+            len += pair.second->tails(list, top);
+        }
+    }
+    return len;
+}
+
+QStringList DirectoryTrie::Node::tails(const Node* top) const {
+    QList<QStringList> list;
+    tails(list, top);
+    QStringList results;
+    for(const QStringList& p: std::as_const(list)) {
+        results << p.join('/');
+    }
+    return results;
+}
+
+std::size_t DirectoryTrie::Node::tail(QStringList& list, const Node* top) const {
+    std::size_t len = 0;
+    if(this != top && parent != 0x0) {
+        len += parent->tail(list, top);
+    }
+    list << segment;
+    len += 1;
+    return len;
+}
+
+QStringList DirectoryTrie::Node::tail(const Node* top) const {
+    QStringList list;
+    tail(list, top);
+    return list;
 }
 
 // ---------- DirectoryTrie -----------------------------------------------------
-DirectoryTrie::DirectoryTrie() : root(new Node) {}
-DirectoryTrie::~DirectoryTrie() { delete root; }
+DirectoryTrie::DirectoryTrie() : _root(new Node) {}
+DirectoryTrie::~DirectoryTrie() { delete _root; }
 
-void DirectoryTrie::clear()
-{
-    delete root;
-    root = new Node;
+void DirectoryTrie::clear() {
+    delete _root;
+    _root = new Node;
 }
 
-void DirectoryTrie::insert(const QStringList &segments)
-{
-    Node *cur = root;
-    for (const QString &seg : segments)
-    {
-        Node *&child = cur->children[seg];
+void DirectoryTrie::insert(const QStringList& segments){
+    Node *cur = _root;
+    for (const QString &seg : segments) {
+        Node* child = 0x0;
+        if(cur->children.contains(seg)){
+            child = cur->children[seg];
+        }
         if (!child) {
             child          = new Node;
             child->segment = seg;
+            child->parent  = cur;
+            cur->children.insert(std::make_pair(seg, child));
         }
         cur = child;
     }
     cur->isEnd = true;
 }
 
-void DirectoryTrie::collect(const Node *node,
-                            QStringList &path,
-                            QList<QStringList> &out) const
-{
-    if (node->isEnd)
-        out.append(path);
-
-    for (auto it = node->children.constBegin();
-         it != node->children.constEnd(); ++it)
-    {
-        path.append(it.key());
-        collect(it.value(), path, out);
-        path.removeLast();
+QStringList DirectoryTrie::suffixes(std::size_t level) const {
+    QList<Node*> j;
+    junctions(_root, level, j);
+    QStringList list;
+    for(const Node* n: std::as_const(j)) {
+        list << n->tails(n);
     }
+    return list;
 }
 
-QList<QStringList> DirectoryTrie::prefixes() const
-{
-    QList<QStringList> out;
-    QStringList path;
-    collect(root, path, out);
-    return out;
-}
-
-// ---------- NEW:  shortest non-colliding lists -------------------------------
-static int longestCommonPrefixLen(const QList<QStringList>& v)
-{
-    if (v.isEmpty()) return 0;
-    int len = v.first().size();
-    for (const QStringList &sl : v)
-        len = qMin(len, sl.size());
-
-    int k = 0;
-    for (; k < len; ++k)
-    {
-        const QString &probe = v.first().at(k);
-        bool allMatch = true;
-        for (const QStringList &sl : v)
-            if (sl.at(k) != probe) { allMatch = false; break; }
-        if (!allMatch) break;
-    }
-    return k;               // number of segments that are identical in all
-}
-
-QList<QStringList> DirectoryTrie::uniquePrefixes() const
-{
-    QList<QStringList> result = prefixes();          // full, untrimmed copies
-    if (result.isEmpty()) return result;
-
-    /* 1. Strip the longest common root shared by *all* paths */
-    const int lcp = longestCommonPrefixLen(result);
-    if (lcp > 0) {
-        for (QStringList &sl : result)
-            sl.erase(sl.begin(), sl.begin() + lcp);
-    }
-
-    /* 2. Sequentially ensure each first segment is unique.
-          When we hit a clash (same first segment seen earlier),
-          we shorten the EARLIER path until the clash disappears. */
-    QHash<QString,int> firstToIndex;   // first segment → earliest index
-
-    for (int i = 0; i < result.size(); ++i)
-    {
-        while (!result[i].isEmpty())
-        {
-            const QString first = result[i].front();
-
-            if (!firstToIndex.contains(first)) {
-                firstToIndex.insert(first, i);
-                break;                          // unique – keep as-is
+std::size_t DirectoryTrie::junctions(Node* root, std::size_t level, QList<Node*>& j) const {
+    std::size_t count= 0;
+    for(const auto& pair: root->children) {
+        if(pair.second->children.size() > 0){
+            // pair.second is a junction
+            if(pair.second->children.size() > 1) {
+                if(level == 0) {
+                    j << pair.second;
+                    ++count;
+                } else {
+                    count += junctions(pair.second, level -1, j);
+                }
+            } else {
+                count += junctions(pair.second, level, j);
             }
-
-            int prev = firstToIndex.value(first);   // clash with an earlier path
-            if (result[prev].size() > 1) {
-                result[prev].pop_front();           // shorten the earlier path
-                firstToIndex.remove(first);         // its first seg changed
-                i = qMin(i, prev) - 1;              // recheck both paths
-                break;
-            }
-            /* If the earlier path can’t be shortened (length 1),
-               try shortening the current one instead. */
-            if (result[i].size() > 1) {
-                result[i].pop_front();
-                continue;                           // re-evaluate clash
-            }
-            break;      // impossible to resolve; leave duplicates as-is
         }
     }
-    return result;
+    return count;
 }
-

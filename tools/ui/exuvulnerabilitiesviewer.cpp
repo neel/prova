@@ -65,14 +65,13 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
         if (props.contains("path"))
         {
             const QString qPath   = QString::fromStdString(props["path"].get<std::string>()).trimmed();
-
+            qDebug() << qPath;
             if (subtype == "file") {
                 const QString fileName = QFileInfo(qPath).fileName();
                 if (!fileName.isEmpty())
                     _paths.insert(fileName);
             } else if (subtype == "directory") {
-                const QStringList segments =
-                    qPath.split(QDir::separator(), Qt::SkipEmptyParts);
+                const QStringList segments = qPath.split(QDir::separator(), Qt::SkipEmptyParts);
 
                 if (!segments.isEmpty())
                     dirTrie.insert(segments);
@@ -80,13 +79,15 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
             /* else: ignore sockets/pipes/whatever */
         }
     }
-    qDebug() << dirTrie.uniquePrefixes();
+    qDebug() << dirTrie.suffixes(0);
 
 
     _progressArea->setMaxValue(_unit->artifacts_count());
-    QString path = *_paths.begin();
-    _cveModel->search(path);
-    _progressArea->setLabel(path);
+    if(_paths.size() > 0) {
+        QString path = *_paths.begin();
+        _cveModel->search(path);
+        _progressArea->setLabel(path);
+    }
 }
 
 void ExUVulnerabilitiesViewer::filter(const QString &keyword){

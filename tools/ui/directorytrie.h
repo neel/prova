@@ -11,18 +11,8 @@ public:
     DirectoryTrie();
     ~DirectoryTrie();
 
-    /* Insert one directory expressed as a list of segments */
     void insert(const QStringList &segments);
 
-    /* Full, untrimmed paths that were inserted */
-    QList<QStringList> prefixes() const;
-
-    /* Trimmed version:
-         1. chop the *longest* common leading prefix
-         2. iterate left-to-right, shortening earlier
-            duplicates until the first element of
-            every list is unique.                   */
-    QList<QStringList> uniquePrefixes() const;
 
     void clear();
 
@@ -31,19 +21,31 @@ public:
     DirectoryTrie(DirectoryTrie &&)                 = default;
     DirectoryTrie &operator=(DirectoryTrie &&)      = default;
 
+    QStringList suffixes(std::size_t level) const;
+
 private:
-    struct Node
-    {
+    struct Node {
+        Node*                parent = 0x0;
         QString              segment;
-        QMap<QString,Node*>  children;
+        std::map<QString,Node*>  children;
         bool                 isEnd = false;
         ~Node();
+
+        QStringList tail(const Node* top) const;
+        std::size_t tail(QStringList& list, const Node* top) const;
+        std::size_t tails(QList<QStringList>& list, const Node* top) const;
+        QStringList tails(const Node* top) const;
     };
 
-    void collect(const Node *node,
-                 QStringList &path,
-                 QList<QStringList> &out) const;
+    /**
+     * @brief list all junctions (nodes that have > 1 children) at the given level
+     * level 0 junction implies there are no junctions before that.
+     * level 1 junction implies there are one or more level 0 junctions before that
+     * @param level
+     * @return
+     */
+    std::size_t junctions(Node* root, std::size_t level, QList<Node*>& j) const;
 
-    Node *root;
+    Node* _root;
 };
 #endif // DIRECTORYTRIE_H
