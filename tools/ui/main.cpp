@@ -5,9 +5,35 @@
 #include "cvelistmodel.h"
 #include "colorhelper.h"
 #include "cveproxymodel.h"
+#include <QStyleFactory>
+#include <QQmlEngine>
+#include <QQuickStyle>
+#include <QDir>
+
+#include "directorytrie.h"
 
 int main(int argc, char *argv[]){
+    DirectoryTrie  dirTrie;
+    dirTrie.insert({"a", "b", "c", "d"});
+    dirTrie.insert({"a", "b", "x", "y"});
+    dirTrie.insert({"a", "t", "x", "y"});
+    qDebug() << dirTrie.prefixes();
+
+    QStringList app_styles = QStyleFactory::keys();
+    qDebug() << "Available Qt styles on this platform:" << app_styles;
+
     QApplication app(argc, argv);
+
+    QQmlEngine engine;
+    for (const auto &path : engine.importPathList()) {
+        QDir dir(path + "/QtQuick/Controls");
+        if (dir.exists()) {
+            qDebug() << "Styles in" << dir.absolutePath() << ":"
+                     << dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        }
+    }
+
+    QQuickStyle::setStyle("Basic");
 
     // qmlRegisterType<CVEListModel>("CVE", 1, 0, "CVEListModel");
     qmlRegisterType<CVEProxyModel>("CVE", 1, 0, "CVEListModel");

@@ -46,6 +46,7 @@ QHash<int, QByteArray> CVEListModel::roleNames() const{
 }
 
 void CVEListModel::search(const QString &keyword){
+    qDebug() << "Searching using keyword: " << keyword;
     QString url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
     QNetworkRequest request;
     request.setUrl(QUrl(url));

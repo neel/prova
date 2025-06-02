@@ -15,6 +15,9 @@
 #include "exuvulnerabilitiesprogresswidget.h"
 #include <nlohmann/json.hpp>
 #include "prova/artifact.h"
+#include "directorytrie.h"
+#include <QFileInfo>
+#include <QDir>
 
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
@@ -49,13 +52,37 @@ ExUVulnerabilitiesViewer::~ExUVulnerabilitiesViewer(){
 
 void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> unit){
     _unit = unit;
-    for(auto artifact: *_unit){
-        nlohmann::json artifact_properties = artifact->properties();
-        if(artifact_properties.count("path") > 0){
-            std::string path = artifact_properties["path"].get<std::string>();
-            _paths.insert(QString::fromStdString(path).trimmed());
+    DirectoryTrie  dirTrie;
+    for (auto artifact : *_unit) {
+        const std::string subtype = artifact->subtype();
+        const nlohmann::json props = artifact->properties();
+
+        // if(props.count("path") > 0){
+        //     std::string path = props["path"].get<std::string>();
+        //     _paths.insert(QString::fromStdString(path).trimmed());
+        // }
+
+        if (props.contains("path"))
+        {
+            const QString qPath   = QString::fromStdString(props["path"].get<std::string>()).trimmed();
+
+            if (subtype == "file") {
+                const QString fileName = QFileInfo(qPath).fileName();
+                if (!fileName.isEmpty())
+                    _paths.insert(fileName);
+            } else if (subtype == "directory") {
+                const QStringList segments =
+                    qPath.split(QDir::separator(), Qt::SkipEmptyParts);
+
+                if (!segments.isEmpty())
+                    dirTrie.insert(segments);
+            }
+            /* else: ignore sockets/pipes/whatever */
         }
     }
+    qDebug() << dirTrie.uniquePrefixes();
+
+
     _progressArea->setMaxValue(_unit->artifacts_count());
     QString path = *_paths.begin();
     _cveModel->search(path);
