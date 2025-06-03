@@ -64,8 +64,7 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
         //     _paths.insert(QString::fromStdString(path).trimmed());
         // }
 
-        if (props.contains("path"))
-        {
+        if (props.contains("path")) {
             const QString qPath   = QString::fromStdString(props["path"].get<std::string>()).trimmed();
             qDebug() << qPath;
             if (subtype == "file") {
@@ -81,6 +80,9 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
             /* else: ignore sockets/pipes/whatever */
         }
     }
+
+    // QMap<QString, QString> dir_paths_map = dirTrie.suffixesMap(0);
+
     QStringList dir_paths = dirTrie.suffixes(0);
     for(const auto& dir: dir_paths){
         _paths.insert(dir);

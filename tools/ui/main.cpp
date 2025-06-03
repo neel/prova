@@ -18,7 +18,7 @@ int main(int argc, char *argv[]){
     dirTrie.insert({"a", "b", "x", "y"});
     dirTrie.insert({"k", "b", "x", "p"});
     // dirTrie.insert({"k", "t", "p", "z"});
-    qDebug() << dirTrie.suffixes(0);
+    qDebug() << dirTrie.suffixesMap(0);
 
     QStringList app_styles = QStyleFactory::keys();
     qDebug() << "Available Qt styles on this platform:" << app_styles;

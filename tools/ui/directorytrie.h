@@ -42,12 +42,16 @@ public:
      */
     QStringList suffixes(std::size_t level) const;
 
+    QMap<QString, QString> suffixesMap(std::size_t level) const;
+
 private:
     struct Node {
         Node*                parent = 0x0;
         QString              segment;
         std::map<QString,Node*>  children;
         bool                 isEnd = false;
+        QString              fullPath;
+
         ~Node();
 
         /**
@@ -79,6 +83,8 @@ private:
          * @return
          */
         std::size_t tails(QList<QStringList>& list, const Node* junction = 0x0) const;
+
+        std::size_t tails(QMap<QString, QStringList> &mapping, const Node* junction = 0x0) const;
         /**
          * @brief returns list with the tails otiginating from the this node.
          * @details If top is also a terminal node (may also have children
@@ -88,6 +94,8 @@ private:
          * @return
          */
         QStringList tails() const;
+
+        QMap<QString, QString> tailsMap() const;
     };
 
     /**

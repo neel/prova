@@ -39,6 +39,20 @@ std::size_t DirectoryTrie::Node::tails(QList<QStringList>& list, const Node* jun
     return len;
 }
 
+std::size_t DirectoryTrie::Node::tails(QMap<QString, QStringList>& mapping, const Node* junction) const {
+    if(junction == 0x0) junction = this;
+    std::size_t len = 0;
+    if(isEnd) {
+        mapping.insert(fullPath, tail(junction));
+        len += 1;
+    }
+
+    for(const auto& pair: children) {
+        len += pair.second->tails(mapping, junction);
+    }
+    return len;
+}
+
 QStringList DirectoryTrie::Node::tails() const {
     QList<QStringList> list;
     if(isEnd) {
@@ -50,6 +64,21 @@ QStringList DirectoryTrie::Node::tails() const {
     QStringList results;
     for(const QStringList& p: std::as_const(list)) {
         results << p.join('/');
+    }
+    return results;
+}
+
+QMap<QString, QString> DirectoryTrie::Node::tailsMap() const {
+    QMap<QString, QStringList> mapping;
+    if(isEnd) {
+        mapping.insert(fullPath, tail(parent));
+        tails(mapping, parent);
+    } else {
+        tails(mapping, this);
+    }
+    QMap<QString, QString> results;
+    for(auto i = mapping.begin(), end = mapping.end(); i != end; ++i) {
+        results.insert(i.key(), "/"+i.value().join('/'));
     }
     return results;
 }
@@ -97,6 +126,7 @@ void DirectoryTrie::insert(const QStringList& segments){
         cur = child;
     }
     cur->isEnd = true;
+    cur->fullPath = "/"+segments.join("/");
 }
 
 QStringList DirectoryTrie::suffixes(std::size_t level) const {
@@ -106,6 +136,15 @@ QStringList DirectoryTrie::suffixes(std::size_t level) const {
         list << n->tails();
     }
     return list;
+}
+
+QMap<QString, QString> DirectoryTrie::suffixesMap(std::size_t level) const {
+    QList<Node*> j = junctions(level);
+    QMap<QString, QString> mapping;
+    for(const Node* n: std::as_const(j)) {
+        mapping.insert(n->tailsMap());
+    }
+    return mapping;
 }
 
 std::size_t DirectoryTrie::junctions(Node* root, std::size_t level, QList<Node*>& j) const {

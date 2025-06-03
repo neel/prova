@@ -7,7 +7,6 @@ bool operator==(const CVEEntry &entry, const QString &id){
     return entry.id == id;
 }
 
-
 CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent), _network(network), _policy(nvd_nist_json){}
 
 int CVEListModel::rowCount(const QModelIndex &parent) const{
