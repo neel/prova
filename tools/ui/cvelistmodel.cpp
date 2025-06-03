@@ -1,16 +1,14 @@
 #include "cvelistmodel.h"
 #include <QNetworkReply>
 #include <QJsonDocument>
-
+#include <QJsonArray>
 
 bool operator==(const CVEEntry &entry, const QString &id){
     return entry.id == id;
 }
 
 
-CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent){
-    _network = network;
-}
+CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent), _network(network), _policy(nvd_nist_json){}
 
 int CVEListModel::rowCount(const QModelIndex &parent) const{
     if (parent.isValid())
@@ -47,21 +45,53 @@ QHash<int, QByteArray> CVEListModel::roleNames() const{
 
 void CVEListModel::search(const QString &keyword){
     qDebug() << "Searching using keyword: " << keyword;
-    QString url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
+    QString html_search_url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
+    QString json_search_url = QString("https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=%1&keywordExactMatch").arg(keyword);
+
+    // JSON -> https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=KEYWORD&keywordExactMatch
+    // HTML -> https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=KEYWORD
+
+    QUrl search_url;
+    if(_policy == mitre_html) {
+        search_url = html_search_url;
+    } else if(_policy == nvd_nist_json) {
+        search_url = json_search_url;
+    } else {
+        return;
+    }
+
+    qDebug() << "Search using " << search_url;
     QNetworkRequest request;
-    request.setUrl(QUrl(url));
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
+    request.setUrl(search_url);
+    // request.setRawHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:10.0) Gecko/20100101 Firefox/10.0");
     request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
+
+    if(_policy == nvd_nist_json) {
+        request.setRawHeader("apiKey", "8f37611f-f350-494e-8752-6c9ba134fc50");
+    }
 
     QNetworkReply* reply = _network->get(request);
     connect(reply, &QNetworkReply::finished, [this, reply, keyword](){
-        replyReceived(keyword, reply);
+        if(_policy == mitre_html)
+            replyReceivedHTML(keyword, reply);
+        else if(_policy == nvd_nist_json)
+            replyReceivedJSON(keyword, reply);
     });
 }
 
-void CVEListModel::replyReceived(const QString& keyword, QNetworkReply *reply){
+void CVEListModel::replyReceivedHTML(const QString& keyword, QNetworkReply *reply){
     if(reply->error() != QNetworkReply::NoError){
-        qDebug() << "Error " << reply->error() << " while searching for " << keyword;
+        const int status_code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qDebug() << "Error " << reply->error() << " status " << status_code << " while searching for " << keyword;
+        for (auto h : reply->rawHeaderPairs()){
+            qDebug().noquote() << h.first << ':' << h.second;
+        }
+        if(status_code == 429) {
+            emit searchSlowdown();
+        } else {
+            emit searchFinished(keyword);
+        }
+        reply->deleteLater();
         return;
     }
 
@@ -80,6 +110,63 @@ void CVEListModel::replyReceived(const QString& keyword, QNetworkReply *reply){
             if (match.hasMatch()) {
                 QString id = match.captured(1);
                 results << id;
+            }
+        }
+    }
+
+    emit searchFinished(keyword);
+
+    for(const QString& cve_id: results){
+        if(_cve_ids.contains(cve_id)){
+            auto index = _entries.indexOf(cve_id);
+            if(index != -1){
+                _entries[index].keywords << keyword;
+                QModelIndex startIndex = createIndex(index, 0);
+                QModelIndex endIndex = createIndex(index, 0);
+                emit dataChanged(startIndex, endIndex);
+            }
+
+            continue;
+        }
+
+        fetchCVEDetails(keyword, cve_id);
+        _cve_ids.insert(cve_id);
+    }
+
+    reply->deleteLater();
+}
+
+void CVEListModel::replyReceivedJSON(const QString& keyword, QNetworkReply *reply){
+    if(reply->error() != QNetworkReply::NoError){
+        const int status_code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qDebug() << "Error " << reply->error() << " status " << status_code << " while searching for " << keyword;
+        for (auto h : reply->rawHeaderPairs()){
+            qDebug().noquote() << h.first << ':' << h.second;
+        }
+        if(status_code == 429) {
+            emit searchSlowdown();
+        } else {
+            emit searchFinished(keyword);
+        }
+        reply->deleteLater();
+        return;
+    }
+
+    QStringList results;
+
+    QByteArray responseData = reply->readAll();
+    QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+    if (!jsonDoc.isNull() && jsonDoc.isObject()) {
+        QJsonObject jsonData = jsonDoc.object();
+        if(jsonData.contains("vulnerabilities") && jsonData["vulnerabilities"].isArray()) {
+            QJsonArray vulnerabilities = jsonData["vulnerabilities"].toArray();
+            for(const QJsonValue& vulval: vulnerabilities) {
+                QJsonObject vulobj = vulval.toObject();
+                if(vulobj.contains("cve") && vulobj["cve"].isObject()){
+                    QJsonObject cve = vulobj["cve"].toObject();
+                    QString id = cve["id"].toString();
+                    results << id;
+                }
             }
         }
     }

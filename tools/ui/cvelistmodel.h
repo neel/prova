@@ -23,6 +23,10 @@ public:
         IdRole,
         DetailsRole
     };
+    enum SearchPolicy {
+        nvd_nist_json,
+        mitre_html
+    };
     Q_ENUM(Roles)
 
     explicit CVEListModel(QNetworkAccessManager* network, QObject *parent = nullptr);
@@ -32,14 +36,17 @@ public:
 public:
     void search(const QString& keyword);
 private:
-    void replyReceived(const QString &keyword, QNetworkReply* reply);
+    void replyReceivedHTML(const QString &keyword, QNetworkReply* reply);
+    void replyReceivedJSON(const QString &keyword, QNetworkReply* reply);
     void fetchCVEDetails(const QString& keyword, const QString& cve_id);
     void updateDetails(const QString& keyword, const QString& cve_id, const QJsonObject &details);
 private:
     QList<CVEEntry>        _entries;
     QSet<QString>          _cve_ids;
     QNetworkAccessManager* _network;
+    SearchPolicy           _policy;
 signals:
+    void searchSlowdown();
     void searchFinished(const QString& keyword);
 };
 

@@ -16,7 +16,8 @@ int main(int argc, char *argv[]){
     DirectoryTrie  dirTrie;
     dirTrie.insert({"a", "b", "c", "d"});
     dirTrie.insert({"a", "b", "x", "y"});
-    // dirTrie.insert({"a", "b", "x", "y"});
+    dirTrie.insert({"k", "b", "x", "p"});
+    // dirTrie.insert({"k", "t", "p", "z"});
     qDebug() << dirTrie.suffixes(0);
 
     QStringList app_styles = QStyleFactory::keys();

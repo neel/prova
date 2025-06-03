@@ -18,6 +18,7 @@
 #include "directorytrie.h"
 #include <QFileInfo>
 #include <QDir>
+#include <QTimer>
 
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
@@ -39,6 +40,7 @@ ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *networ
     ui->quickWidget->setSource(QUrl("qrc:/x/CVE/CVEResults.qml"));
 
     connect(_cveModel, &CVEListModel::searchFinished, this, &ExUVulnerabilitiesViewer::responseReceivedSlot);
+    connect(_cveModel, &CVEListModel::searchSlowdown, this, &ExUVulnerabilitiesViewer::delayNextSearch);
     connect(ui->searchEdit, &QLineEdit::textChanged, this, &ExUVulnerabilitiesViewer::setFilterText);
     connect(_cveFilterModel, &QSortFilterProxyModel::dataChanged, this, &ExUVulnerabilitiesViewer::updateLabelCount);
     connect(_cveFilterModel, &QSortFilterProxyModel::modelReset, this, &ExUVulnerabilitiesViewer::updateLabelCount);
@@ -79,8 +81,10 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
             /* else: ignore sockets/pipes/whatever */
         }
     }
-    qDebug() << dirTrie.suffixes(0);
-
+    QStringList dir_paths = dirTrie.suffixes(0);
+    for(const auto& dir: dir_paths){
+        _paths.insert(dir);
+    }
 
     _progressArea->setMaxValue(_unit->artifacts_count());
     if(_paths.size() > 0) {
@@ -95,13 +99,23 @@ void ExUVulnerabilitiesViewer::filter(const QString &keyword){
     ui->searchEdit->setText(keyword);
 }
 
-void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString &keyword){
+void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString& keyword){
     _paths.remove(keyword);
     _progressArea->updateProgress(_unit->artifacts_count() - _paths.size());
 
     updateGeometry();
     adjustSize();
 
+    searchNext();
+}
+
+void ExUVulnerabilitiesViewer::delayNextSearch(){
+    QTimer::singleShot(30 * 1000, this, [this]() {
+        searchNext();
+    });
+}
+
+void ExUVulnerabilitiesViewer::searchNext(){
     if(!_paths.isEmpty()){
         QString path = *_paths.begin();
         _cveModel->search(path);

@@ -41,6 +41,8 @@ private:
     QSet<QString>               _paths;
 private slots:
     void responseReceivedSlot(const QString& keyword);
+    void delayNextSearch();
+    void searchNext();
     void setFilterText(const QString &text);
     void updateLabelCount();
 };
