@@ -38,7 +38,7 @@ private:
     QSet<QString>                _cves;
     ExUVulnerabilitiesProgressWidget* _progressArea;
     std::shared_ptr<prova::execution_unit> _unit;
-    QSet<QString>               _paths;
+    QMap<QString, QString>       _paths;
 private slots:
     void responseReceivedSlot(const QString& keyword);
     void delayNextSearch();

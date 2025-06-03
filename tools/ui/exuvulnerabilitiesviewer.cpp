@@ -59,18 +59,13 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
         const std::string subtype = artifact->subtype();
         const nlohmann::json props = artifact->properties();
 
-        // if(props.count("path") > 0){
-        //     std::string path = props["path"].get<std::string>();
-        //     _paths.insert(QString::fromStdString(path).trimmed());
-        // }
-
         if (props.contains("path")) {
             const QString qPath   = QString::fromStdString(props["path"].get<std::string>()).trimmed();
             qDebug() << qPath;
             if (subtype == "file") {
                 const QString fileName = QFileInfo(qPath).fileName();
                 if (!fileName.isEmpty())
-                    _paths.insert(fileName);
+                    _paths.insert(qPath, fileName);
             } else if (subtype == "directory") {
                 const QStringList segments = qPath.split(QDir::separator(), Qt::SkipEmptyParts);
 
@@ -81,17 +76,14 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
         }
     }
 
-    // QMap<QString, QString> dir_paths_map = dirTrie.suffixesMap(0);
-
-    QStringList dir_paths = dirTrie.suffixes(0);
-    for(const auto& dir: dir_paths){
-        _paths.insert(dir);
-    }
+    QMap<QString, QString> dir_paths_map = dirTrie.suffixesMap(0);
+    _paths.insert(dir_paths_map);
 
     _progressArea->setMaxValue(_unit->artifacts_count());
     if(_paths.size() > 0) {
-        QString path = *_paths.begin();
-        _cveModel->search(path);
+        QString fullpath = _paths.begin().key();
+        QString path = _paths.begin().value();
+        _cveModel->search(fullpath, path);
         _progressArea->setLabel(path);
     }
 }
@@ -119,8 +111,9 @@ void ExUVulnerabilitiesViewer::delayNextSearch(){
 
 void ExUVulnerabilitiesViewer::searchNext(){
     if(!_paths.isEmpty()){
-        QString path = *_paths.begin();
-        _cveModel->search(path);
+        QString fullpath = _paths.begin().key();
+        QString path = _paths.begin().value();
+        _cveModel->search(fullpath, path);
         _progressArea->setLabel(path);
     } else {
         _progressArea->hide();

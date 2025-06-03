@@ -34,7 +34,7 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 public:
-    void search(const QString& keyword);
+    void search(const QString& fullpath, const QString& keyword);
 private:
     void replyReceivedHTML(const QString &keyword, QNetworkReply* reply);
     void replyReceivedJSON(const QString &keyword, QNetworkReply* reply);
