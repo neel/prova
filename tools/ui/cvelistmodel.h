@@ -37,6 +37,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 public:
     void search(const QString& fullpath, const QString& keyword);
+    KeywordListModel& keywords();
 private:
     void replyReceivedHTML(const QString &keyword, QNetworkReply* reply);
     void replyReceivedJSON(const QString &keyword, QNetworkReply* reply);

@@ -1,5 +1,6 @@
 #include "cveproxymodel.h"
 #include "cvelistmodel.h"
+#include "keywordlistmodel.h"
 
 CVEProxyModel::CVEProxyModel(QObject *parent): QSortFilterProxyModel{parent}{
 
@@ -11,6 +12,11 @@ bool CVEProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
 
     QString id = sourceModel()->data(idIndex, CVEListModel::IdRole).toString();
     QStringList keywords = sourceModel()->data(keywordIndex, CVEListModel::KeywordRole).toStringList();
+
+    // bool keyword_enabled = true;
+    // for(const QString& keyword: keywords){
+    //     if(sourceModel()->keywords
+    // }
 
     if (filterRegularExpression().pattern().startsWith("CVE")) {
         return id.contains(filterRegularExpression());

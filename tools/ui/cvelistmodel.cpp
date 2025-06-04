@@ -80,6 +80,10 @@ void CVEListModel::search(const QString& fullpath, const QString& keyword){
     });
 }
 
+KeywordListModel &CVEListModel::keywords(){
+    return _keywords;
+}
+
 void CVEListModel::replyReceivedHTML(const QString& keyword, QNetworkReply *reply){
     if(reply->error() != QNetworkReply::NoError){
         const int status_code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();

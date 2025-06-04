@@ -3,6 +3,7 @@
 
 #include <QSortFilterProxyModel>
 
+
 class CVEProxyModel : public QSortFilterProxyModel{
     Q_OBJECT
 public:
