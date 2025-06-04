@@ -42,7 +42,7 @@ QHash<int, QByteArray> CVEListModel::roleNames() const{
     return roles;
 }
 
-void CVEListModel::search(const QString &fullpath, const QString &keyword){
+void CVEListModel::search(const QString& fullpath, const QString& keyword){
     qDebug() << "Searching using keyword: " << keyword;
     QString html_search_url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
     QString json_search_url = QString("https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=%1&keywordExactMatch").arg(keyword);

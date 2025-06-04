@@ -13,12 +13,12 @@
 #include "directorytrie.h"
 
 int main(int argc, char *argv[]){
-    DirectoryTrie  dirTrie;
-    dirTrie.insert({"a", "b", "c", "d"});
-    dirTrie.insert({"a", "b", "x", "y"});
-    dirTrie.insert({"k", "b", "x", "p"});
-    // dirTrie.insert({"k", "t", "p", "z"});
-    qDebug() << dirTrie.suffixesMap(0);
+    // DirectoryTrie  dirTrie;
+    // dirTrie.insert({"a", "b", "c", "d"});
+    // dirTrie.insert({"a", "b", "x", "y"});
+    // dirTrie.insert({"k", "b", "x", "p"});
+    // // dirTrie.insert({"k", "t", "p", "z"});
+    // qDebug() << dirTrie.suffixesMap(0);
 
     QStringList app_styles = QStyleFactory::keys();
     qDebug() << "Available Qt styles on this platform:" << app_styles;
@@ -29,8 +29,7 @@ int main(int argc, char *argv[]){
     for (const auto &path : engine.importPathList()) {
         QDir dir(path + "/QtQuick/Controls");
         if (dir.exists()) {
-            qDebug() << "Styles in" << dir.absolutePath() << ":"
-                     << dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            qDebug() << "Styles in" << dir.absolutePath() << ":" << dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
         }
     }
 

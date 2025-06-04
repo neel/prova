@@ -76,6 +76,8 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
         }
     }
 
+    // TODO enrich the unit with these mappings
+
     QMap<QString, QString> dir_paths_map = dirTrie.suffixesMap(0);
     _paths.insert(dir_paths_map);
 
@@ -88,9 +90,15 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
     }
 }
 
-void ExUVulnerabilitiesViewer::filter(const QString &keyword){
-    qDebug() << "Filter " << keyword;
-    ui->searchEdit->setText(keyword);
+void ExUVulnerabilitiesViewer::filter(const QString& fullpath){
+    if(_paths.count(fullpath)){
+        QString query = _paths[fullpath];
+        qDebug() << "Filter " << fullpath << " -> " << query;
+        ui->searchEdit->setText(query);
+    } else {
+        qDebug() << "Filter " << fullpath;
+        ui->searchEdit->setText(fullpath);
+    }
 }
 
 void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString& keyword){
