@@ -31,10 +31,10 @@ Item {
                 Repeater {
                     model: keywordModel
                     delegate: KeywordPill {
-                        keyword:  model.keyword
-                        count:    model.count
-                        enabled:  model.enabled
-                        onToggled: keywordModel.disable(keyword, !enabled)
+                        keyword: model.keyword
+                        count:   model.count
+                        active:  model.enabled
+                        onToggled: (newState) => keywordModel.disable(model.keyword, !newState)
                     }
                 }
             }

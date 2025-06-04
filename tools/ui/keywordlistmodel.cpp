@@ -47,11 +47,16 @@ QHash<int, QByteArray> KeywordListModel::roleNames() const{
 }
 
 void KeywordListModel::disable(const QString &key, bool flag){
+    qDebug() << "Disabling " << flag << key;
     if(flag && !disabled(key)){
         _disabled.insert(key);
     } else if (!flag && disabled(key)){ // enable
         _disabled.remove(key);
     }
+
+    int row = std::distance(_keywords.begin(), _keywords.find(key));
+    if (row >= 0)
+        emit dataChanged(index(row,0), index(row,0), {EnabledRole});
 }
 
 bool KeywordListModel::disabled(const QString &key) const{

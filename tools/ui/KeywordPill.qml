@@ -5,8 +5,8 @@ import Helpers 1.0      // for ColorHelper
 Rectangle {
     id: pill
     property string keyword
-    property int    count     : 0
-    property bool   enabled   : true
+    property int    count    : 0
+    property bool   active   : true
     signal toggled(bool newState)
 
     radius: 8
@@ -15,13 +15,13 @@ Rectangle {
     color: ColorHelper.colorForPath(keyword)
     border.color: "#cccccc"
     border.width: 1
-    implicitWidth: textRow.paintedWidth + (enabled ? 16 : 30)
+    implicitWidth: textRow.paintedWidth + (active ? 16 : 30)
 
     Row {
         id: textRow
         anchors.centerIn: parent
         spacing: 4
-        Text { text: enabled ? "" : "\u2715"; color: "white"; font.pixelSize: 14 }
+        Text { text: active ? "" : "\u2715"; color: "white"; font.pixelSize: 14 }
         Text { text: count ; color: "white"; font.pixelSize: 12 }
     }
 
@@ -38,6 +38,6 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: toggled(!enabled)
+        onClicked: toggled(!pill.active)
     }
 }

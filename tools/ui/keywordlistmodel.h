@@ -25,10 +25,11 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 public:
-    void disable(const QString& key, bool flag=true);
     bool disabled(const QString& key) const;
     quint32 keyword(const QString& k) const;
     quint32 add(const QString& key);
+public slots:
+    void disable(const QString& key, bool flag);
 private:
     QMap<QString, quint32> _keywords;
     QSet<QString>          _disabled;
