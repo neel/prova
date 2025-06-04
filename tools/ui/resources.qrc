@@ -6,6 +6,7 @@
         <file>qmldir</file>
         <file>CVECard.qml</file>
         <file>CVEResults.qml</file>
+        <file>KeywordPill.qml</file>
     </qresource>
     <qresource prefix="/jar">
         <file>plantuml.jar</file>

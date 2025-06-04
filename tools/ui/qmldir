@@ -1,3 +1,4 @@
 module CVE
-CVECard    1.0 CVECard.qml
-CVEResults 1.0 CVEResults.qml
+CVECard     1.0 CVECard.qml
+CVEResults  1.0 CVEResults.qml
+KeywordPill 1.0 KeywordPill.qml

@@ -9,14 +9,48 @@ Item {
     width: 640
     height: 480
 
-    ScrollView {
+    ColumnLayout {
         anchors.fill: parent
+        width: parent.width
+        spacing: 2
+
+        Flickable {
+            id: keywordFlick
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(keywordFlow.implicitHeight, 120)
+            contentHeight: keywordFlow.implicitHeight
+            flickableDirection: Flickable.VerticalFlick
+            clip: true
+
+            Flow {
+                id: keywordFlow
+                width: parent.width
+                spacing: 8
+                padding: 4
+
+                Repeater {
+                    model: keywordModel
+                    delegate: KeywordPill {
+                        keyword:  model.keyword
+                        count:    model.count
+                        enabled:  model.enabled
+                        onToggled: keywordModel.disable(keyword, !enabled)
+                    }
+                }
+            }
+        }
 
         ListView {
             id: listView
-            anchors.fill: parent
             spacing: 10
             model: cveModel
+            Layout.fillWidth:  true
+            Layout.fillHeight: true      // ← grabs remaining height
+            clip: true
+
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+            }
 
             delegate: CVECard {
                 cveId:          model.id
@@ -68,6 +102,9 @@ Item {
                     return {};
                 }
             }
+
         }
     }
 }
+
+

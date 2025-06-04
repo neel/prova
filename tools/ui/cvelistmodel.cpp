@@ -2,12 +2,14 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include "keywordlistmodel.h"
 
 bool operator==(const CVEEntry &entry, const QString &id){
     return entry.id == id;
 }
 
-CVEListModel::CVEListModel(QNetworkAccessManager* network, QObject* parent): QAbstractListModel(parent), _network(network), _policy(nvd_nist_json){}
+CVEListModel::CVEListModel(QNetworkAccessManager* network, KeywordListModel &keywordListModel, QObject* parent): QAbstractListModel(parent),
+    _network(network), _keywords(keywordListModel), /*_policy(nvd_nist_json)*/ _policy(mitre_html) {}
 
 int CVEListModel::rowCount(const QModelIndex &parent) const{
     if (parent.isValid())
@@ -214,6 +216,9 @@ void CVEListModel::updateDetails(const QString& keyword, const QString& cve_id, 
     entry.id = cve_id;
     entry.details = details;
     _entries.append(entry);
+
+    _keywords.add(keyword);
+
     endInsertRows();
 }
 

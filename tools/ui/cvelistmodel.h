@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 
+class KeywordListModel;
+
 struct CVEEntry {
     QStringList keywords;   // e.g. "openssl"
     QString id;        // e.g. "CVE-2021-1234"
@@ -29,7 +31,7 @@ public:
     };
     Q_ENUM(Roles)
 
-    explicit CVEListModel(QNetworkAccessManager* network, QObject *parent = nullptr);
+    explicit CVEListModel(QNetworkAccessManager* network, KeywordListModel& keywordListModel, QObject *parent = nullptr);
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -45,6 +47,7 @@ private:
     QSet<QString>          _cve_ids;
     QNetworkAccessManager* _network;
     SearchPolicy           _policy;
+    KeywordListModel&      _keywords;
 signals:
     void searchSlowdown();
     void searchFinished(const QString& keyword);

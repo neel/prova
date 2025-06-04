@@ -8,6 +8,7 @@ class QNetworkAccessManager;
 class QQuickWidget;
 class QNetworkReply;
 class CVEListModel;
+class KeywordListModel;
 class ExUVulnerabilitiesProgressWidget;
 class QVBoxLayout;
 class ExUCVESearchProgressScrollArea;
@@ -33,6 +34,7 @@ private:
     Ui::ExUVulnerabilitiesViewer *ui;
     QNetworkAccessManager*       _network;
     CVEListModel*                _cveModel;
+    KeywordListModel*            _keywordsModel;
     CVEProxyModel*               _cveFilterModel;
     QQuickWidget*                _quickWidget;
     QSet<QString>                _cves;
