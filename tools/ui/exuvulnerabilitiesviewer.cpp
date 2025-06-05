@@ -31,6 +31,8 @@ ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *networ
     _cveFilterModel->sort(0, Qt::DescendingOrder);
     _cveFilterModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 
+    connect(_keywordsModel, &KeywordListModel::dataChanged, _cveFilterModel, &CVEProxyModel::invalidate);
+
     _progressArea = new ExUVulnerabilitiesProgressWidget{this};
     QVBoxLayout* l = dynamic_cast<QVBoxLayout*>(layout());
     l->insertWidget(0, _progressArea);

@@ -42,11 +42,52 @@ Rectangle {
                 width: parent.width
                 spacing: 10
 
-                Text {
-                    // width: parent.width
-                    text: card.cveId
-                    font.bold: true
-                    font.pixelSize: 20
+                RowLayout {
+                    width: parent.width
+                    spacing: 10
+
+                    // CVE ID on the left
+                    Text {
+                        text: card.cveId
+                        font.bold: true
+                        font.pixelSize: 20
+                        Layout.alignment: Qt.AlignLeft
+                        Layout.fillWidth: true
+                    }
+
+                    Item {
+                        implicitWidth: linkCVE.implicitWidth
+                        implicitHeight: linkCVE.implicitHeight
+
+                        Text {
+                            id: linkCVE
+                            text: "\uD83D\uDD17  cve"
+                            font.pixelSize: 14
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally("https://www.cve.org/CVERecord?id=" + card.cveId)
+                        }
+                    }
+
+                    Item {
+                        implicitWidth: linkNIST.implicitWidth
+                        implicitHeight: linkNIST.implicitHeight
+
+                        Text {
+                            id: linkNIST
+                            text: "\uD83D\uDD17  nist"
+                            font.pixelSize: 14
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally("https://nvd.nist.gov/vuln/detail/" + card.cveId)
+                        }
+                    }
                 }
 
                 Rectangle {

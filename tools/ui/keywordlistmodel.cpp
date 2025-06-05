@@ -55,8 +55,9 @@ void KeywordListModel::disable(const QString &key, bool flag){
     }
 
     int row = std::distance(_keywords.begin(), _keywords.find(key));
-    if (row >= 0)
+    if (row >= 0){
         emit dataChanged(index(row,0), index(row,0), {EnabledRole});
+    }
 }
 
 bool KeywordListModel::disabled(const QString &key) const{

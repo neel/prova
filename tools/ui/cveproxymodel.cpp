@@ -13,10 +13,31 @@ bool CVEProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourcePar
     QString id = sourceModel()->data(idIndex, CVEListModel::IdRole).toString();
     QStringList keywords = sourceModel()->data(keywordIndex, CVEListModel::KeywordRole).toStringList();
 
-    // bool keyword_enabled = true;
-    // for(const QString& keyword: keywords){
-    //     if(sourceModel()->keywords
+    // { permisive if all false return false otherwise proceed
+    // bool keyword_enabled = false;
+    // //
+    // for(const QString& keyword: std::as_const(keywords)){
+    //     if(!qobject_cast<CVEListModel*>(sourceModel())->keywords().disabled(keyword)){
+    //         keyword_enabled = true;
+    //         break;
+    //     }
     // }
+    // }
+
+    // { !permisive if one false return false otherwise proceed
+    bool keyword_enabled = true;
+    for(const QString& keyword: std::as_const(keywords)){
+        if(qobject_cast<CVEListModel*>(sourceModel())->keywords().disabled(keyword)){
+            keyword_enabled = false;
+            break;
+        }
+    }
+    // }
+
+
+    if(!keyword_enabled){
+        return false;
+    }
 
     if (filterRegularExpression().pattern().startsWith("CVE")) {
         return id.contains(filterRegularExpression());
