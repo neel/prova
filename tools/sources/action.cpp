@@ -25,9 +25,9 @@ void prova::action::serialize(nlohmann::json& j) const {
 	ss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
 
 	j = nlohmann::json{
-			{"event id", _event},
-			{"operation", _operation},
-			{"time", ss.str()}
+        {"event id", _event},
+        {"operation", _operation},
+        {"time", ss.str()}
 	};
 	j.update(_properties);
 }

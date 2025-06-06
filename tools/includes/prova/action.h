@@ -34,6 +34,7 @@ struct action {
     inline const std::string& operation() const { return _operation; }
     inline void operation(const std::string& op) { _operation = op; }
     inline time_type time() const { return _time; }
+    inline void time(time_type t) { _time = t; }
     inline const nlohmann::json& properties() const { return _properties; }
 
     void serialize(nlohmann::json& j) const;

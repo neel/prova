@@ -90,21 +90,21 @@ void MainWindow::populate(){
     }
     std::cout << "Fetched " << exu_units.size() << std::endl;
 
-    std::size_t i = 0;
-    for(const auto& unit: exu_units){
-        nlohmann::json dataset = nlohmann::json::array();
-        unit->root()->flatten(dataset);
-        std::string json_str = dataset.dump(4);
-        std::string out_path = std::format("{}.syscalls.json", i++);
-        std::ofstream outfile(out_path.c_str());
-        if (outfile.is_open()) {
-            outfile << json_str;
-            outfile.close();
-            std::cout << "Data successfully written to " << out_path << std::endl;
-        } else {
-            std::cerr << "Unable to open file for writing." << std::endl;
-        }
-    }
+    // std::size_t i = 0;
+    // for(const auto& unit: exu_units){
+    //     nlohmann::json dataset = nlohmann::json::array();
+    //     unit->root()->flatten(dataset);
+    //     std::string json_str = dataset.dump(4);
+    //     std::string out_path = std::format("{}.syscalls.json", i++);
+    //     std::ofstream outfile(out_path.c_str());
+    //     if (outfile.is_open()) {
+    //         outfile << json_str;
+    //         outfile.close();
+    //         std::cout << "Data successfully written to " << out_path << std::endl;
+    //     } else {
+    //         std::cerr << "Unable to open file for writing." << std::endl;
+    //     }
+    // }
 
     std::cout << "ready " << std::endl;
     qDebug() << "Ready!";

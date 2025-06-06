@@ -25,6 +25,12 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
         throw std::runtime_error{"Cannot connect to ArangoDB server"};
     }
 
+    // Find (undirected) edges between a pair of vertices u, v such that
+    //      either u or v is a Process vertex
+    // group these edges into unique ebdpoints
+    // returns a collection of {u, v, edges: all edges between (u, v), N: number of edges }
+    //      such that N > 1
+
     auto aql = R"AQL(
         FOR e IN edges
         LET endpoints = [e._from, e._to]
@@ -38,6 +44,7 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
         LET tgt = DOCUMENT(vertices, sessions[0].original_to)
         FILTER src.type == 'Process' || tgt.type == 'Process'
         // FILTER src.exe == '/usr/sbin/nginx' || tgt.exe == '/usr/sbin/nginx'
+        // FILTER src.pid == '13713' || tgt.pid == '13713'
         LET N = LENGTH(sessions)
         FILTER N > 1
         RETURN {
@@ -47,8 +54,8 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
             "count": N
         }
     )AQL";
-    tash::cursor cursor = spade.aql(aql);
 
+    tash::cursor cursor = spade.aql(aql);
     nlohmann::json events = nlohmann::json::array();
 
     // { parse json and make the objects
@@ -77,15 +84,17 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
             continue;
         }
 
-        prova::session::ptr s = std::make_shared<prova::session>(related_fs);
-        for(const nlohmann::json& edge_json: record["edges"]){
+        // transform each entry {u, v, edges: all edges between (u, v), N: number of edges } into a session between process and the related artifact
+        // an action in that session will denote an edge of the entry
+        prova::session::ptr s = std::make_shared<prova::session>(related_fs);           // s defines the session of I/O interaction between the related_ps process and the I/O artifact related_fs
+        for(const nlohmann::json& edge_json: record["edges"]){                          // each edge e defines a I/O event between related_ps and related_fs
             bool is_syscall = (edge_json["source"].get<std::string>() == "syscall");
             if(is_syscall){
                 std::uint32_t    event_id  = std::stoi(edge_json["event id"].get<std::string>());
                 std::string      operation = edge_json["operation"].get<std::string>();
                 prova::action::category type = prova::action::category::unknown;
 
-                if(operation == "accept" || operation == "open" || operation == "create" || operation.starts_with("mmap")){
+                if(operation == "accept" || operation == "open" || operation == "create" || operation.starts_with("mmap")  || operation.starts_with("connect")){
                     type = prova::action::category::acquire;
                 } else if (operation == "close" || operation.starts_with("munmap")) {
                     type = prova::action::category::release;
@@ -98,6 +107,9 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
         }
         related_ps->add_session(s);
 
+        // If a process already exists with the same pid in the _processes map then merge the related_ps into that
+        // otherwise add the related_ps into the _processes map
+
         std::size_t pid = related_ps->pid();
         auto it = _processes.find(pid);
         if(it != _processes.end()){
@@ -109,28 +121,104 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
     }
     // }
 
+    // Now the sessions associated with the process have two characteristics
+    //      1. They are all flat, none of them have any children
+    //      2. One session may contain any number of acquire or release type actions
+    // Ideally we want a session to consist of a pair of action, one acquire followed by one release.
+    // But, the query may return edges like {Open, Close, Open, Close}
+    // In that case we need to replace that big session into two small sessions
+    // In general {Acquire, Release, Acquire, Release} should be broken down to {Acquire, Release}, {Acquire, Release}
+
+    // However, beware of the cases like {Open, Read, Read, Close} are possible.
+    // To be safe our approach should also be able to handle the following cases gracefull without crashing
+    //      {Acquire, Acquire, ..., Release}    -> In this case put all of them into same session
+    //      {Acquire, Acquire, ...}             -> This is actually a CWE the actuired resource can not been released.
+    //                                             Create a fake release action and put it inside the session
+    //      {Release, Release, ...}             -> Very bad case should not happen. For now log a message
+
+
     // { split big sessions into small sessions
     for(auto& pair: _processes){
         std::size_t pid = pair.first;
         std::vector<prova::session::ptr> new_sessions;
         for(auto sess_it = pair.second->begin(); sess_it != pair.second->end();){
             prova::session::ptr s = *sess_it;
-            bool should_delete = false;
-            if(s->size() > 2){
-                // std::cout << "Breaking down" << std::endl;
 
+            std::sort(s->begin(), s->end(), [](const auto& a, const auto& b){ return a->id() < b->id(); });
+            auto action_count = s->size();
+
+            bool is_simple = (action_count == 2 && s->at(0)->type() == prova::action::category::acquire && s->at(1)->type() == prova::action::category::release);
+            bool should_delete = false;
+            if(!is_simple){
+                bool acquire_found = false;
                 for(auto it = s->begin(); it != s->end(); ++it){
                     if((*it)->type() == prova::action::category::acquire){
-                        if((*(it+1))->type() == prova::action::category::release){
-                            prova::session::ptr new_session = std::make_shared<prova::session>(s->artifact());
-                            new_session->add_action(*it);
-                            new_session->add_action(*(it+1));
-                            new_sessions.push_back(new_session);
-                            ++it;
+                        acquire_found = true;
+                        prova::session::ptr new_session = std::make_shared<prova::session>(s->artifact());
+                        new_session->add_action(*it);
+                        bool session_closed = false;
+                        for(auto jt = it+1; jt != s->end(); ++jt) {
+                            new_session->add_action(*jt);
+                            if((*jt)->type() == prova::action::category::release){
+                                new_sessions.push_back(new_session);
+                                it = jt;
+                                session_closed = true;
+                                if(std::distance(it, s->end()) > 0){
+                                    should_delete = true;
+                                } else {
+                                    new_session->clear();
+                                    // The existing session is not a "big" session, as it does not include multiple release calls
+                                }
+                                break;
+                            }
                         }
+
+                        if(!session_closed){
+                            std::cout << "Error: expecting release call after an acquire call for pid " << pid << " exe " << pair.second->exe() << std::endl;
+                            for(auto ait = new_session->begin(); ait != new_session->end(); ++ait){
+                                nlohmann::json json_ack;
+                                prova::to_json(json_ack, *(*ait));
+                                std::cout << json_ack << std::endl;
+                            }
+                            std::cout << std::endl;
+                            auto fake_close = std::make_shared<prova::action>(0, prova::action::category::release);
+                            fake_close->operation("missing");
+                            fake_close->time((*it)->time());
+                            fake_close->id((*it)->id());
+
+                            new_session->add_action(fake_close);
+                            session_closed = true;
+                            should_delete = true;
+                        } else {
+                            // std::cout << "Good: session for pid " << pid << " actions " << new_session->size() << std::endl;
+                        }
+                        new_sessions.push_back(new_session);
                     }
                 }
-                should_delete = true;
+
+                if(!acquire_found && action_count > 0) {
+                    // No acquire call has been observed but there are multiple actions
+                    // therefore all these actions must be release actions
+                    std::cout << "Error: expecting acquire call before a release call for pid " << pid << " exe " << pair.second->exe() << " artifact " << s->artifact()->properties() << std::endl;
+                    for(auto it = s->begin(); it != s->end(); ++it){
+                        auto fake_open = std::make_shared<prova::action>(0, prova::action::category::acquire);
+                        fake_open->operation("missing");
+                        fake_open->time((*it)->time());
+                        fake_open->id((*it)->id());
+
+                        prova::session::ptr new_session = std::make_shared<prova::session>(s->artifact());
+                        new_session->add_action(fake_open);
+                        new_session->add_action(*it);
+                        new_sessions.push_back(new_session);
+
+                        acquire_found  = true;
+                        should_delete  = true;
+
+                        nlohmann::json json_rel;
+                        prova::to_json(json_rel, *(*it));
+                        std::cout << json_rel << std::endl;
+                    }
+                }
             }
             if(should_delete){
                 sess_it = pair.second->erase(sess_it);
@@ -173,13 +261,14 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
 
     for(auto& pair: _processes){
         for(auto sess_it = pair.second->begin(); sess_it != pair.second->end(); ++sess_it){
-            prova::session::ptr  s = *sess_it;
-            prova::session::ptr  p = s->_parent;
+            prova::session::ptr  s = *sess_it;                                                      // take session s
+            prova::session::ptr  p = s->_parent;                                                    // take p the parent of session s
             if(p){
                 for(auto it = s->_children.begin(); it != s->_children.end(); ++it){
-                    for(auto x_sess_it = p->_children.begin(); x_sess_it != p->_children.end();){
-                        if(*x_sess_it == *it){
-                            x_sess_it = p->_children.erase(x_sess_it);
+                    prova::session::ptr c = *it;                                                    // c is a child of session s
+                    for(auto x_sess_it = p->_children.begin(); x_sess_it != p->_children.end();){   // iterate through all children of p
+                        if(*x_sess_it == c){                                                        // c is already a grandchild of p and child of p at the same time
+                            x_sess_it = p->_children.erase(x_sess_it);                              // therefore it should not be a child of p also
                         } else {
                             ++x_sess_it;
                         }
@@ -203,6 +292,19 @@ void prova::store::fetch(std::string host, unsigned port, std::string user, std:
             insert(s);
         }
     }
+    // }
+
+    // { Debug
+    // for(auto& pair: _processes){
+    //     std::cout << "Process: " << pair.first << std::endl;
+    //     for(auto sess_it = pair.second->begin(); sess_it != pair.second->end(); ++sess_it){
+    //         prova::session::ptr  s = *sess_it;
+    //         std::cout << "Session " << s->first_id() << " " << s->last_id() << std::endl;
+    //         for(const auto& a: *s){
+    //             std::cout << "\tAction " << a->id() << " " << a->operation() << std::endl;
+    //         }
+    //     }
+    // }
     // }
 }
 
@@ -297,7 +399,7 @@ void prova::store::extract(std::vector<std::shared_ptr<prova::execution_unit>>& 
     auto& index_by_start = index_by_first_id();
     for (auto it = index_by_start.begin(); it != index_by_start.end(); ++it) {
         prova::session::ptr sess = *it;
-        if(!sess->_parent && sess->_children.size() > 0){
+        if(!sess->_parent){
             prova::process::ptr process = sess->_process;
             auto unit = std::make_shared<prova::execution_unit>(process, sess);
             extract_artifacts(sess, unit);

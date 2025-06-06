@@ -11,22 +11,22 @@
 #include <fcntl.h>
 
 std::uint32_t prova::session::first_id() const {
-		return _actions.front()->id();
+    return _actions.front()->id();
 }
 prova::session::time_type prova::session::start() const {
-		return _actions.front()->time();
+    return _actions.front()->time();
 }
 prova::session::time_type prova::session::finish() const {
-		return _actions.back()->time();
+    return _actions.back()->time();
 }
 std::uint32_t prova::session::last_id() const {
-		return _actions.back()->id();
+    return _actions.back()->id();
 }
 
 bool prova::session::completely_overlaps(prova::session::ptr other) const {
 		// std::cout << std::format("this [{} -> {}], other [{} -> {}]", start(), finish(), other->start(), other->finish()) << std::endl;
 		if((other->start() >= start()) && (other->finish() <= finish()))
-				return ((other->first_id() > first_id()) && (other->last_id() < last_id()));
+            return ((other->first_id() >= first_id()) && (other->last_id() <= last_id()));
 		return false;
 }
 
@@ -58,63 +58,51 @@ nlohmann::json& prova::session::flatten(nlohmann::json& json) const{
 
 	common.push_back({"artifact.subtype", boost::trim_copy_if(_artifact->subtype(), boost::is_any_of("\""))});
 	for (const auto& prop : _artifact->properties().items()) {
-			if(prop.key() == "_key") continue;
-			common.push_back({"artifact."+prop.key(), boost::trim_copy_if(prop.value().dump(), boost::is_any_of("\""))});
+        if(prop.key() == "_key") continue;
+        common.push_back({"artifact."+prop.key(), boost::trim_copy_if(prop.value().dump(), boost::is_any_of("\""))});
 	}
 
-	{
-		nlohmann::json event = common;
-		std::shared_ptr<prova::action> acquire_action = _actions.at(0);
-		event.push_back({"action.id", 				acquire_action->id()});
-		event.push_back({"action.operation", 	acquire_action->operation()});
-		for (const auto& prop : acquire_action->properties().items()) {
-				if(prop.key() == "_key") continue;
-				if(prop.key() == "event id"){
-						std::string value = prop.value();
-						event.push_back({"action."+prop.key(), boost::lexical_cast<std::uint32_t>(value)});
-				} else if(prop.key() == "time"){
-						std::string value = prop.value();
-						event.push_back({"action."+prop.key(), std::size_t(boost::lexical_cast<double>(value) *10000)});
-				} else if(prop.key() == "flags"){
-						std::string svalue = prop.value();
-						int value = (flag_map.find(svalue) != flag_map.end()) ? flag_map[svalue] : -1;
-						event.push_back({"action."+prop.key(), value});
-				} else {
-						event.push_back({"action."+prop.key(), boost::trim_copy_if(prop.value(), boost::is_any_of("\""))});
-				}
-				event.push_back({"action."+prop.key(), boost::trim_copy_if(prop.value().dump(), boost::is_any_of("\""))});
-		}
-		json.emplace_back(event);
-	}
+    auto lambda_create_event_json = [common](const prova::action& action){
+        nlohmann::json event = common;
+        event.push_back({"action.id", 			action.id()});
+        event.push_back({"action.operation", 	action.operation()});
+        for (const auto& prop : action.properties().items()) {
+            if(prop.key() == "_key") continue;
+            if(prop.key() == "event id"){
+                std::string value = prop.value();
+                event.push_back({"action."+prop.key(), boost::lexical_cast<std::uint32_t>(value)});
+            } else if(prop.key() == "time"){
+                std::string value = prop.value();
+                event.push_back({"action."+prop.key(), std::size_t(boost::lexical_cast<double>(value) *10000)});
+            } else if(prop.key() == "flags"){
+                std::string svalue = prop.value();
+                int value = (flag_map.find(svalue) != flag_map.end()) ? flag_map[svalue] : -1;
+                event.push_back({"action."+prop.key(), value});
+            } else {
+                event.push_back({"action."+prop.key(), boost::trim_copy_if(prop.value(), boost::is_any_of("\""))});
+            }
+            event.push_back({"action."+prop.key(), boost::trim_copy_if(prop.value().dump(), boost::is_any_of("\""))});
+        }
+        return event;
+    };
+
+    for(const auto& action: _actions) {
+        if(action->type() != prova::action::category::release) {
+            nlohmann::json event = lambda_create_event_json(*action);
+            json.emplace_back(event);
+        }
+    }
 
 	for(const auto& child: _children){
 		child->flatten(json);
 	}
 
-	{
-		nlohmann::json event = common;
-		std::shared_ptr<prova::action> release_action = _actions.at(1);
-		event.push_back({"action.id", 				release_action->id()});
-		event.push_back({"action.operation", 	release_action->operation()});
-		for (const auto& prop : release_action->properties().items()) {
-				if(prop.key() == "_key") continue;
-				if(prop.key() == "event id"){
-						std::string value = prop.value();
-						event.push_back({"action."+prop.key(), boost::lexical_cast<std::uint32_t>(value)});
-				} else if(prop.key() == "time"){
-						std::string value = prop.value();
-						event.push_back({"action."+prop.key(), std::size_t(boost::lexical_cast<double>(value) *10000)});
-				} else if(prop.key() == "flags"){
-						std::string svalue = prop.value();
-						int value = (flag_map.find(svalue) != flag_map.end()) ? flag_map[svalue] : -1;
-						event.push_back({"action."+prop.key(), value});
-				} else {
-						event.push_back({"action."+prop.key(), boost::trim_copy_if(prop.value(), boost::is_any_of("\""))});
-				}
-				event.push_back({"action."+prop.key(), boost::trim_copy_if(prop.value().dump(), boost::is_any_of("\""))});
-		}
-		json.emplace_back(event);
-	}
+    for(const auto& action: _actions) {
+        if(action->type() == prova::action::category::release) {
+            nlohmann::json event = lambda_create_event_json(*action);
+            json.emplace_back(event);
+        }
+    }
 
 	return json;
 }

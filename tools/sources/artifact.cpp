@@ -4,14 +4,14 @@
 #include "prova/artifact.h"
 
 void prova::to_json(nlohmann::json& j, const prova::artifact& a) {
-		j = {
-				{"subtype", a._subtype},
-		};
-		j.update(a._properties);
+    j = {
+        {"subtype", a._subtype},
+    };
+    j.update(a._properties);
 }
 
 void prova::from_json(const nlohmann::json& j, prova::artifact& a) {
-		a._subtype = j.at("subtype").get<std::string>();
-		a._properties = j;
-		a._properties.erase("subtype");
+    a._subtype = j.at("subtype").get<std::string>();
+    a._properties = j;
+    a._properties.erase("subtype");
 }

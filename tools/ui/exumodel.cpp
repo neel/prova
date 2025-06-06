@@ -3,6 +3,7 @@
 #include "prova/session.h"
 #include "prova/artifact.h"
 #include "prova/execution_unit.h"
+#include <QBrush>
 
 ExUModel::ExUModel(QObject *parent): QAbstractItemModel(parent), _header_level(0) {}
 
@@ -109,6 +110,39 @@ QVariant ExUModel::data(const QModelIndex &index, int role = Qt::DisplayRole) co
             }
         }
     }
+
+    std::function<bool (const prova::session&)> lambda_unclosed_session;
+    lambda_unclosed_session = [&lambda_unclosed_session](const prova::session& session){
+        if(session.first_id() == session.last_id()) {
+            return true;
+        }
+        for(auto it = session.children_begin(); it != session.children_end(); ++it) {
+            const std::shared_ptr<prova::session>& child = *it;
+            if(lambda_unclosed_session(*child)){
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (role == Qt::ForegroundRole) {
+        if (node->level != 0) {
+            const prova::session* session = static_cast<const prova::session*>(node->data);
+            if(lambda_unclosed_session(*session)) {
+                return QBrush(Qt::red);
+            }
+        } else {
+            const prova::execution_unit* exuptr = static_cast<const prova::execution_unit*>(node->data);
+            if(exuptr){
+                std::shared_ptr<prova::session> session_ptr = exuptr->root();
+                if(lambda_unclosed_session(*session_ptr)) {
+                    return QBrush(Qt::red);
+                }
+            }
+        }
+    }
+
+
     return QVariant();
 }
 

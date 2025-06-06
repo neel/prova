@@ -20,6 +20,7 @@ struct artifact;
 struct execution_unit{
     using artifacts_collection_type = std::vector<std::shared_ptr<prova::artifact>>;
     using const_iterator = typename artifacts_collection_type::const_iterator;
+    using size_type = typename artifacts_collection_type::size_type;
 
 	inline execution_unit(std::shared_ptr<prova::process> process, std::shared_ptr<prova::session> session) : _process(process), _root_session(session) {}
 	inline void add_artifact(std::shared_ptr<prova::artifact> artifact){ _artifacts.emplace_back(artifact); }
@@ -32,6 +33,7 @@ struct execution_unit{
     public:
         inline const_iterator begin() const { return _artifacts.begin(); }
         inline const_iterator end() const { return _artifacts.end(); }
+        inline size_type size() const { return _artifacts.size(); }
 	private:
 		std::shared_ptr<prova::process> _process;
 		std::shared_ptr<prova::session> _root_session;

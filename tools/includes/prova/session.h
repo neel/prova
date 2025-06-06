@@ -35,6 +35,8 @@ struct session{
     inline void clear() { _actions.clear(); }
     inline auto begin() const { return _actions.begin(); }
     inline auto end()   const { return _actions.end(); }
+    inline auto begin() { return _actions.begin(); }
+    inline auto end()   { return _actions.end(); }
     inline auto size()  const { return _actions.size(); }
     inline std::shared_ptr<prova::action> at(std::size_t n) { return _actions.at(n); }
 
