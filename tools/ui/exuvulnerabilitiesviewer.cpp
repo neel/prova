@@ -24,7 +24,7 @@
 ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
     _keywordsModel = new KeywordListModel{this};
-    _cveModel = new CVEListModel{_network, *_keywordsModel};
+    _cveModel = new CVEListModel{_network, *_keywordsModel, CVEListModel::nvd_nist_json};
     _cveFilterModel = new CVEProxyModel;
     _cveFilterModel->setSourceModel(_cveModel);
     _cveFilterModel->setSortRole(CVEListModel::IdRole);

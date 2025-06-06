@@ -17,7 +17,6 @@ void SettingsDialog::loadSettings() {
     ui->hostEdit->setText(settings.value("host", "localhost").toString());
     ui->portEdit->setText(settings.value("port", "8529").toString());
     ui->plantUmlPathEdit->setText(settings.value("plantUmlPath", "").toString());
-    ui->checkFullTextSearch->setChecked(settings.value("fullTextSearchEnabled", false).toBool());
 }
 
 void SettingsDialog::saveSettings() {
@@ -26,7 +25,6 @@ void SettingsDialog::saveSettings() {
     settings.setValue("host", ui->hostEdit->text());
     settings.setValue("port", ui->portEdit->text());
     settings.setValue("plantUmlPath", ui->plantUmlPathEdit->text());
-    settings.setValue("fullTextSearchEnabled", ui->checkFullTextSearch->isChecked());
 }
 
 void SettingsDialog::accept() {

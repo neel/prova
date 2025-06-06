@@ -8,8 +8,8 @@ bool operator==(const CVEEntry &entry, const QString &id){
     return entry.id == id;
 }
 
-CVEListModel::CVEListModel(QNetworkAccessManager* network, KeywordListModel &keywordListModel, QObject* parent): QAbstractListModel(parent),
-    _network(network), _keywords(keywordListModel), /*_policy(nvd_nist_json)*/ _policy(mitre_html) {}
+CVEListModel::CVEListModel(QNetworkAccessManager* network, KeywordListModel &keywordListModel, SearchPolicy searchPolicy, QObject* parent): QAbstractListModel(parent),
+    _network(network), _keywords(keywordListModel), _policy(searchPolicy) {}
 
 int CVEListModel::rowCount(const QModelIndex &parent) const{
     if (parent.isValid())
