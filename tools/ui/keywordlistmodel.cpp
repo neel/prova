@@ -3,7 +3,7 @@
 KeywordListModel::KeywordListModel(QObject *parent): QAbstractListModel(parent) {}
 
 QVariant KeywordListModel::headerData(int section, Qt::Orientation orientation, int role) const{
-    // FIXME: Implement me!
+    return QVariant();
 }
 
 int KeywordListModel::rowCount(const QModelIndex &parent) const{
