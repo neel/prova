@@ -41,7 +41,7 @@ class MainWindow : public QMainWindow{
   private:
     Ui::MainWindow*         ui;
     ExUModel*               _exuModel;
-    ExUFilterProxyModel*    _exyFilterProxyModel;
+    ExUFilterProxyModel*    _exuFilterProxyModel;
     QNetworkAccessManager*  _network;
     QNetworkDiskCache*      _cache;
   private:

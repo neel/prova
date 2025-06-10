@@ -42,33 +42,32 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     _network->setCache(_cache);
 
     _exuModel = new ExUModel{this};
-    _exyFilterProxyModel = new ExUFilterProxyModel{this};
-    _exyFilterProxyModel->setSourceModel(_exuModel);
+    _exuFilterProxyModel = new ExUFilterProxyModel{this};
+    _exuFilterProxyModel->setSourceModel(_exuModel);
 
-    ui->exuTreeView->setExpandsOnDoubleClick(true);  // Should be true (default)
-    ui->exuTreeView->setItemsExpandable(true);       // Should be true (default)
-    ui->exuTreeView->setRootIsDecorated(true);       // Should be true (default)
-    ui->exuTreeView->setModel(_exyFilterProxyModel);
+    ui->exuTreeView->setExpandsOnDoubleClick(true);
+    ui->exuTreeView->setItemsExpandable(true);
+    ui->exuTreeView->setRootIsDecorated(true);
+    ui->exuTreeView->setModel(_exuFilterProxyModel);
+    ui->exuTreeView->setSortingEnabled(true);
     ui->exuTreeView->viewport()->installEventFilter(this);
     // ui->exuTreeView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     populate();
     std::cout << "Populated" << std::endl;
-    // connect(ui->exuTreeView, &QTreeView::doubleClicked, this, &MainWindow::exuSelected);
-    connect(ui->exuTreeView->selectionModel(), &QItemSelectionModel::selectionChanged, _exuModel ,[this](const QItemSelection& selected, const QItemSelection&)->void{
-        if (selected.indexes().isEmpty())
+    connect(ui->exuTreeView, &QTreeView::doubleClicked, this, &MainWindow::exuSelected);
+    connect(ui->exuTreeView->selectionModel(), &QItemSelectionModel::selectionChanged, this ,[this](const QItemSelection& sel, const QItemSelection&)->void{
+        if (sel.indexes().isEmpty())
             return;
 
-        QModelIndex proxyIdx = selected.indexes().first();
-        QModelIndex srcIdx   = _exyFilterProxyModel->mapToSource(proxyIdx);
+        QModelIndex proxyIdx = sel.indexes().first();
+        QModelIndex srcIdx = _exuFilterProxyModel->mapToSource(proxyIdx);
         if (!srcIdx.isValid())
             return;
+        std::size_t level = 0;
+        for (QModelIndex p = srcIdx.parent(); p.isValid(); p = p.parent())
+            ++level;
 
-        if (srcIdx.parent().isValid()) {
-            auto *node = static_cast<ExUModel::tree_node*>(srcIdx.internalPointer());
-            _exuModel->updateHeaderLevel(node->level);
-        } else {
-            _exuModel->updateHeaderLevel(0);
-        }
+        _exuModel->updateHeaderLevel(level);
     });
 
     connect(this, &MainWindow::sequenceClicked, this, &MainWindow::showSequenceDiagram);
@@ -122,7 +121,7 @@ void MainWindow::populate(){
 }
 
 void MainWindow::exuSelected(const QModelIndex& index){
-    QModelIndex srcIdx = _exyFilterProxyModel->mapToSource(index);
+    QModelIndex srcIdx = _exuFilterProxyModel->mapToSource(index);
     if (!srcIdx.isValid())
         return;
 
@@ -145,7 +144,7 @@ bool MainWindow::eventFilter(QObject* target, QEvent *event){
             if (!proxyIdx.isValid())
                 return true;
 
-            QModelIndex srcIdx = _exyFilterProxyModel->mapToSource(proxyIdx);
+            QModelIndex srcIdx = _exuFilterProxyModel->mapToSource(proxyIdx);
 
             if (srcIdx.parent().isValid())
                 return true;
@@ -227,7 +226,7 @@ void MainWindow::showSettingsDialog(){
 }
 
 void MainWindow::filterProcess(const QString& processName){
-    _exyFilterProxyModel->setExeFilter(processName);
+    _exuFilterProxyModel->setExeFilter(processName);
 }
 
 void MainWindow::unpackPlantUmlJar(){
