@@ -17,6 +17,8 @@ struct execution_unit;
 struct store;
 }
 
+class ExUFilterProxyModel;
+
 class MainWindow : public QMainWindow{
     Q_OBJECT
   public:
@@ -31,15 +33,15 @@ class MainWindow : public QMainWindow{
   signals:
     void sequenceClicked(int row);
     void resourcesClicked(int row);
-    void vulnerabilitiesClicked(int row);
   private slots:
     void showSequenceDiagram(int row);
     void showResources(int row);
-    void showVulnerabilities(int row);
     void showSettingsDialog();
+    void filterProcess(const QString& processName);
   private:
     Ui::MainWindow*         ui;
     ExUModel*               _exuModel;
+    ExUFilterProxyModel*    _exyFilterProxyModel;
     QNetworkAccessManager*  _network;
     QNetworkDiskCache*      _cache;
   private:

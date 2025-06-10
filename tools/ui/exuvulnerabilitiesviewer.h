@@ -2,12 +2,12 @@
 #define EXUVULNERABILITIESVIEWER_H
 
 #include <QWidget>
+#include "cvelistmodel.h"
 #include <prova/execution_unit.h>
 
 class QNetworkAccessManager;
 class QQuickWidget;
 class QNetworkReply;
-class CVEListModel;
 class KeywordListModel;
 class ExUVulnerabilitiesProgressWidget;
 class QVBoxLayout;
@@ -24,7 +24,7 @@ class ExUVulnerabilitiesViewer : public QWidget{
     Q_OBJECT
 
 public:
-    explicit ExUVulnerabilitiesViewer(QNetworkAccessManager* network, QWidget *parent = nullptr);
+    explicit ExUVulnerabilitiesViewer(QNetworkAccessManager* network, CVEListModel::SearchPolicy searchPolicy, QWidget *parent = nullptr);
     ~ExUVulnerabilitiesViewer();
 
 public:

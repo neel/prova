@@ -21,10 +21,10 @@
 #include <QDir>
 #include <QTimer>
 
-ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
+ExUVulnerabilitiesViewer::ExUVulnerabilitiesViewer(QNetworkAccessManager *network, CVEListModel::SearchPolicy searchPolicy, QWidget *parent): QWidget(parent), ui(new Ui::ExUVulnerabilitiesViewer), _network(network){
     ui->setupUi(this);
     _keywordsModel = new KeywordListModel{this};
-    _cveModel = new CVEListModel{_network, *_keywordsModel, CVEListModel::nvd_nist_json};
+    _cveModel = new CVEListModel{_network, *_keywordsModel, searchPolicy};
     _cveFilterModel = new CVEProxyModel;
     _cveFilterModel->setSourceModel(_cveModel);
     _cveFilterModel->setSortRole(CVEListModel::IdRole);

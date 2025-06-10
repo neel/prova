@@ -8,6 +8,7 @@
 
 namespace prova{
 struct execution_unit;
+struct session;
 }
 
 class ExUModel : public QAbstractItemModel{
@@ -28,6 +29,7 @@ public:
   public:
     explicit ExUModel(QObject *parent = nullptr);
     int rowCount(const QModelIndex& parent = QModelIndex()) const;
+    bool hasChildren(const QModelIndex &parent = QModelIndex()) const override;
     int columnCount(const QModelIndex& parent = QModelIndex()) const;
     QVariant data(const QModelIndex &index, int role) const;
     QVariant headerData(int section, Qt::Orientation orientation, int role) const;
@@ -38,6 +40,9 @@ public:
     void add_unit(std::shared_ptr<prova::execution_unit> unit);
     const std::shared_ptr<prova::execution_unit>& unit(std::size_t i) const;
     std::string deriveArtifactName(const prova::artifact::ptr& artifact) const;
+  private:
+    const prova::session* findParentSession(const prova::session* root, const prova::session* target) const;
+    int getSessionRowInParent(const prova::session* parent, const prova::session* child) const;
   private:
     std::vector<std::shared_ptr<prova::execution_unit>> _units;
     mutable QVector<tree_node::ptr> _nodes;

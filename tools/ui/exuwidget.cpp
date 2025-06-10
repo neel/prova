@@ -6,6 +6,7 @@
 #include "prova/action.h"
 #include "prova/artifact.h"
 #include <QJsonModel.hpp>
+#include <QSettings>
 
 ExUWidget::ExUWidget(QNetworkAccessManager* network, QWidget *parent): QWidget{parent}, _network(network) {
     _layout          = new QHBoxLayout{this};
@@ -15,8 +16,27 @@ ExUWidget::ExUWidget(QNetworkAccessManager* network, QWidget *parent): QWidget{p
     _layout->setSpacing(0);
     _layout->setContentsMargins(0, 0, 0, 0);
 
+    QSettings settings("Simula", "SimVul");
+    CVEListModel::SearchPolicy policy = CVEListModel::SearchPolicy::nvd_nist_json;
+    const int defaultVal = static_cast<int>(policy);
+
+    // read back as int, then cast to the enum
+    bool ok = false;
+    int  raw = settings.value("cvePolicy", defaultVal).toInt(&ok);
+
+    if (!ok)  raw = defaultVal;              // guard against non-numeric junk
+
+    // if the value isn’t one of the known enum constants, fall back too
+    switch (raw) {
+        case static_cast<int>(CVEListModel::SearchPolicy::nvd_nist_json):
+        case static_cast<int>(CVEListModel::SearchPolicy::mitre_html):
+            policy = static_cast<CVEListModel::SearchPolicy>(raw);
+        default:
+            policy = CVEListModel::SearchPolicy::nvd_nist_json;
+    }
+
     _resourceLifetimeViewer = new ExUResourceChartViewer{this};
-    _vulnerabilitiesViewer  = new ExUVulnerabilitiesViewer{_network, this};
+    _vulnerabilitiesViewer  = new ExUVulnerabilitiesViewer{_network, policy, this};
     _sessionPropertyViewer  = new QTreeView{this};
 
     _sessionPropertyModel = new QJsonModel{this};

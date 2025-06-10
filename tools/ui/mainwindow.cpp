@@ -22,6 +22,7 @@
 #include "exuvulnerabilitiesviewer.h"
 #include "exuresourcechartviewer.h"
 #include "exuwidget.h"
+#include "exufilterproxymodel.h"
 #include <QSettings>
 #include <QResource>
 #include <QDir>
@@ -41,20 +42,29 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     _network->setCache(_cache);
 
     _exuModel = new ExUModel{this};
-    ui->exuTreeView->setModel(_exuModel);
+    _exyFilterProxyModel = new ExUFilterProxyModel{this};
+    _exyFilterProxyModel->setSourceModel(_exuModel);
+
+    ui->exuTreeView->setExpandsOnDoubleClick(true);  // Should be true (default)
+    ui->exuTreeView->setItemsExpandable(true);       // Should be true (default)
+    ui->exuTreeView->setRootIsDecorated(true);       // Should be true (default)
+    ui->exuTreeView->setModel(_exyFilterProxyModel);
     ui->exuTreeView->viewport()->installEventFilter(this);
     // ui->exuTreeView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     populate();
     std::cout << "Populated" << std::endl;
-    connect(ui->exuTreeView, &QTreeView::doubleClicked, this, &MainWindow::exuSelected);
+    // connect(ui->exuTreeView, &QTreeView::doubleClicked, this, &MainWindow::exuSelected);
     connect(ui->exuTreeView->selectionModel(), &QItemSelectionModel::selectionChanged, _exuModel ,[this](const QItemSelection& selected, const QItemSelection&)->void{
-        const auto selectedIndexes = selected.indexes();
-        if(selectedIndexes.size() == 0){
+        if (selected.indexes().isEmpty())
             return;
-        }
-        const auto selectedIndex = selectedIndexes[0];
-        if(selectedIndex.parent().isValid()){
-            auto node = static_cast<ExUModel::tree_node*>(selectedIndex.internalPointer());
+
+        QModelIndex proxyIdx = selected.indexes().first();
+        QModelIndex srcIdx   = _exyFilterProxyModel->mapToSource(proxyIdx);
+        if (!srcIdx.isValid())
+            return;
+
+        if (srcIdx.parent().isValid()) {
+            auto *node = static_cast<ExUModel::tree_node*>(srcIdx.internalPointer());
             _exuModel->updateHeaderLevel(node->level);
         } else {
             _exuModel->updateHeaderLevel(0);
@@ -63,7 +73,8 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
 
     connect(this, &MainWindow::sequenceClicked, this, &MainWindow::showSequenceDiagram);
     connect(this, &MainWindow::resourcesClicked, this, &MainWindow::showResources);
-    connect(this, &MainWindow::vulnerabilitiesClicked, this, &MainWindow::showVulnerabilities);
+
+    connect(ui->processNameLineEdit, &QLineEdit::textChanged, this, &MainWindow::filterProcess);
 }
 
 MainWindow::~MainWindow(){
@@ -111,94 +122,51 @@ void MainWindow::populate(){
 }
 
 void MainWindow::exuSelected(const QModelIndex& index){
-    // QMessageBox::information(this, "Row Selected", QString("Row %1, Column %2 clicked").arg(index.row()).arg(index.column()));
+    QModelIndex srcIdx = _exyFilterProxyModel->mapToSource(index);
+    if (!srcIdx.isValid())
+        return;
 
-    if(!index.parent().isValid()){
-        std::shared_ptr<prova::execution_unit> unit = _exuModel->unit(index.row());
-        ExUWidget* exuWidget = new ExUWidget{unit, _network};
-        QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(exuWidget);
-        subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
+    if (!srcIdx.parent().isValid()) {
+        std::shared_ptr<prova::execution_unit> unit = _exuModel->unit(srcIdx.row());
+        auto *exuWidget  = new ExUWidget{ unit, _network };
+        auto *subWindow  = ui->mdiArea->addSubWindow(exuWidget);
+        subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", srcIdx.row())));
         subWindow->show();
     }
-
-    // if(!index.parent().isValid()){
-    //     const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(index.row());
-    //     std::filesystem::path image_path{std::format("{}.svg", index.row())};
-    //     unit->render_svg(image_path);
-    //     std::cout << "Rendered " << image_path<< std::endl;
-
-    //     // Create a new SVG Widget
-    //     QSvgWidget* svgWidget = new QSvgWidget(QString::fromStdString(image_path.string()));
-
-    //     // Create a subwindow and set its widget to the SVG widget
-    //     QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(svgWidget);
-    //     subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", index.row())));
-    //     subWindow->show();
-    // } else {
-    //     auto node = static_cast<ExUModel::tree_node*>(index.internalPointer());
-    //     const prova::session* session = static_cast<const prova::session*>(node->data);
-    //     nlohmann::json actions_properties = nlohmann::json::array();
-    //     for(const auto& action: session->_actions){
-    //         nlohmann::json properties = action->properties();
-    //         properties["time"] = std::format("{:%T %F}", action->time());
-    //         properties["operation"] = action->operation();
-    //         actions_properties.push_back(properties);
-    //     }
-    //     nlohmann::json artifact_properties = session->artifact()->properties();
-    //     artifact_properties.erase("_key");
-    //     nlohmann::json session_json = {
-    //         {"artifact", artifact_properties},
-    //         {"actions", actions_properties}
-    //     };
-
-    //     std::string json_str = session_json.dump();
-    //     std::cout << json_str << std::endl;
-
-    //     QJsonModel* json_model = new QJsonModel;
-    //     QTreeView*  json_view  = new QTreeView;
-    //     json_view->setAlternatingRowColors(true);
-    //     json_view->setModel(json_model);
-    //     json_model->loadJson(json_str.c_str());
-
-    //     QMdiSubWindow* subWindow = ui->mdiArea->addSubWindow(json_view);
-    //     subWindow->setWindowTitle(QString::fromStdString(std::format("Properties")));
-    //     subWindow->show();
-    // }
 }
 
 bool MainWindow::eventFilter(QObject* target, QEvent *event){
     if (target == ui->exuTreeView->viewport()) {
-        QContextMenuEvent* e = dynamic_cast<QContextMenuEvent*>(event);
-        if (event->type() == QEvent::ContextMenu && e!=0) {
-            auto epos  = e->pos();
-            auto gpos  = ui->exuTreeView->viewport()->mapToGlobal(epos);
-            auto index = ui->exuTreeView->indexAt(epos);
+        if (event->type() == QEvent::ContextMenu) {
+            auto *ce = static_cast<QContextMenuEvent*>(event);
+            QPoint  epos  = ce->pos();                                     // viewport-local
+            QPoint  gpos  = ui->exuTreeView->viewport()->mapToGlobal(epos);
+            QModelIndex proxyIdx = ui->exuTreeView->indexAt(epos);
+            if (!proxyIdx.isValid())
+                return true;
 
-            std::cout << index.row() << std::endl;
+            QModelIndex srcIdx = _exyFilterProxyModel->mapToSource(proxyIdx);
+
+            if (srcIdx.parent().isValid())
+                return true;
 
             QMenu context_menu;
-            auto seq_action = context_menu.addAction("Sequence");
-            auto res_action = context_menu.addAction("Resources");
-            auto vul_action = context_menu.addAction("Vulnerabilities");
+            QAction *seq_action = context_menu.addAction("Sequence");
+            QAction *res_action = context_menu.addAction("Resources");
 
-            connect(seq_action, &QAction::triggered, [index, this](){
-                emit sequenceClicked(index.row());
+            connect(seq_action, &QAction::triggered, [srcIdx, this](){
+                emit sequenceClicked(srcIdx.row());
             });
 
-            connect(res_action, &QAction::triggered, [index, this](){
-                emit resourcesClicked(index.row());
-            });
-
-            connect(vul_action, &QAction::triggered, [index, this](){
-                emit vulnerabilitiesClicked(index.row());
+            connect(res_action, &QAction::triggered, [srcIdx, this](){
+                emit resourcesClicked(srcIdx.row());
             });
 
             context_menu.exec(gpos);
-
             return true;
         }
     }
-    return false;
+    return QMainWindow::eventFilter(target, event);
 }
 
 void MainWindow::showSequenceDiagram(int row){
@@ -252,32 +220,14 @@ void MainWindow::showResources(int row){
     viewer->show();
 }
 
-void MainWindow::showVulnerabilities(int row){
-    // std::vector<std::string> paths;
-
-    const std::shared_ptr<prova::execution_unit>& unit = _exuModel->unit(row);
-    // for(const std::shared_ptr<prova::artifact>& artifact: *unit){
-    //     const nlohmann::json& properties = artifact->properties();
-    //     if(properties.count("path") > 0){
-    //         std::string path = properties["path"].get<std::string>();
-    //         paths.push_back(path);
-
-    //         std::cout << path << std::endl;
-    //     }
-    // }
-
-    ExUVulnerabilitiesViewer* viewer = new ExUVulnerabilitiesViewer{_network};
-    viewer->setUnit(unit);
-    // for(const std::string& path: paths){
-    //     viewer->request(QString::fromStdString(path));
-    // }
-    viewer->show();
-}
-
 void MainWindow::showSettingsDialog(){
     SettingsDialog* dialog = new SettingsDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose); // to prevent memory leak
     dialog->show();
+}
+
+void MainWindow::filterProcess(const QString& processName){
+    _exyFilterProxyModel->setExeFilter(processName);
 }
 
 void MainWindow::unpackPlantUmlJar(){

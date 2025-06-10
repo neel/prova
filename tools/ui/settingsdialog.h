@@ -14,7 +14,7 @@ class SettingsDialog : public QDialog
 public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
-
+    QVariant cvePolicyToVariant() const;
 private:
     Ui::SettingsDialog *ui;
 private slots:
