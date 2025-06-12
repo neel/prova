@@ -21,7 +21,7 @@ bool ExUFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sou
         return true;
 
     if (!sourceParent.isValid()) {
-        QModelIndex exeIndex = m->index(sourceRow, 3, sourceParent);
+        QModelIndex exeIndex = m->index(sourceRow, 0, sourceParent);
         const QString exe = exeIndex.data(Qt::DisplayRole).toString().toLower();
         return exe.contains(_exe.toLower());
     }
@@ -31,7 +31,7 @@ bool ExUFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sou
         rootParent = rootParent.parent();
     }
 
-    QModelIndex rootExeIndex = m->index(rootParent.row(), 3, QModelIndex());
+    QModelIndex rootExeIndex = m->index(rootParent.row(), 0, QModelIndex());
     const QString rootExe = rootExeIndex.data(Qt::DisplayRole).toString().toLower();
     return rootExe.contains(_exe.toLower());
 }

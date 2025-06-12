@@ -50,8 +50,10 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     ui->exuTreeView->setRootIsDecorated(true);
     ui->exuTreeView->setModel(_exuFilterProxyModel);
     ui->exuTreeView->setSortingEnabled(true);
+    ui->exuTreeView->sortByColumn(1, Qt::DescendingOrder);
+    ui->exuTreeView->header()->setSectionResizeMode(0, QHeaderView::Interactive);
+    ui->exuTreeView->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     ui->exuTreeView->viewport()->installEventFilter(this);
-    // ui->exuTreeView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     populate();
     std::cout << "Populated" << std::endl;
     connect(ui->exuTreeView, &QTreeView::doubleClicked, this, &MainWindow::exuSelected);

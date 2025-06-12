@@ -111,7 +111,7 @@ int ExUModel::rowCount(const QModelIndex &parent) const{
 
 int ExUModel::columnCount(const QModelIndex &parent) const{
     Q_UNUSED(parent)
-    return 4;
+    return 2;
 }
 
 bool ExUModel::hasChildren(const QModelIndex &parent) const {
@@ -150,10 +150,8 @@ QVariant ExUModel::data(const QModelIndex &index, int role) const {
                 // This is an execution unit
                 const prova::execution_unit* exuptr = static_cast<const prova::execution_unit*>(nodePtr);
                 switch (index.column()) {
-                case 0: return QVariant(static_cast<int>(i));
-                case 1: return QVariant(exuptr->process()->pid());
-                case 2: return QVariant(static_cast<unsigned int>(exuptr->artifacts_count()));
-                case 3: return QString::fromStdString(exuptr->process()->exe());
+                case 0: return QString("(%1) %2 [%3]").arg(static_cast<int>(i)).arg(QString::fromStdString(exuptr->process()->exe())).arg(exuptr->process()->pid());
+                case 1: return QVariant(static_cast<unsigned int>(exuptr->artifacts_count()));
                 default: return QVariant();
                 }
             }
@@ -165,10 +163,8 @@ QVariant ExUModel::data(const QModelIndex &index, int role) const {
         std::string artifact_name = deriveArtifactName(artifact);
 
         switch (index.column()) {
-        case 0: return QVariant(session->first_id());
-        case 1: return QVariant(session->last_id());
-        case 2: return QVariant(static_cast<unsigned int>(session->_children.size()));
-        case 3: return QString::fromStdString(artifact_name);
+        case 0: return QString("%1 [%2 - %3]").arg(QString::fromStdString(artifact_name)).arg(session->first_id()).arg(session->last_id());
+        case 1: return QVariant(static_cast<unsigned int>(session->_children.size()));
         default: return QVariant();
         }
     }
@@ -216,17 +212,13 @@ QVariant ExUModel::headerData(int section, Qt::Orientation orientation, int role
             if(_header_level == 0){
                 switch (section) {
                 case 0: return QStringLiteral("ExU");
-                case 1: return QStringLiteral("PID");
-                case 2: return QStringLiteral("Artifacts");
-                case 3: return QStringLiteral("Exe");
+                case 1: return QStringLiteral("Artifacts");
                 default: return QVariant();
                 }
             } else {
                 switch (section) {
-                case 0: return QStringLiteral("Begin");
-                case 1: return QStringLiteral("End");
-                case 2: return QStringLiteral("Children");
-                case 3: return QStringLiteral("Artifact");
+                case 0: return QStringLiteral("Artifact");
+                case 1: return QStringLiteral("Children");
                 default: return QVariant();
                 }
             }
