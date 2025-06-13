@@ -66,6 +66,10 @@ std::shared_ptr<prova::execution_unit> ExUWidget::unit(){
     return _unit;
 }
 
+void ExUWidget::setNVDApiKey(const QString &apiKey){
+    _vulnerabilitiesViewer->setNVDApiKey(apiKey);
+}
+
 void ExUWidget::exuSessionSelectedSlot(prova::session::ptr session, bool selected){
     if(!selected) {
         _sessionPropertyModel->loadJson("{}");

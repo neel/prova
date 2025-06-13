@@ -27,6 +27,14 @@
 #include <QResource>
 #include <QDir>
 #include <QTemporaryFile>
+#include <QMenuBar>
+#include <QStyleFactory>
+#include <QActionGroup>
+#include <QQuickStyle>
+#include <QQuickWidget>   // or QQuickView
+#include <QQmlEngine>
+#include <QUrl>
+#include <QStyleFactory>
 
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow){
     ui->setupUi(this);
@@ -76,7 +84,90 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWin
     connect(this, &MainWindow::resourcesClicked, this, &MainWindow::showResources);
 
     connect(ui->processNameLineEdit, &QLineEdit::textChanged, this, &MainWindow::filterProcess);
+
+    buildStyleMenus();
 }
+
+void MainWindow::buildStyleMenus() {
+    auto stylesMenu = ui->menuFile->addMenu(tr("&Styles"));
+
+    /* ----- QWidget styles ------------------------------------ */
+    auto widgetMenu = stylesMenu->addMenu(tr("Widget &Style"));
+    m_widgetStyleGroup = new QActionGroup(this);
+    m_widgetStyleGroup->setExclusive(true);
+
+    const QString currentStyle = qApp->style()->objectName();
+
+    if(QStyleFactory::keys().contains("Fusion")){
+        QApplication::setStyle("Fusion");
+    }
+
+    for (const QString &styleKey : QStyleFactory::keys()) {
+        QAction *a = widgetMenu->addAction(styleKey);
+        a->setCheckable(true);
+        a->setData(styleKey);
+        if (!currentStyle.compare(styleKey, Qt::CaseInsensitive))
+            a->setChecked(true);
+        m_widgetStyleGroup->addAction(a);
+    }
+    connect(m_widgetStyleGroup, &QActionGroup::triggered, this, &MainWindow::applyWidgetStyle);
+
+    /* ----- Qt Quick Controls 2 styles ------------------------ */
+    auto quickMenu = stylesMenu->addMenu(tr("Quick Controls &Style"));
+    m_quickStyleGroup = new QActionGroup(this);
+    m_quickStyleGroup->setExclusive(true);
+
+    QQmlEngine engine;
+    QStringList quickStyles;
+    qDebug() << engine.importPathList();
+    for (const auto &path : engine.importPathList()) {
+        QDir dir(path + "/QtQuick/Controls");
+        if (dir.exists()) {
+            auto list = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            quickStyles.append(list);
+        }
+    }
+
+    if(quickStyles.contains("Fusion")){
+        QQuickStyle::setStyle("Fusion");
+    }
+
+    const QString currentQuick = QQuickStyle::name().isEmpty() ? QStringLiteral("Default") : QQuickStyle::name();
+    for (const QString &style : quickStyles) {
+        QAction *a = quickMenu->addAction(style);
+        a->setCheckable(true);
+        a->setData(style);
+        if (currentQuick.compare(style, Qt::CaseInsensitive) == 0)
+            a->setChecked(true);
+        m_quickStyleGroup->addAction(a);
+    }
+    connect(m_quickStyleGroup, &QActionGroup::triggered, this, &MainWindow::applyQuickStyle);
+}
+
+/* ------------------------------------------------------------- *
+ *  QWidget styles – immediate
+ * ------------------------------------------------------------- */
+void MainWindow::applyWidgetStyle(QAction *act)
+{
+    const QString styleName = act->data().toString();
+    if (!styleName.compare(qApp->style()->objectName(), Qt::CaseInsensitive))
+        return;                              // already active
+
+    QApplication::setStyle(styleName);
+}
+
+/* ------------------------------------------------------------- *
+ *  Qt Quick Controls 2 styles – requires reload
+ * ------------------------------------------------------------- */
+void MainWindow::applyQuickStyle(QAction *act)
+{
+    const QString styleName = act->data().toString();
+    if (!styleName.compare(QQuickStyle::name(), Qt::CaseInsensitive))
+        return;                              // already active
+
+    QQuickStyle::setStyle(styleName);
+}
+
 
 MainWindow::~MainWindow(){
     delete ui;
@@ -86,8 +177,10 @@ void MainWindow::populate(){
     QSettings settings("Simula", "SimVul");
     std::string host = settings.value("host", "localhost").toString().toStdString();
     unsigned port = settings.value("port", 8529).toUInt();
+    std::string username = settings.value("username", "root").toString().toStdString();
+    std::string password = settings.value("password", "").toString().toStdString();
     try{
-        _store.fetch(host, port);
+        _store.fetch(host, port, username, password);
     } catch(std::exception& ex){
         QMessageBox::critical(this,
             QString::fromStdString("Failed to Fetch"),
@@ -129,8 +222,13 @@ void MainWindow::exuSelected(const QModelIndex& index){
 
     if (!srcIdx.parent().isValid()) {
         std::shared_ptr<prova::execution_unit> unit = _exuModel->unit(srcIdx.row());
-        auto *exuWidget  = new ExUWidget{ unit, _network };
-        auto *subWindow  = ui->mdiArea->addSubWindow(exuWidget);
+
+        QSettings settings("Simula", "SimVul");
+        QString nvd_api_key = settings.value("apiKeyNVD", "").toString();
+
+        auto* exuWidget  = new ExUWidget{ unit, _network };
+        exuWidget->setNVDApiKey(nvd_api_key);
+        auto* subWindow  = ui->mdiArea->addSubWindow(exuWidget);
         subWindow->setWindowTitle(QString::fromStdString(std::format("ExU {}", srcIdx.row())));
         subWindow->show();
     }

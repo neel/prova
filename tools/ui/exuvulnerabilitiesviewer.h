@@ -30,6 +30,7 @@ public:
 public:
     void setUnit(std::shared_ptr<prova::execution_unit> unit);
     void filter(const QString& keyword);
+    void setNVDApiKey(const QString& apiKey);
 private:
     Ui::ExUVulnerabilitiesViewer *ui;
     QNetworkAccessManager*       _network;

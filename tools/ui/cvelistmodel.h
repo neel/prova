@@ -36,6 +36,7 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 public:
+    void setNVDApiKey(const QString& apiKey);
     void search(const QString& fullpath, const QString& keyword);
     KeywordListModel& keywords();
 private:
@@ -49,6 +50,7 @@ private:
     QNetworkAccessManager* _network;
     SearchPolicy           _policy;
     KeywordListModel&      _keywords;
+    QString _nvdApiKey;
 signals:
     void searchSlowdown();
     void searchFinished(const QString& keyword);

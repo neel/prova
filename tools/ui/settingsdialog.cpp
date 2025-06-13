@@ -25,6 +25,10 @@ void SettingsDialog::loadSettings() {
 
     ui->hostEdit->setText(settings.value("host", "localhost").toString());
     ui->portEdit->setText(settings.value("port", "8529").toString());
+    ui->userEdit->setText(settings.value("user", "root").toString());
+    ui->passEdit->setText(settings.value("pass", "").toString());
+    ui->apiKeyNVDLineEdit->setText(settings.value("apiKeyNVD", "").toString());
+
     ui->plantUmlPathEdit->setText(settings.value("plantUmlPath", "").toString());
 
     QVariant v = settings.value("cvePolicy", static_cast<int>(CVEListModel::SearchPolicy::nvd_nist_json));
@@ -38,8 +42,12 @@ void SettingsDialog::saveSettings() {
 
     settings.setValue("host", ui->hostEdit->text());
     settings.setValue("port", ui->portEdit->text());
+    settings.setValue("user", ui->userEdit->text());
+    settings.setValue("pass", ui->passEdit->text());
+
     settings.setValue("plantUmlPath", ui->plantUmlPathEdit->text());
     settings.setValue("cvePolicy", cvePolicyToVariant());
+    settings.setValue("apiKeyNVD", ui->apiKeyNVDLineEdit->text());
 }
 
 void SettingsDialog::accept() {

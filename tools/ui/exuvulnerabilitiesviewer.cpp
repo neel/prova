@@ -105,6 +105,10 @@ void ExUVulnerabilitiesViewer::filter(const QString& fullpath){
     }
 }
 
+void ExUVulnerabilitiesViewer::setNVDApiKey(const QString &apiKey){
+    _cveModel->setNVDApiKey(apiKey);
+}
+
 void ExUVulnerabilitiesViewer::responseReceivedSlot(const QString& keyword){
     _paths.remove(keyword);
     _progressArea->updateProgress(_unit->artifacts_count() - _paths.size());

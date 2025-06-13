@@ -40,7 +40,59 @@ if (MSVC)
   target_compile_definitions(prova-ui PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
 endif()
 
-set_target_properties(prova-ui PROPERTIES
-    WIN32_EXECUTABLE ON
-    MACOSX_BUNDLE ON
-)
+if (WIN32)
+  set_target_properties(prova-ui PROPERTIES WIN32_EXECUTABLE ON LINK_FLAGS "/SUBSYSTEM:CONSOLE")
+elseif(APPLE)
+  set_target_properties(prova-ui PROPERTIES MACOSX_BUNDLE ON)
+endif()
+
+include(GNUInstallDirs)
+
+install(TARGETS prova-ui RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if (WIN32)
+  install(
+      DIRECTORY      $<TARGET_RUNTIME_DLLS:prova-ui>
+      DESTINATION    ${CMAKE_INSTALL_BINDIR}
+      USE_SOURCE_PERMISSIONS
+  )
+
+  message(STATUS "Qt6_DIR: " ${Qt6_DIR})
+  get_filename_component(QT_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
+  set(QT_STYLE_PLUGIN_DIR   "${QT_PREFIX}/plugins/styles")
+  set(QT_QUICK_CONTROLS_DIR "${QT_PREFIX}/qml/QtQuick/Controls")
+
+  qt6_generate_deploy_app_script(
+    TARGET         prova-ui
+    OUTPUT_SCRIPT  deploy_prova_ui
+    NO_UNSUPPORTED_PLATFORM_ERROR
+    DEPLOY_TOOL_OPTIONS
+      --qmldir=${CMAKE_CURRENT_SOURCE_DIR}
+      --quickcontrols2
+  )
+
+  install(SCRIPT ${deploy_prova_ui})
+
+  install(
+      DIRECTORY   "${QT_STYLE_PLUGIN_DIR}/"
+      DESTINATION "plugins/styles"
+      FILES_MATCHING PATTERN "qwindows*.dll"  # keep it small, copy only the style DLLs
+  )
+
+  install(
+      DIRECTORY   "${QT_QUICK_CONTROLS_DIR}"
+      DESTINATION "qml/QtQuick"          # <prefix>/qml/QtQuick/Controls/…
+  )
+
+  find_file(D3DCOMPILER d3dcompiler_47.dll
+    PATHS "${QT_PREFIX}/bin"
+    "$ENV{VCToolsRedistDir}/x64/Microsoft.VC143.CRT"
+    NO_DEFAULT_PATH
+  )
+
+  if (D3DCOMPILER)
+      install(FILES "${D3DCOMPILER}" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+  else()
+      message(WARNING "d3dcompiler_47.dll not found — Qt Quick may fail at run-time")
+  endif()
+endif()

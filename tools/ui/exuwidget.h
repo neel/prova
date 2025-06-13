@@ -20,6 +20,7 @@ public:
     ExUWidget(std::shared_ptr<prova::execution_unit> unit, QNetworkAccessManager* network, QWidget *parent = nullptr);
     void setUnit(std::shared_ptr<prova::execution_unit> unit);
     std::shared_ptr<prova::execution_unit> unit();
+    void setNVDApiKey(const QString& apiKey);
 private:
     QHBoxLayout* _layout;
     QSplitter*   _vSplitter;
@@ -30,7 +31,6 @@ private:
     QJsonModel*               _sessionPropertyModel;
 private:
     QNetworkAccessManager* _network;
-private:
     std::shared_ptr<prova::execution_unit> _unit;
 signals:
     void exuSessionSelected(prova::session::ptr, bool);

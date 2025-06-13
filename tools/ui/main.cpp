@@ -11,6 +11,8 @@
 #include <QQuickStyle>
 #include <QDir>
 
+#include <iostream>
+
 // #include "directorytrie.h"
 
 int main(int argc, char *argv[]){
@@ -22,19 +24,29 @@ int main(int argc, char *argv[]){
     // qDebug() << dirTrie.suffixesMap(0);
 
     QStringList app_styles = QStyleFactory::keys();
-    qDebug() << "Available Qt styles on this platform:" << app_styles;
+    std::cout << "Available Qt styles on this platform:";
+    for(const QString& app_style: app_styles) {
+        std::cout << app_style.toStdString() << " ";
+    }
+    std::cout << std::endl;
 
     QApplication app(argc, argv);
 
     QQmlEngine engine;
+    qDebug() << engine.importPathList();
     for (const auto &path : engine.importPathList()) {
         QDir dir(path + "/QtQuick/Controls");
         if (dir.exists()) {
-            qDebug() << "Styles in" << dir.absolutePath() << ":" << dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            std::cout << "Styles in" << dir.absolutePath().toStdString() << ":";
+            auto list = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for(const auto& item: list){
+                std::cout << item.toStdString() << " ";
+            }
+            std::cout << std::endl;
         }
     }
 
-    QQuickStyle::setStyle("Basic");
+    // QQuickStyle::setStyle("Basic");
 
     // qmlRegisterType<CVEListModel>("CVE", 1, 0, "CVEListModel");
     qmlRegisterType<CVEProxyModel>("CVE", 1, 0, "CVEListModel");

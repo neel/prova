@@ -44,6 +44,10 @@ QHash<int, QByteArray> CVEListModel::roleNames() const{
     return roles;
 }
 
+void CVEListModel::setNVDApiKey(const QString &apiKey){
+    _nvdApiKey = apiKey;
+}
+
 void CVEListModel::search(const QString& fullpath, const QString& keyword){
     qDebug() << "Searching using keyword: " << keyword;
     QString html_search_url = QString("https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=%1").arg(keyword);
@@ -68,7 +72,11 @@ void CVEListModel::search(const QString& fullpath, const QString& keyword){
     request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 
     if(_policy == nvd_nist_json) {
-        request.setRawHeader("apiKey", "8f37611f-f350-494e-8752-6c9ba134fc50");
+        // request.setRawHeader("apiKey", "8f37611f-f350-494e-8752-6c9ba134fc50");
+        QString apiKey = _nvdApiKey;
+        if(!apiKey.isEmpty()){
+            request.setRawHeader("apiKey", apiKey.toUtf8());
+        }
     }
 
     QNetworkReply* reply = _network->get(request);

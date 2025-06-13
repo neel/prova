@@ -18,7 +18,7 @@ set(SEQUENCE_SOURCES
 	sources/distance.cpp
 )
 
-add_library(prova-tools ${SEQUENCE_SOURCES})
+add_library(prova-tools STATIC ${SEQUENCE_SOURCES})
 set_property(TARGET prova-tools PROPERTY CXX_STANDARD 20)
 target_link_libraries(prova-tools Boost::filesystem Boost::system Boost::process Boost::thread nlohmann_json::nlohmann_json tash noch-lib)
 if (MSVC)
@@ -37,3 +37,6 @@ if (MSVC)
 endif()
 
 add_subdirectory(ui)
+
+# install(TARGETS prova-tools RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# install(DIRECTORY $<TARGET_RUNTIME_DLLS:prova-tools> DESTINATION ${CMAKE_INSTALL_BINDIR} USE_SOURCE_PERMISSIONS)
