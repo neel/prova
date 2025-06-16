@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.6)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-set(CMAKE_TOOLCHAIN_FILE "C:/Users/sunan/Documents/GitHub/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
+
+include(cmake/SetupVcpkg.cmake)
+
 project(provenance)
 
 # add_subdirectory(deps/azmq)

@@ -1,0 +1,17 @@
+{
+  "name": "prova",
+  "version": "1.0.0",
+  "dependencies": [
+    "boost-asio",
+    "boost-beast",
+    "boost-crc",
+    "boost-filesystem",
+    "boost-format",
+    "boost-multi-index",
+    "boost-multiprecision",
+    "boost-process",
+    "boost-system",
+    "boost-thread",
+    "nlohmann-json"
+  ]
+}
