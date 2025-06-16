@@ -49,13 +49,22 @@ include(GNUInstallDirs)
 
 install(TARGETS prova-ui BUNDLE  DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+set(_DEPLOY_TOOL_OPTIONS)
+if(APPLE)
+    list(APPEND _DEPLOY_TOOL_OPTIONS
+        -qmldir=${CMAKE_CURRENT_SOURCE_DIR}     # macdeployqt wants single dash
+        -quickcontrols2)
+elseif(WIN32)
+    list(APPEND _DEPLOY_TOOL_OPTIONS
+        --qmldir=${CMAKE_CURRENT_SOURCE_DIR}    # windeployqt accepts double dash
+        --quickcontrols2)
+endif()
+
 qt6_generate_deploy_app_script(
   TARGET         prova-ui
   OUTPUT_SCRIPT  deploy_prova_ui
   NO_UNSUPPORTED_PLATFORM_ERROR
-  DEPLOY_TOOL_OPTIONS
-    --qmldir=${CMAKE_CURRENT_SOURCE_DIR}
-    --quickcontrols2
+  DEPLOY_TOOL_OPTIONS ${_DEPLOY_TOOL_OPTIONS}
 )
 
 install(SCRIPT ${deploy_prova_ui})
