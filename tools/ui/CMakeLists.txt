@@ -58,6 +58,8 @@ qt6_generate_deploy_app_script(
     --quickcontrols2
 )
 
+install(SCRIPT ${deploy_prova_ui})
+
 
 if (WIN32)
   install(
@@ -70,8 +72,6 @@ if (WIN32)
   get_filename_component(QT_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
   set(QT_STYLE_PLUGIN_DIR   "${QT_PREFIX}/plugins/styles")
   set(QT_QUICK_CONTROLS_DIR "${QT_PREFIX}/qml/QtQuick/Controls")
-
-  install(SCRIPT ${deploy_prova_ui})
 
   install(
       DIRECTORY   "${QT_STYLE_PLUGIN_DIR}/"
