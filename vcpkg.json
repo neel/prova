@@ -6,6 +6,7 @@
     "boost-beast",
     "boost-crc",
     "boost-filesystem",
+    "boost-foreach",
     "boost-format",
     "boost-multi-index",
     "boost-multiprecision",
