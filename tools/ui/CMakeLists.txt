@@ -28,7 +28,6 @@ qt_add_executable(prova-ui
     colorhelper.h colorhelper.cpp
     cveproxymodel.h cveproxymodel.cpp
     directorytrie.h directorytrie.cpp
-    directorytrie.cpp
     keywordlistmodel.h keywordlistmodel.cpp
     exufilterproxymodel.h exufilterproxymodel.cpp
 )
@@ -48,7 +47,17 @@ endif()
 
 include(GNUInstallDirs)
 
-install(TARGETS prova-ui RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS prova-ui BUNDLE  DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+qt6_generate_deploy_app_script(
+  TARGET         prova-ui
+  OUTPUT_SCRIPT  deploy_prova_ui
+  NO_UNSUPPORTED_PLATFORM_ERROR
+  DEPLOY_TOOL_OPTIONS
+    --qmldir=${CMAKE_CURRENT_SOURCE_DIR}
+    --quickcontrols2
+)
+
 
 if (WIN32)
   install(
@@ -61,15 +70,6 @@ if (WIN32)
   get_filename_component(QT_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
   set(QT_STYLE_PLUGIN_DIR   "${QT_PREFIX}/plugins/styles")
   set(QT_QUICK_CONTROLS_DIR "${QT_PREFIX}/qml/QtQuick/Controls")
-
-  qt6_generate_deploy_app_script(
-    TARGET         prova-ui
-    OUTPUT_SCRIPT  deploy_prova_ui
-    NO_UNSUPPORTED_PLATFORM_ERROR
-    DEPLOY_TOOL_OPTIONS
-      --qmldir=${CMAKE_CURRENT_SOURCE_DIR}
-      --quickcontrols2
-  )
 
   install(SCRIPT ${deploy_prova_ui})
 
@@ -95,4 +95,21 @@ if (WIN32)
   else()
       message(WARNING "d3dcompiler_47.dll not found — Qt Quick may fail at run-time")
   endif()
+
+elseif(APPLE)
+
+    set_target_properties(prova-ui PROPERTIES
+        MACOSX_BUNDLE               TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER com.simula.provaui
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    )
+
 endif()
+
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_FILE_NAME "ProvaUI-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_DMG_CREATE_DEVICE false)
+include(CPack)
+
+
