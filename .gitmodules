@@ -3,7 +3,7 @@
 	url = https://github.com/zeromq/azmq.git
 [submodule "deps/tash"]
 	path = deps/tash
-	url = git@github.com:neel/tash.git
+	url = https://github.com/neel/tash.git
 [submodule "deps/QJsonModel"]
 	path = deps/QJsonModel
 	url = https://github.com/dridk/QJsonModel.git
