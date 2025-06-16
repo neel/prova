@@ -4,7 +4,7 @@
 /*  Linux open(2) flag values for x86-64 / aarch64.
     Define them on Windows so audit-log parsing code compiles.            */
 
-#ifdef _WIN32   // only inject on Windows builds
+#if !defined(__linux__)   // only inject on Windows or Mac builds
 /* Values are octal so they look exactly like the kernel header. */
 
 #ifndef O_RDONLY
