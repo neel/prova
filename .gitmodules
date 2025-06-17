@@ -10,3 +10,4 @@
 [submodule "deps/noch"]
 	path = deps/noch
 	url = https://github.com/neel/noch.git
+	branch = develop

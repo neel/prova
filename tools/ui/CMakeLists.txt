@@ -52,8 +52,8 @@ install(TARGETS prova-ui BUNDLE  DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTA
 set(_DEPLOY_TOOL_OPTIONS)
 if(APPLE)
     list(APPEND _DEPLOY_TOOL_OPTIONS
-        -qmldir=${CMAKE_CURRENT_SOURCE_DIR}     # macdeployqt wants single dash
-        -quickcontrols2)
+        -qmldir=${CMAKE_CURRENT_SOURCE_DIR}
+    )
 elseif(WIN32)
     list(APPEND _DEPLOY_TOOL_OPTIONS
         --qmldir=${CMAKE_CURRENT_SOURCE_DIR}    # windeployqt accepts double dash
@@ -106,14 +106,12 @@ if (WIN32)
   endif()
 
 elseif(APPLE)
-
     set_target_properties(prova-ui PROPERTIES
         MACOSX_BUNDLE               TRUE
         MACOSX_BUNDLE_GUI_IDENTIFIER com.simula.provaui
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     )
-
 endif()
 
 set(CPACK_GENERATOR "ZIP")
