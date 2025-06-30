@@ -2,14 +2,6 @@
 cmake_minimum_required(VERSION 3.21)
 
 # ------------------------------------------------------------
-# 0. Use vcpkg only on Win or macOS
-# ------------------------------------------------------------
-if(NOT WIN32 AND NOT APPLE)
-    message(STATUS "SetupVcpkg: host is Linux/Unix – skipping vcpkg")
-    return()                 # Leave toolchain unset
-endif()
-
-# ------------------------------------------------------------
 # 1. Figure out where vcpkg should live
 # ------------------------------------------------------------
 get_filename_component(_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)

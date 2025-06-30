@@ -11,3 +11,6 @@
 	path = deps/noch
 	url = https://github.com/neel/noch.git
 	branch = develop
+[submodule "deps/spoa"]
+	path = deps/spoa
+	url = https://github.com/rvaser/spoa.git

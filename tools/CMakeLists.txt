@@ -2,12 +2,15 @@ cmake_minimum_required(VERSION 3.6)
 
 project(provenance-server)
 
-find_package(Boost REQUIRED COMPONENTS filesystem system process thread multi_index)
-set(Boost_USE_STATIC_LIBS        OFF)
-set(Boost_USE_MULTITHREADED      ON)
+set(Boost_NO_BOOST_CMAKE        ON  CACHE BOOL "Use FindBoost module, not BoostConfig")
+set(Boost_USE_STATIC_LIBS       OFF)
+set(Boost_USE_MULTITHREADED     ON)
 set(Boost_USE_STATIC_RUNTIME    OFF)
 
+find_package(Boost REQUIRED COMPONENTS filesystem system process thread)
 find_package(nlohmann_json REQUIRED)
+find_package(Armadillo REQUIRED)
+find_package(mlpack 4.0 REQUIRED)
 
 include_directories(includes)
 
@@ -20,12 +23,16 @@ set(SEQUENCE_SOURCES
 	# sources/string_indexer.cpp
 	sources/execution_unit.cpp
 	sources/distance.cpp
+        sources/trace_parser.cpp
 )
+
+include_directories(${SEQAN_INCLUDE_DIRS})
+add_definitions(${SEQAN_DEFINITIONS})
 
 add_library(prova-tools SHARED ${SEQUENCE_SOURCES})
 set_property(TARGET prova-tools PROPERTY CXX_STANDARD 20)
-target_link_libraries(prova-tools PUBLIC Boost::multi_index nlohmann_json::nlohmann_json)
-target_link_libraries(prova-tools PRIVATE Boost::filesystem Boost::system Boost::process Boost::multi_index Boost::thread nlohmann_json::nlohmann_json tash noch-lib)
+target_link_libraries(prova-tools PUBLIC Boost::headers nlohmann_json::nlohmann_json)
+target_link_libraries(prova-tools PRIVATE Boost::filesystem Boost::system Boost::process Boost::thread tash noch-lib spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
 if (MSVC)
   target_compile_definitions(prova-tools PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
   target_compile_options(prova-tools PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/includes/prova/win32_winsock_shim.hpp)
@@ -34,7 +41,7 @@ endif()
 
 add_executable(sequence ${SEQUENCE_SOURCES} sequence.cpp)
 set_property(TARGET sequence PROPERTY CXX_STANDARD 20)
-target_link_libraries(sequence PRIVATE Boost::filesystem Boost::system Boost::process Boost::thread nlohmann_json::nlohmann_json tash noch-lib)
+target_link_libraries(sequence PRIVATE Boost::filesystem Boost::system Boost::process Boost::thread nlohmann_json::nlohmann_json tash noch-lib spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
 if (MSVC)
   target_compile_definitions(sequence PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
   target_compile_options(sequence PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/includes/prova/win32_winsock_shim.hpp)
