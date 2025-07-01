@@ -33,8 +33,18 @@ struct subsequence{
     const std::string& str() const { return _str; }
     inline std::size_t size() const { return _str.size(); }
 
-private:
+
     std::string _str;
+};
+
+struct zone{
+    inline explicit zone(bool constant, std::size_t length): _constant(constant), _length(length) {}
+
+    bool is_constant() const { return _constant; }
+    std::size_t length() const { return _length; }
+
+    bool _constant;
+    std::size_t _length;
 };
 
 struct placeholder{
@@ -70,7 +80,6 @@ struct placeholder{
             return std::format("{}/[{}]", _id, _range.first);
     }
 
-private:
     std::size_t _id;
     std::pair<std::size_t, std::size_t> _range;
     collection_type _values;
@@ -98,7 +107,7 @@ struct chunk_chain{
         return stream;
     }
 
-    inline chunk_chain(): _multiple(false) {}
+    inline chunk_chain() {}
 
     inline const_iterator begin() const { return _chain.begin(); }
     inline const_iterator end() const { return _chain.end(); }
@@ -122,15 +131,19 @@ struct chunk_chain{
         return n;
     }
 
+    inline void clear() {
+        _chain.clear();
+    }
+
     chain_type _chain;
-    bool       _multiple;
 };
 
 template <>
 struct chunk_chain<sequence_component>{
     using chunk_type = std::pair<bool, sequence_component>;
-    using chain_type = std::list<chunk_type>;
+    using chain_type = std::vector<chunk_type>;
     using const_iterator = typename chain_type::const_iterator;
+    using iterator = typename chain_type::iterator;
     using size_type = typename chain_type::size_type;
 
     std::ostream& apply(std::ostream& stream) const {
@@ -150,7 +163,7 @@ struct chunk_chain<sequence_component>{
             if(!chunk.first) {
                 assert(std::holds_alternative<placeholder>(chunk.second));
                 const placeholder& p = std::get<placeholder>(chunk.second);
-                stream << "⎨" << p.str() << "⎬" << ": " << boost::algorithm::join(p, ", ");
+                stream << "⎨" << p.str() << "⎬" << ": " << (p.count() < 50 ? boost::algorithm::join(p, ", ") : std::format("{} {}+", *(p.begin()), p.count()-1 ));
                 stream << std::endl;
             }
         }
@@ -158,10 +171,12 @@ struct chunk_chain<sequence_component>{
         return stream;
     }
 
-    inline chunk_chain(): _multiple(false) {}
+    inline chunk_chain() {}
 
     inline const_iterator begin() const { return _chain.begin(); }
     inline const_iterator end() const { return _chain.end(); }
+    inline iterator begin() { return _chain.begin(); }
+    inline iterator end() { return _chain.end(); }
     inline size_type size() const { return _chain.size(); }
 
     inline void emplace_back(chunk_type&& chunk) {
@@ -172,7 +187,7 @@ struct chunk_chain<sequence_component>{
         emplace_back(chunk_type{matched, std::forward<sequence_component>(chunk)});
     }
 
-    std::size_t matched() const {
+    inline std::size_t matched() const {
         std::size_t n = 0;
         for(const auto& chunk : _chain) {
             if(chunk.first) {
@@ -186,8 +201,11 @@ struct chunk_chain<sequence_component>{
         return n;
     }
 
+    inline void clear() {
+        _chain.clear();
+    }
+
     chain_type _chain;
-    bool       _multiple;
 };
 
 /**
@@ -200,6 +218,7 @@ struct trace_parser{
     using chunk_type            = sequence_partition;
     using chain_type            = chunk_chain<chunk_type>;
     using graph_type            = chunk_chain<sequence_component>;
+    using alignment_type        = std::vector<std::vector<std::pair<std::size_t, int>>>; // {size, placeholder_id} placeholder_id = -1 implies fixed string
 
     struct string_entry {
         string_type text;
@@ -335,8 +354,7 @@ struct trace_parser{
 
     std::ostream& print(std::ostream& stream) const;
 
-    trace_parser::graph_type align(int cluster_id) const;
-    void align_all() const;
+    trace_parser::graph_type align(int cluster_id, std::vector<std::vector<zone> >& all_zones) const;
 
 private:
     dataset_type _dataset;

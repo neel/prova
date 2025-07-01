@@ -309,7 +309,7 @@ std::ostream& trace_parser::print(std::ostream &stream) const {
     return stream;
 }
 
-trace_parser::graph_type trace_parser::align(int i) const {
+trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone>>& all_zones) const {
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
@@ -368,88 +368,107 @@ trace_parser::graph_type trace_parser::align(int i) const {
         return std::make_pair(min_len, max_len);
     };
 
-    std::string buffer;
     trace_parser::graph_type out;
-    using chunk_type = trace_parser::graph_type::chunk_type;
+    {
+        std::string buffer;
+        using chunk_type = trace_parser::graph_type::chunk_type;
 
-    std::size_t nunique = unique(0);
+        std::size_t nunique = unique(0);
 
-    bool last_match = (nunique == 1);
+        bool last_match = (nunique == 1);
 
-    std::stack<std::size_t> placeholders;
-    std::size_t placeholders_count = 0;
+        std::stack<std::size_t> placeholders;
+        std::size_t placeholders_count = 0;
 
-    for (std::size_t col = 0; col < cols; ++col) {
-        nunique = unique(col);
-        bool matched = (nunique == 1);
+        for (std::size_t col = 0; col < cols; ++col) {
+            nunique = unique(col);
+            bool matched = (nunique == 1);
 
-        if(last_match == matched) {
-            if(nunique == 1) {
-                buffer.push_back(msa[0][col]);
-            }
-        } else {
-            if(last_match && !matched) {
-                if(!buffer.empty()) {
-                    out.emplace_back(chunk_type{last_match, subsequence{buffer}});
+            if(last_match == matched) {
+                if(nunique == 1) {
+                    buffer.push_back(msa[0][col]);
+                }
+            } else {
+                if(last_match && !matched) {
+                    if(!buffer.empty()) {
+                        out.emplace_back(chunk_type{last_match, subsequence{buffer}});
+                        buffer.clear();
+                    }
+                    if(nunique == 1) {
+                        buffer.push_back(msa[0][col]);
+                    }
+                    placeholders.push(col);
+                } else if(!last_match && matched) {
+                    std::size_t begin = placeholders.top();
+                    placeholders.pop();
+
+                    std::set<std::string> unique_possibilities;
+                    auto [min_len, max_len] = uniques(unique_possibilities, begin, col);
+
+                    placeholder p{placeholders_count, min_len, max_len};
+                    p = unique_possibilities;
+
+                    out.emplace_back(last_match, p);
                     buffer.clear();
+
+                    if(nunique == 1) {
+                        buffer.push_back(msa[0][col]);
+                    }
+
+                    placeholders_count++;
                 }
-                if(nunique == 1) {
-                    buffer.push_back(msa[0][col]);
-                }
-                placeholders.push(col);
-            } else if(!last_match && matched) {
-                std::size_t begin = placeholders.top();
-                placeholders.pop();
-
-                std::set<std::string> unique_possibilities;
-                auto [min_len, max_len] = uniques(unique_possibilities, begin, col);
-
-                placeholder p{placeholders_count, min_len, max_len};
-                p = unique_possibilities;
-
-                out.emplace_back(last_match, p);
-                buffer.clear();
-
-                if(nunique == 1) {
-                    buffer.push_back(msa[0][col]);
-                }
-
-                placeholders_count++;
             }
+
+            last_match = matched;
         }
 
-        last_match = matched;
-    }
+        if(!last_match) {
+            std::size_t begin = placeholders.top();
+            placeholders.pop();
 
-    if(!last_match) {
-        std::size_t begin = placeholders.top();
-        placeholders.pop();
+            std::set<std::string> unique_possibilities;
+            auto [min_len, max_len] = uniques(unique_possibilities, begin, cols-1);
 
-        std::set<std::string> unique_possibilities;
-        auto [min_len, max_len] = uniques(unique_possibilities, begin, cols-1);
+            placeholder p{placeholders_count, min_len, max_len};
+            p = unique_possibilities;
 
-        placeholder p{placeholders_count, min_len, max_len};
-        p = unique_possibilities;
+            out.emplace_back(last_match, p);
+            buffer.clear();
 
-        out.emplace_back(last_match, p);
-        buffer.clear();
+            if(nunique == 1) {
+                buffer.push_back(msa[0][cols-1]);
+            }
 
-        if(nunique == 1) {
-            buffer.push_back(msa[0][cols-1]);
+            placeholders_count++;
+        } else {
+            out.emplace_back(last_match, subsequence{buffer});
         }
-
-        placeholders_count++;
-    } else {
-        out.emplace_back(last_match, subsequence{buffer});
     }
 
-    out._multiple = true;
+    {
+        all_zones.reserve(rows);
+        bool last_match = (unique(0) == 1);
+        for (std::size_t row = 0; row< rows; ++row) {
+            std::vector<zone> zones;
+
+            std::size_t last = 0;
+            std::size_t placeholders = 0;
+            for (std::size_t col = 0; col < cols; ++col) {
+                std::size_t nunique = unique(col);
+                bool matched = (nunique == 1);
+
+                if(last_match != matched) {
+                    zones.emplace_back(zone{last_match, col-last});
+                    last = col;
+                    last_match = matched;
+                }
+                ++col;
+            }
+            all_zones.emplace_back(std::move(zones));
+        }
+    }
+
     return out;
 }
 
-void trace_parser::align_all() const {
-    std::size_t C = cluster_count();
-    for(int i=0; i < C; ++i) {
-        align(i);
-    }
-}
+
