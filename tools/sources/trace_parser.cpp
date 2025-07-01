@@ -8,42 +8,42 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 
-std::ostream& operator<<(std::ostream& stream, const trace_parser::chunk_chain& chain) {
-    stream << "[" << chain.matched() << "] ";
-    for(const auto& chunk : chain) {
-        if(chunk.matched) {
-            stream << chunk.content;
-        } else {
-            stream << "⎨" << chunk.content << "⎬";
-        }
-    }
+// std::ostream& operator<<(std::ostream& stream, const trace_parser::chunk_chain& chain) {
+//     stream << "[" << chain.matched() << "] ";
+//     for(const auto& chunk : chain) {
+//         if(chunk.matched) {
+//             stream << chunk.content;
+//         } else {
+//             stream << "⎨" << chunk.content << "⎬";
+//         }
+//     }
 
-    if(chain._multiple) {
-        std::size_t placeholders_count = 0;
-        stream << std::endl << "placeholders: " << std::endl;
-        for(const auto& chunk : chain) {
-            if(!chunk.matched) {
-                std::cout << std::endl << std::format("placeholder {} {{{} values}} [{} -> {}]", placeholders_count, chunk.possibilities.size(), chunk.limits.first, chunk.limits.second) << std::endl;
-                for(const std::string& p: chunk.possibilities){
-                    std::cout << p << std::endl;
-                }
+//     if(chain._multiple) {
+//         std::size_t placeholders_count = 0;
+//         stream << std::endl << "placeholders: " << std::endl;
+//         for(const auto& chunk : chain) {
+//             if(!chunk.matched) {
+//                 std::cout << std::endl << std::format("placeholder {} {{{} values}} [{} -> {}]", placeholders_count, chunk.possibilities.size(), chunk.limits.first, chunk.limits.second) << std::endl;
+//                 for(const std::string& p: chunk.possibilities){
+//                     std::cout << p << std::endl;
+//                 }
 
-                placeholders_count++;
-            }
-        }
-    }
-    return stream;
-}
+//                 placeholders_count++;
+//             }
+//         }
+//     }
+//     return stream;
+// }
 
-std::size_t trace_parser::chunk_chain::matched() const {
-    std::size_t n = 0;
-    for(const auto& chunk : _chain) {
-        if(chunk.matched) {
-            n += chunk.content.size();
-        }
-    }
-    return n;
-}
+// std::size_t trace_parser::chunk_chain::matched() const {
+//     std::size_t n = 0;
+//     for(const auto& chunk : _chain) {
+//         if(chunk.matched) {
+//             n += chunk.content.size();
+//         }
+//     }
+//     return n;
+// }
 
 void trace_parser::parse(const std::filesystem::path &path){
     std::ifstream in(std::filesystem::path(path), std::ios::in);
@@ -108,8 +108,8 @@ double trace_parser::distance(std::size_t i, std::size_t j, bool score_only) con
             // Count matched characters (similar to difflib.SequenceMatcher)
             std::size_t matched_chars = 0;
             for(const auto& chunk : alignment) {
-                if(chunk.matched) { // This is a match
-                    matched_chars += chunk.content.size();
+                if(chunk.first) { // This is a match
+                    matched_chars += chunk.second.size();
                 }
             }
 
@@ -134,11 +134,15 @@ trace_parser::chain_type trace_parser::align(const string_type &lhs, const strin
     }
     if(lhs.empty()) {
         if(alignment_score) *alignment_score = -static_cast<int>(rhs.size());
-        return chain_type{chunk_type{false, rhs}};
+        chain_type chain;
+        chain.emplace_back(false, chunk_type{0, rhs.size()});
+        return chain;
     }
     if(rhs.empty()) {
         if(alignment_score) *alignment_score = -static_cast<int>(lhs.size());
-        return chain_type{chunk_type{false, lhs}};
+        chain_type chain;
+        chain.emplace_back(false, chunk_type{0, lhs.size()});
+        return chain;
     }
 
     auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/1, /*mismatch*/-1, /*gap*/-1);
@@ -161,31 +165,35 @@ trace_parser::chain_type trace_parser::align(const string_type &lhs, const strin
 
     std::string buffer;
     bool last_match = is_match(r0[0], r1[0]);
+    std::size_t last_flip = 0, col = 0;
 
     int score = 0;
 
     trace_parser::chain_type out;
     for (std::size_t i = 0; i < L; ++i) {
         char a = r0[i], b = r1[i];
+
         bool matched = is_match(a, b);
 
         if (alignment_score)
             score +=  matched ? 1 : (a=='-' || b=='-') ? -1 : -1;
 
         if (matched != last_match) {
-            if(!buffer.empty()) {
-                out.emplace_back(chunk_type{last_match, buffer});
+            if(col > last_flip) {
+                out.emplace_back(last_match, chunk_type{last_flip, col});
                 buffer.clear();
             }
+            last_flip = col;
             if(a != '-') buffer.push_back(a);
         } else {
             if(a != '-') buffer.push_back(a);
         }
 
         last_match = matched;
+        if(a != '-') ++col;
     }
 
-    out.emplace_back(chunk_type{last_match, buffer});
+    out.emplace_back(last_match, chunk_type{last_flip, col});
 
     if (alignment_score) *alignment_score = static_cast<double>(score);
     return out;
@@ -301,7 +309,7 @@ std::ostream& trace_parser::print(std::ostream &stream) const {
     return stream;
 }
 
-trace_parser::chain_type trace_parser::align(int i) const {
+trace_parser::graph_type trace_parser::align(int i) const {
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
@@ -361,11 +369,16 @@ trace_parser::chain_type trace_parser::align(int i) const {
     };
 
     std::string buffer;
-    trace_parser::chain_type out;
+    trace_parser::graph_type out;
+    using chunk_type = trace_parser::graph_type::chunk_type;
+
     std::size_t nunique = unique(0);
+
     bool last_match = (nunique == 1);
+
     std::stack<std::size_t> placeholders;
     std::size_t placeholders_count = 0;
+
     for (std::size_t col = 0; col < cols; ++col) {
         nunique = unique(col);
         bool matched = (nunique == 1);
@@ -377,7 +390,7 @@ trace_parser::chain_type trace_parser::align(int i) const {
         } else {
             if(last_match && !matched) {
                 if(!buffer.empty()) {
-                    out.emplace_back(chunk_type{last_match, buffer});
+                    out.emplace_back(chunk_type{last_match, subsequence{buffer}});
                     buffer.clear();
                 }
                 if(nunique == 1) {
@@ -391,11 +404,10 @@ trace_parser::chain_type trace_parser::align(int i) const {
                 std::set<std::string> unique_possibilities;
                 auto [min_len, max_len] = uniques(unique_possibilities, begin, col);
 
-                chunk_type chunk{last_match, (min_len == max_len) ? std::format("{}:[{}]",placeholders_count, min_len) : std::format("{}:[{},{}]",placeholders_count, min_len, max_len)};
-                chunk.possibilities = unique_possibilities;
-                chunk.limits = std::make_pair(min_len, max_len);
+                placeholder p{placeholders_count, min_len, max_len};
+                p = unique_possibilities;
 
-                out.emplace_back(chunk);
+                out.emplace_back(last_match, p);
                 buffer.clear();
 
                 if(nunique == 1) {
@@ -416,11 +428,10 @@ trace_parser::chain_type trace_parser::align(int i) const {
         std::set<std::string> unique_possibilities;
         auto [min_len, max_len] = uniques(unique_possibilities, begin, cols-1);
 
-        chunk_type chunk{last_match, (min_len == max_len) ? std::format("{}:[{}]",placeholders_count, min_len) : std::format("{}:[{},{}]",placeholders_count, min_len, max_len)};
-        chunk.possibilities = unique_possibilities;
-        chunk.limits = std::make_pair(min_len, max_len);
+        placeholder p{placeholders_count, min_len, max_len};
+        p = unique_possibilities;
 
-        out.emplace_back(chunk);
+        out.emplace_back(last_match, p);
         buffer.clear();
 
         if(nunique == 1) {
@@ -429,7 +440,7 @@ trace_parser::chain_type trace_parser::align(int i) const {
 
         placeholders_count++;
     } else {
-        out.emplace_back(chunk_type{last_match, buffer});
+        out.emplace_back(last_match, subsequence{buffer});
     }
 
     out._multiple = true;

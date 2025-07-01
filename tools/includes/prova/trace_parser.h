@@ -1,17 +1,194 @@
 #ifndef TRACE_PARSER_H
 #define TRACE_PARSER_H
 
+#include <boost/algorithm/string/join.hpp>
 #include <list>
 #include <string>
 #include <iostream>
 #include <filesystem>
 #include <iostream>
 #include <armadillo>
+#include <variant>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/random_access_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <mlpack/core/tree/hrectbound.hpp>
+
+struct sequence_partition{
+    inline explicit sequence_partition(std::size_t begin = 0, std::size_t end = 0): _span(std::make_pair(begin, end)) {}
+    sequence_partition(const sequence_partition&) = default;
+
+    inline std::string_view apply(const std::string& input) const { return std::string_view(input).substr(_span.first, _span.second - _span.first); }
+    inline std::size_t size() const { return _span.second - _span.first; }
+
+    private:
+        std::pair<std::size_t, std::size_t> _span;
+};
+
+struct subsequence{
+    inline explicit subsequence(const std::string& str): _str(str) {}
+    subsequence(const subsequence&) = default;
+
+    const std::string& str() const { return _str; }
+    inline std::size_t size() const { return _str.size(); }
+
+private:
+    std::string _str;
+};
+
+struct placeholder{
+    using collection_type = std::set<std::string>;
+    using const_iterator = typename collection_type::const_iterator;
+    using iterator = const_iterator;
+    using size_type = typename collection_type::size_type;
+
+    inline explicit placeholder(std::size_t id, std::size_t min, std::size_t max): _id(id), _range(std::make_pair(min, max)) {}
+    placeholder(const placeholder&) = default;
+
+    std::size_t id() const { return _id; }
+
+    inline std::size_t size() const { return _range.second - _range.first; }
+
+    inline const_iterator begin() const { return _values.begin(); }
+    inline const_iterator end() const { return _values.end(); }
+    inline size_type count() const { return _values.size(); }
+
+    inline void add(const std::string& value) {
+        _values.insert(value);
+    }
+
+    inline placeholder& operator=(const collection_type& collection) {
+        _values = collection;
+        return *this;
+    }
+
+    std::string str() const {
+        if(_range.first != _range.second)
+            return std::format("{}/[{}:{}]", _id, _range.first, _range.second);
+        else
+            return std::format("{}/[{}]", _id, _range.first);
+    }
+
+private:
+    std::size_t _id;
+    std::pair<std::size_t, std::size_t> _range;
+    collection_type _values;
+};
+
+using sequence_component = std::variant<subsequence, placeholder>;
+
+template <typename ChunkT>
+struct chunk_chain{
+    using chunk_type = std::pair<bool, ChunkT>;
+    using chain_type = std::list<chunk_type>;
+    using const_iterator = typename chain_type::const_iterator;
+    using size_type = typename chain_type::size_type;
+
+    std::ostream& apply(std::ostream& stream, const std::string& input) const {
+        stream << "[" << matched() << "] ";
+        for(const auto& chunk : _chain) {
+            if(chunk.first) {
+                stream << chunk.second.apply(input);
+            } else {
+                stream << "⎨" << chunk.second.apply(input) << "⎬";
+            }
+        }
+
+        return stream;
+    }
+
+    inline chunk_chain(): _multiple(false) {}
+
+    inline const_iterator begin() const { return _chain.begin(); }
+    inline const_iterator end() const { return _chain.end(); }
+    inline size_type size() const { return _chain.size(); }
+
+    inline void emplace_back(chunk_type&& chunk) {
+        _chain.emplace_back(std::forward<chunk_type>(chunk));
+    }
+
+    inline void emplace_back(bool matched, ChunkT&& chunk) {
+        emplace_back(chunk_type{matched, std::forward<ChunkT>(chunk)});
+    }
+
+    std::size_t matched() const {
+        std::size_t n = 0;
+        for(const auto& chunk : _chain) {
+            if(chunk.first) {
+                n += chunk.second.size();
+            }
+        }
+        return n;
+    }
+
+    chain_type _chain;
+    bool       _multiple;
+};
+
+template <>
+struct chunk_chain<sequence_component>{
+    using chunk_type = std::pair<bool, sequence_component>;
+    using chain_type = std::list<chunk_type>;
+    using const_iterator = typename chain_type::const_iterator;
+    using size_type = typename chain_type::size_type;
+
+    std::ostream& apply(std::ostream& stream) const {
+        stream << "[" << matched() << "] ";
+        for(const auto& chunk : _chain) {
+            if(chunk.first) {
+                assert(std::holds_alternative<subsequence>(chunk.second));
+                stream << std::get<subsequence>(chunk.second).str();
+            } else {
+                assert(std::holds_alternative<placeholder>(chunk.second));
+                stream << "⎨" << std::get<placeholder>(chunk.second).str() << "⎬";
+            }
+        }
+
+        stream << std::endl;
+        for(const auto& chunk : _chain) {
+            if(!chunk.first) {
+                assert(std::holds_alternative<placeholder>(chunk.second));
+                const placeholder& p = std::get<placeholder>(chunk.second);
+                stream << "⎨" << p.str() << "⎬" << ": " << boost::algorithm::join(p, ", ");
+                stream << std::endl;
+            }
+        }
+
+        return stream;
+    }
+
+    inline chunk_chain(): _multiple(false) {}
+
+    inline const_iterator begin() const { return _chain.begin(); }
+    inline const_iterator end() const { return _chain.end(); }
+    inline size_type size() const { return _chain.size(); }
+
+    inline void emplace_back(chunk_type&& chunk) {
+        _chain.emplace_back(std::forward<chunk_type>(chunk));
+    }
+
+    inline void emplace_back(bool matched, sequence_component&& chunk) {
+        emplace_back(chunk_type{matched, std::forward<sequence_component>(chunk)});
+    }
+
+    std::size_t matched() const {
+        std::size_t n = 0;
+        for(const auto& chunk : _chain) {
+            if(chunk.first) {
+                if(std::holds_alternative<subsequence>(chunk.second)) {
+                    n += std::get<subsequence>(chunk.second).size();
+                } else if(std::holds_alternative<placeholder>(chunk.second)) {
+                    n += std::get<placeholder>(chunk.second).size();
+                }
+            }
+        }
+        return n;
+    }
+
+    chain_type _chain;
+    bool       _multiple;
+};
 
 /**
  * @brief The trace_parser class
@@ -20,44 +197,9 @@ struct trace_parser{
     using string_type           = std::string;
     using char_type             = typename string_type::value_type;
     using matrix_type           = arma::mat;
-
-    struct continous_block{
-        bool        matched;
-        std::string content;
-        std::set<std::string> possibilities;
-        std::pair<std::size_t, std::size_t> limits;
-    };
-
-    struct chunk_chain{
-        using chunk_type = continous_block;
-        using chain_type = std::list<chunk_type>;
-        using const_iterator = typename chain_type::const_iterator;
-        using size_type = typename chain_type::size_type;
-
-        friend std::ostream& operator<<(std::ostream& stream, const chunk_chain& chain);
-
-        inline chunk_chain(): _multiple(false) {}
-        chunk_chain(const chunk_chain&) = default;
-        explicit chunk_chain(chunk_type&& chunk) {
-            emplace_back(std::move(chunk));
-        }
-        inline const_iterator begin() const { return _chain.begin(); }
-        inline const_iterator end() const { return _chain.end(); }
-        inline size_type size() const { return _chain.size(); }
-
-        template <typename... T>
-        void emplace_back(T&&... args) {
-            _chain.emplace_back(std::forward<T>(args)...);
-        }
-
-        std::size_t matched() const;
-
-        chain_type _chain;
-        bool       _multiple;
-    };
-
-    using chunk_type            = continous_block;
-    using chain_type            = chunk_chain;
+    using chunk_type            = sequence_partition;
+    using chain_type            = chunk_chain<chunk_type>;
+    using graph_type            = chunk_chain<sequence_component>;
 
     struct string_entry {
         string_type text;
@@ -193,7 +335,7 @@ struct trace_parser{
 
     std::ostream& print(std::ostream& stream) const;
 
-    trace_parser::chain_type align(int cluster_id) const;
+    trace_parser::graph_type align(int cluster_id) const;
     void align_all() const;
 
 private:
