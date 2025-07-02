@@ -313,7 +313,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
-    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/1, /*mismatch*/-1, /*gap*/-1);
+    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kOV, /*match*/1, /*mismatch*/-1, /*gap*/-1);
     spoa::Graph graph{};
 
     auto range = cluster_range(i);
@@ -368,6 +368,11 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         return std::make_pair(min_len, max_len);
     };
 
+    // for(const auto& seq: msa){
+    //     std::cout << seq << std::endl;
+    // }
+
+    all_zones.resize(rows);
     trace_parser::graph_type out;
     {
         std::string buffer;
@@ -375,10 +380,14 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
 
         std::size_t nunique = unique(0);
 
-        bool last_match = (nunique == 1);
-
         std::stack<std::size_t> placeholders;
         std::size_t placeholders_count = 0;
+
+        bool last_match = (nunique == 1);
+        if(!last_match) {
+            placeholders.push(0);
+            ++placeholders_count;
+        }
 
         for (std::size_t col = 0; col < cols; ++col) {
             nunique = unique(col);
@@ -443,32 +452,256 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         } else {
             out.emplace_back(last_match, subsequence{buffer});
         }
-    }
 
-    {
-        all_zones.reserve(rows);
-        bool last_match = (unique(0) == 1);
-        for (std::size_t row = 0; row< rows; ++row) {
-            std::vector<zone> zones;
+        for (std::size_t row = 0; row < rows; ++row) {
+            std::size_t nunique = unique(0);
 
-            std::size_t last = 0;
-            std::size_t placeholders = 0;
+            bool last_match = (nunique == 1);
+            std::size_t last_change = 0;
+
+            std::size_t gaps = 0;
             for (std::size_t col = 0; col < cols; ++col) {
-                std::size_t nunique = unique(col);
+                nunique = unique(col);
                 bool matched = (nunique == 1);
+                if(msa[row][col] == '-') {
+                    ++gaps;
+                    continue;
+                }
 
                 if(last_match != matched) {
-                    zones.emplace_back(zone{last_match, col-last});
-                    last = col;
-                    last_match = matched;
+                    all_zones[row].emplace_back(zone{last_match, (col-gaps)-last_change});
+                    last_change = (col-gaps);
                 }
-                ++col;
+                last_match = matched;
             }
-            all_zones.emplace_back(std::move(zones));
+            all_zones[row].emplace_back(zone{last_match, (cols-1-gaps)-last_change});
+
+            for(std::size_t i = all_zones[row].size(); i < out.size(); ++i) {
+                all_zones[row].emplace_back(zone{(out.begin()+i)->first, 0});
+            }
+        }
+    }
+    return out;
+}
+
+std::ostream &trace_parser::print_aligned(int cluster_id, std::ostream& stream, const std::vector<std::vector<zone>>& all_zones) const {
+    auto range = cluster_range(cluster_id);
+
+    std::size_t i = 0;
+    for(auto it = range.first; it != range.second; ++it) {
+        const std::vector<zone>& zones = all_zones.at(i);
+
+        std::size_t pos = 0;
+        for(const zone& z: zones) {
+            const auto& txt = *it;
+            if(!z.is_constant()) stream << "⎨";
+            stream << txt.text.substr(pos, z.length());
+            if(!z.is_constant()) stream << "⎬";
+            pos += z.length();
+        }
+        stream << std::endl;
+
+        ++i;
+    }
+
+    return stream;
+}
+
+void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>& zones) {
+    std::string alphabets = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_:/.";
+    {
+        // spreading placeholders
+        std::size_t component_index = 0;
+        for(auto it = malignment.begin(); it != malignment.end(); ++it) {
+            auto& [matched, component] = *it;
+            if(!matched) {
+                assert(std::holds_alternative<placeholder>(component));
+                placeholder& p = std::get<placeholder>(component);
+
+                bool starts_with_alphabets = true, ends_with_alphabets = true;
+                for(auto& v: p._values) {
+                    if(starts_with_alphabets && !v.empty() && alphabets.find(v.front()) == std::string::npos){
+                        starts_with_alphabets = false;
+                    }
+                    if(ends_with_alphabets && !v.empty() && alphabets.find(v.back()) == std::string::npos){
+                        ends_with_alphabets = false;
+                    }
+                }
+
+                if(it != malignment.begin() && starts_with_alphabets) {
+                    auto& [_, previous_component] = *(it-1);
+                    assert(std::holds_alternative<subsequence>(previous_component));
+                    subsequence& pre_sub = std::get<subsequence>(previous_component);
+
+                    auto pos = pre_sub._str.find_last_not_of(alphabets);
+                    std::string::size_type start = (pos != std::string::npos) ? pos+1 : 0;
+
+                    std::string left_over  = pre_sub._str.substr(0, start);
+                    std::string carry_over = pre_sub._str.substr(start, pre_sub._str.size() - start);
+                    pre_sub._str = left_over;
+
+                    if(carry_over.size() > 0) {
+                        p._range.second += carry_over.size();
+                        std::size_t min = p._range.second;
+                        std::set<std::string> possibilities;
+                        for(auto& v: p._values) {
+                            std::string carried_over = carry_over+v;
+                            possibilities.insert(carried_over);
+
+                            if(min > carried_over.size()) {
+                                min = carried_over.size();
+                            }
+                        }
+                        p._range.first = min;
+                        p._values = possibilities;
+                    }
+
+                    for(auto i = 0; i < zones.size(); ++i) {
+                        assert(!zones[i][component_index].is_constant());
+                        assert(zones[i][component_index-1].is_constant());
+
+                        zones[i][component_index]._length   += carry_over.size();
+                        zones[i][component_index-1]._length  = left_over.size();
+                    }
+                }
+
+                if(it != malignment.end() -1 && ends_with_alphabets) {
+                    auto& [_, next_component] = *(it+1);
+                    assert(std::holds_alternative<subsequence>(next_component));
+                    subsequence& next_sub = std::get<subsequence>(next_component);
+
+                    auto pos = next_sub._str.find_first_not_of(alphabets);
+                    std::string::size_type end = (pos != std::string::npos && pos > 0) ? pos : 0;
+
+                    std::string left_over  = next_sub._str.substr(end, next_sub._str.size() - end);
+                    std::string carry_over = next_sub._str.substr(0, end);
+                    next_sub._str = left_over;
+
+                    if(carry_over.size() > 0) {
+                        p._range.second += carry_over.size();
+                        std::size_t min = p._range.second;
+                        std::set<std::string> possibilities;
+                        for(auto& v: p._values) {
+                            std::string carried_over = v+carry_over;
+                            possibilities.insert(carried_over);
+
+                            if(min > carried_over.size()) {
+                                min = carried_over.size();
+                            }
+                        }
+                        p._range.first = min;
+                        p._values = possibilities;
+                    }
+
+                    for(auto i = 0; i < zones.size(); ++i) {
+                        assert(!zones[i][component_index].is_constant());
+                        assert(zones[i][component_index+1].is_constant());
+
+                        zones[i][component_index]._length   += carry_over.size();
+                        zones[i][component_index+1]._length = left_over.size();
+                    }
+                }
+            }
+            ++component_index;
         }
     }
 
-    return out;
+    {
+        // remove empty constant block
+        trace_parser::graph_type modified_malignment;
+        {
+            std::stack<std::size_t> zones_to_be_deleted;
+            {
+                std::size_t component_index = 0;
+                for(auto it = malignment.begin(); it != malignment.end(); ++it) {
+                    auto& [matched, component] = *it;
+                    if(matched) {
+                        assert(std::holds_alternative<subsequence>(component));
+                        subsequence& sub = std::get<subsequence>(component);
+                        if(sub.size() > 0) {
+                            modified_malignment.emplace_back(matched, std::move(component));
+                        } else {
+                            zones_to_be_deleted.push(component_index);
+                        }
+                    } else {
+                        modified_malignment.emplace_back(matched, std::move(component));
+                    }
+
+                    ++component_index;
+                }
+            }
+            while(!zones_to_be_deleted.empty()){
+                for(auto i = 0; i < zones.size(); ++i) {
+                    std::size_t zone_id = zones_to_be_deleted.top();
+                    assert(zone_id < zones[i].size());
+                    assert(zones[i][zone_id].is_constant());
+                    zones[i].erase(zones[i].begin()+zone_id);
+                }
+                zones_to_be_deleted.pop();
+            }
+            assert(zones_to_be_deleted.empty());
+        }
+        malignment = modified_malignment;
+        modified_malignment.clear();
+
+        // merge consecutive placeholders
+        std::vector<std::vector<zone>> modified_zones;
+        modified_zones.resize(zones.size());
+        for(auto it = malignment.begin(); it != malignment.end(); ++it) {
+            auto& [matched, component] = *it;
+            if(!matched) {
+                assert(std::holds_alternative<placeholder>(component));
+                placeholder& p = std::get<placeholder>(component);
+
+                std::size_t growth = 0;
+                auto jt = it+1;
+                for(; jt != malignment.end(); ++jt) {
+                    auto& [_, next_component] = *(jt);
+                    if(std::holds_alternative<placeholder>(next_component)) {
+                        placeholder& next_placeholder = std::get<placeholder>(next_component);
+                        // merge with p
+                        growth++;
+                        p._range.second += next_placeholder._range.second;
+                        std::set<std::string> possibilities;
+                        for(auto& u: p._values) {
+                            for(auto& v: next_placeholder._values) {
+                                possibilities.insert(u+v);
+                            }
+                        }
+                        p._values = possibilities;
+                    } else {
+                        break;
+                    }
+                }
+                modified_malignment.emplace_back(matched, placeholder(p));
+
+                std::size_t c_index = std::distance(malignment.begin(), it);
+                for(auto i = 0; i < modified_zones.size(); ++i) {
+                    zone z = zones[i][c_index];
+                    std::size_t expanded = 0;
+                    for(auto j = c_index+1; j <= c_index+growth; ++j){
+                        expanded += zones[i][j].length();
+                    }
+                    z._length += expanded;
+                    modified_zones[i].push_back(z);
+                }
+                it = jt-1;
+            } else {
+                assert(std::holds_alternative<subsequence>(component));
+                subsequence& s = std::get<subsequence>(component);
+                modified_malignment.emplace_back(matched, std::move(component));
+
+                std::size_t c_index = std::distance(malignment.begin(), it);
+                for(auto i = 0; i < modified_zones.size(); ++i) {
+                    zone z = zones[i][c_index];
+                    modified_zones[i].push_back(z);
+                }
+            }
+
+        }
+        malignment = modified_malignment;
+        zones = modified_zones;
+    }
 }
 
 

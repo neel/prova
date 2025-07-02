@@ -39,6 +39,8 @@ struct subsequence{
 
 struct zone{
     inline explicit zone(bool constant, std::size_t length): _constant(constant), _length(length) {}
+    zone(const zone&) = default;
+
 
     bool is_constant() const { return _constant; }
     std::size_t length() const { return _length; }
@@ -356,6 +358,9 @@ struct trace_parser{
 
     trace_parser::graph_type align(int cluster_id, std::vector<std::vector<zone> >& all_zones) const;
 
+    std::ostream& print_aligned(int cluster_id, std::ostream &stream, const std::vector<std::vector<zone> >& all_zones) const;
+
+    static void adjust(trace_parser::graph_type& malignment, std::vector<std::vector<zone>>& zones);
 private:
     dataset_type _dataset;
     matrix_type  _distances;
