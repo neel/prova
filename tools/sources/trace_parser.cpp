@@ -69,14 +69,14 @@ trace_parser &trace_parser::operator<<(const string_type &str) {
     return *this;
 }
 
-void trace_parser::compute(bool score_only){
+void trace_parser::compute(std::size_t threads, bool score_only){
     std::size_t const n = _dataset.size();
     _distances.set_size(n, n);
     _distances.zeros();
 
     const auto& ra_index = _dataset.template get<0>();
 
-    unsigned int T = std::thread::hardware_concurrency();
+    unsigned int T = !threads ? std::thread::hardware_concurrency() : threads;
 
     std::atomic_uint32_t jobs_completed = 0;
     boost::asio::thread_pool pool(T);
@@ -231,39 +231,40 @@ std::size_t trace_parser::cluster(double eps, std::size_t minPts) {
 }
 
 void trace_parser::save(const std::filesystem::path& dir){
-    if (!_clustered)
-        throw std::logic_error("call cluster() first");
-
     std::filesystem::create_directories(dir);
 
-    _distances.save((dir / "distances.bin").string(), arma::arma_binary);
-
-    nlohmann::json index  = nlohmann::json::array();
-    const auto& byLabel   = _dataset.get<1>();
-
-    for (auto beg = byLabel.lower_bound(0); beg != byLabel.end(); ) {
-        int cid        = beg->cluster_id;
-        auto end       = byLabel.upper_bound(cid);
-        std::size_t n  = std::distance(beg, end);
-
-        std::ostringstream fname;
-        fname << cid << ".cluster.txt";
-        std::ofstream ofs(dir / fname.str());
-
-        for (auto it = beg; it != end; ++it)
-            ofs << it->text << '\n';
-
-        index.push_back({
-            {"id",    cid},
-            {"path",  (dir / fname.str()).string()},
-            {"count", n}
-        });
-
-        beg = end;
+    if(_computed) {
+        _distances.save((dir / "distances.bin").string(), arma::arma_binary);
     }
 
-    std::ofstream idx(dir / "index.json");
-    idx << index.dump(2);
+    if(_clustered) {
+        nlohmann::json index  = nlohmann::json::array();
+        const auto& byLabel   = _dataset.get<1>();
+
+        for (auto beg = byLabel.lower_bound(0); beg != byLabel.end(); ) {
+            int cid        = beg->cluster_id;
+            auto end       = byLabel.upper_bound(cid);
+            std::size_t n  = std::distance(beg, end);
+
+            std::ostringstream fname;
+            fname << cid << ".cluster.txt";
+            std::ofstream ofs(dir / fname.str());
+
+            for (auto it = beg; it != end; ++it)
+                ofs << it->text << '\n';
+
+            index.push_back({
+                {"id",    cid},
+                {"path",  (dir / fname.str()).string()},
+                {"count", n}
+            });
+
+            beg = end;
+        }
+
+        std::ofstream idx(dir / "index.json");
+        idx << index.dump(2);
+    }
 }
 
 void trace_parser::load(const std::filesystem::path& dir) {
@@ -313,7 +314,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
-    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kOV, /*match*/1, /*mismatch*/-1, /*gap*/-1);
+    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/1, /*mismatch*/-1, /*gap*/-1);
     spoa::Graph graph{};
 
     auto range = cluster_range(i);
@@ -368,6 +369,25 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         return std::make_pair(min_len, max_len);
     };
 
+    auto populate = [&group, cols] (placeholder& p, std::size_t begin, std::size_t col) {
+        std::vector<std::string> observed_values = group(begin, col);
+        p._values = observed_values;
+        std::copy(observed_values.begin(), observed_values.end(), std::inserter(p._unique_values, p._unique_values.end()));
+
+        std::size_t min_len = cols, max_len = 0;
+        for(const auto& p: p._unique_values) {
+            std::size_t length = p.size();
+            if(length < min_len) {
+                min_len = length;
+            }
+
+            if(length > max_len) {
+                max_len = length;
+            }
+        }
+        p._range = std::make_pair(min_len, max_len);
+    };
+
     // for(const auto& seq: msa){
     //     std::cout << seq << std::endl;
     // }
@@ -411,11 +431,8 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
                     std::size_t begin = placeholders.top();
                     placeholders.pop();
 
-                    std::set<std::string> unique_possibilities;
-                    auto [min_len, max_len] = uniques(unique_possibilities, begin, col);
-
-                    placeholder p{placeholders_count, min_len, max_len};
-                    p = unique_possibilities;
+                    placeholder p{placeholders_count, 0, 0};
+                    populate(p, begin, col);
 
                     out.emplace_back(last_match, p);
                     buffer.clear();
@@ -435,11 +452,8 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
             std::size_t begin = placeholders.top();
             placeholders.pop();
 
-            std::set<std::string> unique_possibilities;
-            auto [min_len, max_len] = uniques(unique_possibilities, begin, cols-1);
-
-            placeholder p{placeholders_count, min_len, max_len};
-            p = unique_possibilities;
+            placeholder p{placeholders_count, 0, 0};
+            populate(p, begin, cols-1);
 
             out.emplace_back(last_match, p);
             buffer.clear();
@@ -541,19 +555,7 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                     pre_sub._str = left_over;
 
                     if(carry_over.size() > 0) {
-                        p._range.second += carry_over.size();
-                        std::size_t min = p._range.second;
-                        std::set<std::string> possibilities;
-                        for(auto& v: p._values) {
-                            std::string carried_over = carry_over+v;
-                            possibilities.insert(carried_over);
-
-                            if(min > carried_over.size()) {
-                                min = carried_over.size();
-                            }
-                        }
-                        p._range.first = min;
-                        p._values = possibilities;
+                        p.glue_left(carry_over);
                     }
 
                     for(auto i = 0; i < zones.size(); ++i) {
@@ -578,19 +580,7 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                     next_sub._str = left_over;
 
                     if(carry_over.size() > 0) {
-                        p._range.second += carry_over.size();
-                        std::size_t min = p._range.second;
-                        std::set<std::string> possibilities;
-                        for(auto& v: p._values) {
-                            std::string carried_over = v+carry_over;
-                            possibilities.insert(carried_over);
-
-                            if(min > carried_over.size()) {
-                                min = carried_over.size();
-                            }
-                        }
-                        p._range.first = min;
-                        p._values = possibilities;
+                        p.glue_right(carry_over);
                     }
 
                     for(auto i = 0; i < zones.size(); ++i) {
@@ -605,6 +595,8 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
             ++component_index;
         }
     }
+
+    // malignment.apply(std::cout);
 
     {
         // remove empty constant block
@@ -661,14 +653,7 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                         placeholder& next_placeholder = std::get<placeholder>(next_component);
                         // merge with p
                         growth++;
-                        p._range.second += next_placeholder._range.second;
-                        std::set<std::string> possibilities;
-                        for(auto& u: p._values) {
-                            for(auto& v: next_placeholder._values) {
-                                possibilities.insert(u+v);
-                            }
-                        }
-                        p._values = possibilities;
+                        p.merge(next_placeholder);
                     } else {
                         break;
                     }

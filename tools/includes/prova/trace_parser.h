@@ -50,8 +50,9 @@ struct zone{
 };
 
 struct placeholder{
-    using collection_type = std::set<std::string>;
-    using const_iterator = typename collection_type::const_iterator;
+    using collection_type = std::vector<std::string>;
+    using unique_collection_type = std::set<std::string>;
+    using const_iterator = typename unique_collection_type::const_iterator;
     using iterator = const_iterator;
     using size_type = typename collection_type::size_type;
 
@@ -62,12 +63,13 @@ struct placeholder{
 
     inline std::size_t size() const { return _range.second - _range.first; }
 
-    inline const_iterator begin() const { return _values.begin(); }
-    inline const_iterator end() const { return _values.end(); }
-    inline size_type count() const { return _values.size(); }
+    inline const_iterator begin() const { return _unique_values.begin(); }
+    inline const_iterator end() const { return _unique_values.end(); }
+    inline size_type count() const { return _unique_values.size(); }
 
     inline void add(const std::string& value) {
-        _values.insert(value);
+        _values.push_back(value);
+        _unique_values.insert(value);
     }
 
     inline placeholder& operator=(const collection_type& collection) {
@@ -82,9 +84,50 @@ struct placeholder{
             return std::format("{}/[{}]", _id, _range.first);
     }
 
+    void merge(const placeholder& other) {
+        assert(_values.size() == other._values.size());
+        _unique_values.clear();
+        std::size_t min = _range.second, max = _range.second;
+        for(auto i = 0; i < _values.size(); ++i) {
+            _values[i] += other._values[i];
+            if(_values[i].size() > max) {
+                max = _values[i].size();
+            }
+            if(_values[i].size() < min) {
+                min = _values[i].size();
+            }
+            _unique_values.insert(_values[i]);
+        }
+        _range.first  = min;
+        _range.second = max;
+    }
+
+    void glue_left(const std::string& str){
+        _range.first += str.size();
+        _range.second += str.size();
+
+        _unique_values.clear();
+        for(std::string& v: _values) {
+            v = str+v;
+            _unique_values.insert(v);
+        }
+    }
+
+    void glue_right(const std::string& str){
+        _range.first += str.size();
+        _range.second += str.size();
+
+        _unique_values.clear();
+        for(std::string& v: _values) {
+            v = v+str;
+            _unique_values.insert(v);
+        }
+    }
+
     std::size_t _id;
     std::pair<std::size_t, std::size_t> _range;
     collection_type _values;
+    unique_collection_type _unique_values;
 };
 
 using sequence_component = std::variant<subsequence, placeholder>;
@@ -272,7 +315,7 @@ struct trace_parser{
     /**
      * @brief compute pairwise distance and store it inside distance matrix. afterwards set _computed to true.
      */
-    void compute(bool score_only = false);
+    void compute(std::size_t threads = 0, bool score_only = false);
 
     double distance(std::size_t i, std::size_t j, bool score_only = false) const;
 
