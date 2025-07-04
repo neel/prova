@@ -275,6 +275,12 @@ struct trace_parser{
     struct by_text {};
     struct by_cluster {};
 
+    struct text_length_cmp {
+        bool operator()(const std::string& a, const std::string& b) const noexcept {
+            return a > b;
+        }
+    };
+
     using dataset_type = boost::multi_index_container<
         string_entry,
         boost::multi_index::indexed_by<
@@ -283,15 +289,16 @@ struct trace_parser{
             // 1) UNIQUE index on text:
             boost::multi_index::ordered_unique<
                 boost::multi_index::tag<by_text>,
-                boost::multi_index::member<string_entry, std::string, &string_entry::text>
-                >,
+                boost::multi_index::member<string_entry, std::string, &string_entry::text>,
+                text_length_cmp
+            >,
             // 2) NON-UNIQUE index on cluster_id:
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<by_cluster>,
                 boost::multi_index::member<string_entry, int, &string_entry::cluster_id>
-                >
             >
-        >;
+        >
+    >;
 
     using random_access_index = typename dataset_type::template nth_index<0>::type;
     using cluster_index = typename dataset_type::template nth_index<1>::type;

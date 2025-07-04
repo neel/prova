@@ -386,7 +386,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
-    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/1, /*mismatch*/-1, /*gap*/-1);
+    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/2, /*mismatch*/-1, /*gap_open*/-4, /*gap_extend*/ -1);
     spoa::Graph graph{};
 
     auto range = cluster_range(i);
@@ -403,13 +403,20 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         std::vector<std::string> possibilities;
         possibilities.resize(rows);
 
+        char gap_char = '-';
+        std::size_t gap_char_spotted = 0;
         for (std::size_t row = 0; row < rows; ++row) {
             for (std::size_t col = col_begin; col < col_end; ++col) {
                 char c = msa[row][col];
-                if(c != '-') {
+                if(c != gap_char) {
                     possibilities[row].push_back(c);
+                } else {
+                    gap_char_spotted++;
                 }
             }
+        }
+        if(gap_char_spotted == rows) {
+            std::fill_n(possibilities.begin(), rows, gap_char);
         }
         return possibilities;
     };
@@ -460,9 +467,9 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         p._range = std::make_pair(min_len, max_len);
     };
 
-    // for(const auto& seq: msa){
-    //     std::cout << seq << std::endl;
-    // }
+    for(const auto& seq: msa){
+        std::cout << seq << std::endl;
+    }
 
     all_zones.resize(rows);
     trace_parser::graph_type out;
@@ -549,22 +556,34 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
             for (std::size_t col = 0; col < cols; ++col) {
                 nunique = unique(col);
                 bool matched = (nunique == 1);
-                if(msa[row][col] == '-') {
-                    ++gaps;
-                    continue;
-                }
 
                 if(last_match != matched) {
                     all_zones[row].emplace_back(zone{last_match, (col-gaps)-last_change});
                     last_change = (col-gaps);
                 }
+                if(msa[row][col] == '-' && !matched) {
+                    ++gaps;
+                }
                 last_match = matched;
             }
-            all_zones[row].emplace_back(zone{last_match, (cols-1-gaps)-last_change});
+            all_zones[row].emplace_back(zone{last_match, (cols-gaps)-last_change});
 
             for(std::size_t i = all_zones[row].size(); i < out.size(); ++i) {
                 all_zones[row].emplace_back(zone{(out.begin()+i)->first, 0});
             }
+
+            //{ sanity check
+            {
+                std::size_t zone_coverage = 0;
+                for(const zone& z: all_zones[row]) {
+                    zone_coverage += z.length();
+                }
+                auto dataset_it = range.first;
+                std::advance(dataset_it, row);
+                const std::string& dataset_sr = dataset_it->text;
+                assert(zone_coverage == dataset_sr.size());
+            }
+            // }
         }
     }
     return out;
@@ -619,12 +638,15 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                     assert(std::holds_alternative<subsequence>(previous_component));
                     subsequence& pre_sub = std::get<subsequence>(previous_component);
 
-                    auto pos = pre_sub._str.find_last_not_of(alphabets);
-                    std::string::size_type start = (pos != std::string::npos) ? pos+1 : 0;
-
-                    std::string left_over  = pre_sub._str.substr(0, start);
-                    std::string carry_over = pre_sub._str.substr(start, pre_sub._str.size() - start);
-                    pre_sub._str = left_over;
+                    auto pos = pre_sub._str.find_last_not_of(alphabets);                            // find the position of last non-alphabet character
+                    std::string::size_type start = (pos != std::string::npos) ? pos+1 : 0;          // considering that as the terminal of the semantic subsequence get the position of the next character -> case 1
+                                                                                                    // if no non-alphabet character is found then set start as 0                                           -> case 2
+                    std::string left_over  = pre_sub._str.substr(0, start);                         // in case 2 left_over is empty
+                    std::string carry_over;
+                    if(start < pre_sub._str.size()) {                                               // case 1 holds true even if the non-alphabet character is the last character, but nothing remains to substr after that that character
+                        carry_over = pre_sub._str.substr(start, pre_sub._str.size() - start);
+                    }
+                    pre_sub._str = left_over;                                                       // in case 2 previous subsequence becomes empty
 
                     if(carry_over.size() > 0) {
                         p.glue_left(carry_over);
@@ -647,6 +669,7 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                     auto pos = next_sub._str.find_first_not_of(alphabets);
                     std::string::size_type end = (pos != std::string::npos && pos > 0) ? pos : 0;
 
+                    assert(end < next_sub._str.size());
                     std::string left_over  = next_sub._str.substr(end, next_sub._str.size() - end);
                     std::string carry_over = next_sub._str.substr(0, end);
                     next_sub._str = left_over;
@@ -801,6 +824,7 @@ void trace_parser::save_alignments(const std::filesystem::path& dir, int cluster
         for(const zone& z: zones) {
             const auto& txt = *it;
             if(!z.is_constant()) stream << "⎨";
+            // assert(pos < txt.text.size());
             stream << txt.text.substr(pos, z.length());
             if(!z.is_constant()) stream << "⎬";
             pos += z.length();

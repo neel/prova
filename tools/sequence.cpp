@@ -31,12 +31,14 @@ int main(int argc, char* argv[]){
         ("eps",         boost::program_options::value<double>(), "DBSCAN ε radius (requires -c / --cluster)")
         ("minpts",      boost::program_options::value<int>(),    "DBSCAN min-pts (requires -c / --cluster)")
 
+        ("id",          boost::program_options::value<int>(),    "specify the cluster id to align")
+
         ("status,s",    boost::program_options::value<std::filesystem::path>(), "status directory")
 
         ("pairwise, p", boost::program_options::value< std::vector<std::string> >()->multitoken(), "exactly two quoted strings")
 
         ("input",       boost::program_options::value<std::filesystem::path>(), "input file (for -d) *or* working directory (for -c / -a)")
-        ("output,o",       boost::program_options::value<std::filesystem::path>(), "output directory (default: ./out)");
+        ("output,o",    boost::program_options::value<std::filesystem::path>(), "output directory (default: ./out)");
 
     boost::program_options::positional_options_description pos;
     pos.add("input", 1);
@@ -136,7 +138,8 @@ int main(int argc, char* argv[]){
         }
 
         if(op.align) {
-            for(auto i = 0; i < parser.cluster_count(); ++i) {
+            if(vm.count("id")) {
+                int i = vm["id"].as<int>();
                 std::vector<std::vector<zone>> zones;
                 trace_parser::graph_type malignment = parser.align(i, zones);
                 trace_parser::adjust(malignment, zones);
@@ -146,6 +149,18 @@ int main(int argc, char* argv[]){
                 parser.print_aligned(i, std::cout, zones);
                 std::cout << std::endl;
                 parser.save_alignments(output, i, malignment, zones);
+            } else {
+                for(auto i = 0; i < parser.cluster_count(); ++i) {
+                    std::vector<std::vector<zone>> zones;
+                    trace_parser::graph_type malignment = parser.align(i, zones);
+                    trace_parser::adjust(malignment, zones);
+                    std::cout << std::endl << std::format("cluster {} ", i) << std::endl << std::endl;
+                    malignment.apply(std::cout) << std::endl;
+                    std::cout << std::endl;
+                    parser.print_aligned(i, std::cout, zones);
+                    std::cout << std::endl;
+                    parser.save_alignments(output, i, malignment, zones);
+                }
             }
         }
 
