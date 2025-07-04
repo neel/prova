@@ -272,11 +272,22 @@ struct trace_parser{
         inline explicit string_entry(const string_type& t, int id = -1) : text(t), cluster_id(id) {}
     };
 
-    using dataset_type = boost::multi_index::multi_index_container<
+    struct by_text {};
+    struct by_cluster {};
+
+    using dataset_type = boost::multi_index_container<
         string_entry,
         boost::multi_index::indexed_by<
+            // 0) preserve insertion/random‐access order if you need it:
             boost::multi_index::random_access<>,
+            // 1) UNIQUE index on text:
+            boost::multi_index::ordered_unique<
+                boost::multi_index::tag<by_text>,
+                boost::multi_index::member<string_entry, std::string, &string_entry::text>
+                >,
+            // 2) NON-UNIQUE index on cluster_id:
             boost::multi_index::ordered_non_unique<
+                boost::multi_index::tag<by_cluster>,
                 boost::multi_index::member<string_entry, int, &string_entry::cluster_id>
                 >
             >
@@ -378,14 +389,14 @@ struct trace_parser{
      * @brief Get all strings with a specific cluster label
      */
     inline auto cluster_range(int cluster_id) const {
-        return _dataset.template get<1>().equal_range(cluster_id);
+        return _dataset.template get<by_cluster>().equal_range(cluster_id);
     }
 
     /**
      * @brief Count strings with a specific cluster label
      */
     inline std::size_t cluster_count(int cluster_id) const {
-        return _dataset.template get<1>().count(cluster_id);
+        return _dataset.template get<by_cluster>().count(cluster_id);
     }
 
     inline std::size_t cluster_count() const {
@@ -404,6 +415,10 @@ struct trace_parser{
     std::ostream& print_aligned(int cluster_id, std::ostream &stream, const std::vector<std::vector<zone> >& all_zones) const;
 
     static void adjust(trace_parser::graph_type& malignment, std::vector<std::vector<zone>>& zones);
+
+    void save_alignments(const std::filesystem::path &dir, int cluster_id, const graph_type &malignment, const std::vector<std::vector<zone> > &zones);
+
+
 private:
     dataset_type _dataset;
     matrix_type  _distances;

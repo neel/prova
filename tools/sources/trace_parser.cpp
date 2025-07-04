@@ -74,21 +74,24 @@ void trace_parser::compute(std::size_t threads, bool score_only){
     _distances.set_size(n, n);
     _distances.zeros();
 
-    const auto& ra_index = _dataset.template get<0>();
+    const auto& ra_index = _dataset.template get<by_text>();
 
     unsigned int T = !threads ? std::thread::hardware_concurrency() : threads;
 
+    std::cout << "Clustering " << std::endl;
     std::atomic_uint32_t jobs_completed = 0;
     boost::asio::thread_pool pool(T);
     for (std::size_t i = 0; i < n; ++i) {
         boost::asio::post(pool, [this, i, n, score_only, &jobs_completed]() {
-            for (std::size_t j = 0; j < n; ++j) {
-                _distances(i,j) = distance(i, j);
+            for (std::size_t j = i+1; j < n; ++j) {
+                _distances(i, j) = distance(i, j);
+                _distances(j, i) = _distances(i,j);
             }
             jobs_completed++;
-            std::cout << std::format("Distance Matrix rows {}/{}", jobs_completed.load(), n) << std::endl;
+            std::cout << std::format("\rDistance Matrix rows {}/{}", jobs_completed.load(), n);
         });
     }
+    std::cout << std::endl << std::endl;
 
     pool.join();
     _computed = true;
@@ -97,6 +100,8 @@ void trace_parser::compute(std::size_t threads, bool score_only){
 double trace_parser::distance(std::size_t i, std::size_t j, bool score_only) const{
     if(i == j) {
         return 0.0; // Distance is 0 for identical strings
+    } else if(_computed) {
+        return _distances(i,j);
     } else {
         double score;
         const auto& ra_index = _dataset.template get<0>();
@@ -219,12 +224,67 @@ std::size_t trace_parser::cluster(double eps, std::size_t minPts) {
     std::size_t cluster_count = 0;
     auto& ra = _dataset.get<0>();
     for (std::size_t i = 0; i < ra.size(); ++i) {
-        ra.modify(ra.begin() + i, [&](auto& obj) {
+        ra.modify(ra.begin() +i, [&](auto& obj) {
             obj.cluster_id = static_cast<int>(labels[i]);
         });
         if (labels[i] + 1 > cluster_count)
             cluster_count = labels[i] + 1;
     }
+
+    // --------------------------------------------------------------------
+    // 3. ­Compute metrics -------------------------------------------------
+    // --------------------------------------------------------------------
+    const std::size_t n = labels.n_elem;
+    const std::size_t NOISE = std::numeric_limits<std::size_t>::max();
+
+    // -- helper lambdas ---------------------------------------------------
+    auto averageDistance = [&](const std::vector<std::size_t>& ptsA, const std::vector<std::size_t>& ptsB) -> double {
+        double sum = 0.0;
+        std::size_t cnt = 0;
+        for (std::size_t i : ptsA)
+            for (std::size_t j : ptsB) {
+                if (i == j) continue;
+                sum += _distances(i, j);
+                ++cnt;
+            }
+        return cnt ? sum / cnt : 0.0;
+    };
+
+    // Build cluster → indices map (ignore noise)
+    std::vector<std::vector<std::size_t>> clusters(cluster_count);
+    std::size_t noisePts = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        if (labels[i] == NOISE) ++noisePts;
+        else                     clusters[labels[i]].push_back(i);
+    }
+
+    // --- Silhouette ------------------------------------------------------
+    double silhouetteSum = 0.0;
+    std::size_t silhouetteCnt = 0;
+
+    for (std::size_t c = 0; c < cluster_count; ++c) {
+        const auto& ptsC = clusters[c];
+        if (ptsC.size() < 2) continue;           // a(i)=0, ignore trivial clusters
+        for (std::size_t i : ptsC) {
+            // a(i): avg distance to own cluster
+            double a = averageDistance({i}, ptsC);
+
+            // b(i): smallest avg distance to another cluster
+            double b = std::numeric_limits<double>::infinity();
+            for (std::size_t d = 0; d < cluster_count; ++d) {
+                if (d == c || clusters[d].empty()) continue;
+                b = std::min(b, averageDistance({i}, clusters[d]));
+            }
+
+            if (std::isfinite(b) && std::max(a, b) > 0.0) {
+                silhouetteSum += (b - a) / std::max(a, b);
+                ++silhouetteCnt;
+            }
+        }
+    }
+    double silhouette = silhouetteCnt ? silhouetteSum / silhouetteCnt : std::numeric_limits<double>::quiet_NaN();
+
+    std::cout << "silhouette: " << silhouette << std::endl;
 
     _clustered = true;
     return cluster_count;
@@ -239,7 +299,7 @@ void trace_parser::save(const std::filesystem::path& dir){
 
     if(_clustered) {
         nlohmann::json index  = nlohmann::json::array();
-        const auto& byLabel   = _dataset.get<1>();
+        const auto& byLabel   = _dataset.get<by_cluster>();
 
         for (auto beg = byLabel.lower_bound(0); beg != byLabel.end(); ) {
             int cid        = beg->cluster_id;
@@ -268,9 +328,6 @@ void trace_parser::save(const std::filesystem::path& dir){
 }
 
 void trace_parser::load(const std::filesystem::path& dir) {
-    if (!_dataset.empty())
-        throw std::logic_error("load(): _dataset must be empty");
-
     _distances.load((dir / "distances.bin").string(), arma::arma_binary);
 
     _computed = true;
@@ -278,10 +335,12 @@ void trace_parser::load(const std::filesystem::path& dir) {
     nlohmann::json index;
     {
         std::ifstream js(dir / "index.json");
-        if (!js) throw std::runtime_error("missing index.json");
-        js >> index;
+        if (js){
+            js >> index;
+        }
     }
 
+    std::size_t clusters = 0;
     for (const auto& entry : index) {
         int  cid     = entry.at("id").get<int>();
         std::filesystem::path relPath = entry.at("path").get<std::filesystem::path>();
@@ -290,19 +349,32 @@ void trace_parser::load(const std::filesystem::path& dir) {
         if (!txt)
             throw std::runtime_error("cannot open " + std::filesystem::absolute(relPath).string());
 
+        auto& text_index = _dataset.get<by_text>();
         std::string line;
-        while (std::getline(txt, line)) {
-            if (line.empty()) continue;
-            _dataset.emplace_back(string_entry(std::move(line), cid));
+        while(std::getline(txt, line)) {
+            if(line.empty()) continue;
+
+            auto it = text_index.find(line);
+            if(it != text_index.end()) {
+                // already present → update its cluster_id
+                text_index.modify(it, [&](string_entry& e){
+                    e.cluster_id = cid;
+                });
+            } else {
+                // not present → insert a new entry
+                _dataset.emplace_back(std::move(line), cid);
+            }
         }
+        ++clusters;
     }
-    _clustered = true;
+
+    _clustered = clusters > 0;
 }
 
 std::ostream& trace_parser::print(std::ostream &stream) const {
     std::cout << std::format("N: {} C: {}", _dataset.size(), cluster_count()) << std::endl;
 
-    const auto& ra = _dataset.template get<1>();
+    const auto& ra = _dataset.template get<by_cluster>();
     for (const auto& item: ra) {
         stream << item.text  << " → " << item.cluster_id << std::endl;
     }
@@ -686,6 +758,56 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
         }
         malignment = modified_malignment;
         zones = modified_zones;
+    }
+}
+
+void trace_parser::save_alignments(const std::filesystem::path& dir, int cluster_id, const graph_type &malignment, const std::vector<std::vector<zone> > &all_zones) {
+    nlohmann::json alignment_info = nlohmann::json::object();
+
+    alignment_info["cluster"] = cluster_id;
+    alignment_info["length"]  = malignment.matched();
+    alignment_info["chunks"]  = nlohmann::json::array();
+
+    for(const auto& chunk : malignment) {
+        if(chunk.first) {
+            assert(std::holds_alternative<subsequence>(chunk.second));
+            const subsequence& sub = std::get<subsequence>(chunk.second);
+            alignment_info["chunks"].emplace_back(nlohmann::json::object({
+                {"matched", true},
+                {"content", sub.str()},
+                {"size", sub.size()}
+            }));
+        } else {
+            assert(std::holds_alternative<placeholder>(chunk.second));
+            const placeholder& p = std::get<placeholder>(chunk.second);
+            alignment_info["chunks"].emplace_back(nlohmann::json::object({
+                {"matched", false},
+                {"id", p.id()},
+                {"range", {p._range.first, p._range.second}},
+                {"uniques", p._unique_values},
+                {"size", p.size()}
+            }));
+        }
+    }
+    std::ofstream alignment_fs(dir / std::format("{}.alignment.json", cluster_id));
+    alignment_fs << alignment_info.dump(2);
+
+    std::ofstream stream(dir / std::format("{}.aligned.log", cluster_id));
+    auto range = cluster_range(cluster_id);
+    std::size_t i = 0;
+    for(auto it = range.first; it != range.second; ++it) {
+        const std::vector<zone>& zones = all_zones.at(i);
+        std::size_t pos = 0;
+        for(const zone& z: zones) {
+            const auto& txt = *it;
+            if(!z.is_constant()) stream << "⎨";
+            stream << txt.text.substr(pos, z.length());
+            if(!z.is_constant()) stream << "⎬";
+            pos += z.length();
+        }
+        stream << std::endl;
+
+        ++i;
     }
 }
 
