@@ -83,9 +83,8 @@ void trace_parser::compute(std::size_t threads, bool score_only){
     boost::asio::thread_pool pool(T);
     for (std::size_t i = 0; i < n; ++i) {
         boost::asio::post(pool, [this, i, n, score_only, &jobs_completed]() {
-            for (std::size_t j = i+1; j < n; ++j) {
+            for (std::size_t j = 0; j < n; ++j) {
                 _distances(i, j) = distance(i, j);
-                _distances(j, i) = _distances(i,j);
             }
             jobs_completed++;
             std::cout << std::format("\rDistance Matrix rows {}/{}", jobs_completed.load(), n);
@@ -121,13 +120,9 @@ double trace_parser::distance(std::size_t i, std::size_t j, bool score_only) con
             // Calculate distance as 1 - similarity
             // Similarity = matched_chars / max_matched_chars
             // Distance = 1 - similarity (so distance is in [0, 1])
-            std::size_t max_matched_chars = std::min(ra_index[i].text.size(), ra_index[j].text.size());
-            if(max_matched_chars > 0) {
-                double similarity = static_cast<double>(matched_chars) / static_cast<double>(max_matched_chars);
-                return 1.0 - similarity;
-            } else {
-                return 0.0; // Both strings are empty, distance is 0
-            }
+            // std::size_t max_matched_chars = std::min(ra_index[i].text.size(), ra_index[j].text.size());
+            double similarity = static_cast<double>(matched_chars) / static_cast<double>(std::max(ra_index[i].text.size(), ra_index[j].text.size()));
+            return 1.0 - similarity;
         }
     }
 }
@@ -150,7 +145,7 @@ trace_parser::chain_type trace_parser::align(const string_type &lhs, const strin
         return chain;
     }
 
-    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/1, /*mismatch*/-1, /*gap*/-1);
+    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/2, /*mismatch*/-1, /*gap_open*/-4, /*gap_extend*/ -1);
     spoa::Graph graph{};
 
     {
@@ -386,7 +381,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
-    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kNW, /*match*/2, /*mismatch*/-1, /*gap_open*/-4, /*gap_extend*/ -1);
+    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kSW, /*match*/2, /*mismatch*/-1, /*gap_open*/-4, /*gap_extend*/ -1);
     spoa::Graph graph{};
 
     auto range = cluster_range(i);
@@ -467,9 +462,9 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         p._range = std::make_pair(min_len, max_len);
     };
 
-    for(const auto& seq: msa){
-        std::cout << seq << std::endl;
-    }
+    // for(const auto& seq: msa){
+    //     std::cout << seq << std::endl;
+    // }
 
     all_zones.resize(rows);
     trace_parser::graph_type out;
@@ -623,17 +618,17 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                 assert(std::holds_alternative<placeholder>(component));
                 placeholder& p = std::get<placeholder>(component);
 
-                bool starts_with_alphabets = true, ends_with_alphabets = true;
-                for(auto& v: p._values) {
-                    if(starts_with_alphabets && !v.empty() && alphabets.find(v.front()) == std::string::npos){
-                        starts_with_alphabets = false;
+                bool all_starts_with_alphabets = true, all_ends_with_alphabets = true;
+                for(auto& v: p._unique_values) {
+                    if(all_starts_with_alphabets && !v.empty() && alphabets.find(v.front()) == std::string::npos){
+                        all_starts_with_alphabets = false;
                     }
-                    if(ends_with_alphabets && !v.empty() && alphabets.find(v.back()) == std::string::npos){
-                        ends_with_alphabets = false;
+                    if(all_ends_with_alphabets && !v.empty() && alphabets.find(v.back()) == std::string::npos){
+                        all_ends_with_alphabets = false;
                     }
                 }
 
-                if(it != malignment.begin() && starts_with_alphabets) {
+                if(it != malignment.begin() && all_starts_with_alphabets) {
                     auto& [_, previous_component] = *(it-1);
                     assert(std::holds_alternative<subsequence>(previous_component));
                     subsequence& pre_sub = std::get<subsequence>(previous_component);
@@ -661,7 +656,7 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
                     }
                 }
 
-                if(it != malignment.end() -1 && ends_with_alphabets) {
+                if(it != malignment.end() -1 && all_ends_with_alphabets) {
                     auto& [_, next_component] = *(it+1);
                     assert(std::holds_alternative<subsequence>(next_component));
                     subsequence& next_sub = std::get<subsequence>(next_component);

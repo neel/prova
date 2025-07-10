@@ -142,12 +142,13 @@ int main(int argc, char* argv[]){
                 int i = vm["id"].as<int>();
                 std::vector<std::vector<zone>> zones;
                 trace_parser::graph_type malignment = parser.align(i, zones);
-                trace_parser::adjust(malignment, zones);
-                std::cout << std::endl << std::format("cluster {} ", i) << std::endl << std::endl;
-                malignment.apply(std::cout) << std::endl;
-                std::cout << std::endl;
                 parser.print_aligned(i, std::cout, zones);
+                trace_parser::adjust(malignment, zones);
+                // std::cout << std::endl << std::format("cluster {} ", i) << std::endl << std::endl;
+                // malignment.apply(std::cout) << std::endl;
                 std::cout << std::endl;
+                // parser.print_aligned(i, std::cout, zones);
+                // std::cout << std::endl;
                 parser.save_alignments(output, i, malignment, zones);
             } else {
                 for(auto i = 0; i < parser.cluster_count(); ++i) {
@@ -157,8 +158,8 @@ int main(int argc, char* argv[]){
                     std::cout << std::endl << std::format("cluster {} ", i) << std::endl << std::endl;
                     malignment.apply(std::cout) << std::endl;
                     std::cout << std::endl;
-                    parser.print_aligned(i, std::cout, zones);
-                    std::cout << std::endl;
+                    // parser.print_aligned(i, std::cout, zones);
+                    // std::cout << std::endl;
                     parser.save_alignments(output, i, malignment, zones);
                 }
             }
