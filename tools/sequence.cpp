@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include "prova/trace_parser.h"
+#include <nlohmann/json.hpp>
 #include <boost/program_options.hpp>
 
 struct operations{
@@ -138,6 +139,13 @@ int main(int argc, char* argv[]){
         }
 
         if(op.align) {
+            std::filesystem::path index_json_path = output / "index.json";
+            nlohmann::json index;
+            {
+                std::ifstream index_json_istream(index_json_path);
+                index = nlohmann::json::parse(index_json_istream);
+            }
+
             if(vm.count("id")) {
                 int i = vm["id"].as<int>();
                 std::vector<std::vector<zone>> zones;
@@ -149,7 +157,7 @@ int main(int argc, char* argv[]){
                 std::cout << std::endl;
                 // parser.print_aligned(i, std::cout, zones);
                 // std::cout << std::endl;
-                parser.save_alignments(output, i, malignment, zones);
+                parser.save_alignments(output, i, malignment, zones, index);
             } else {
                 for(auto i = 0; i < parser.cluster_count(); ++i) {
                     std::vector<std::vector<zone>> zones;
@@ -160,9 +168,12 @@ int main(int argc, char* argv[]){
                     std::cout << std::endl;
                     // parser.print_aligned(i, std::cout, zones);
                     // std::cout << std::endl;
-                    parser.save_alignments(output, i, malignment, zones);
+                    parser.save_alignments(output, i, malignment, zones, index);
                 }
             }
+
+            std::ofstream index_json_ostream(index_json_path);
+            index_json_ostream << index.dump(2);
         }
 
         parser.save(output);

@@ -3,6 +3,7 @@
 
 #include <boost/algorithm/string/join.hpp>
 #include <list>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <iostream>
 #include <filesystem>
@@ -423,7 +424,7 @@ struct trace_parser{
 
     static void adjust(trace_parser::graph_type& malignment, std::vector<std::vector<zone>>& zones);
 
-    void save_alignments(const std::filesystem::path &dir, int cluster_id, const graph_type &malignment, const std::vector<std::vector<zone> > &zones);
+    void save_alignments(const std::filesystem::path &dir, int cluster_id, const graph_type &malignment, const std::vector<std::vector<zone> >& zones, nlohmann::json& json);
 
 
 private:

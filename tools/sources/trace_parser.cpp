@@ -156,12 +156,14 @@ trace_parser::chain_type trace_parser::align(const string_type &lhs, const strin
         graph.AddAlignment(alignment, rhs);
     }
 
-    auto msa = graph.GenerateMultipleSequenceAlignment();
+    char gapchar = 0x7f;
+
+    auto msa = graph.GenerateMultipleSequenceAlignment(false, gapchar);
     const std::string& r0 = msa[0];
     const std::string& r1 = msa[1];
     const std::size_t   L = r0.size();
 
-    auto is_match = [](char a, char b){ return a == b && a != '-'; };
+    auto is_match = [gapchar](char a, char b){ return a == b && a != gapchar; };
 
     std::string buffer;
     bool last_match = is_match(r0[0], r1[0]);
@@ -176,7 +178,7 @@ trace_parser::chain_type trace_parser::align(const string_type &lhs, const strin
         bool matched = is_match(a, b);
 
         if (alignment_score)
-            score +=  matched ? 1 : (a=='-' || b=='-') ? -1 : -1;
+            score +=  matched ? 1 : (a==gapchar || b==gapchar) ? -1 : -1;
 
         if (matched != last_match) {
             if(col > last_flip) {
@@ -184,13 +186,13 @@ trace_parser::chain_type trace_parser::align(const string_type &lhs, const strin
                 buffer.clear();
             }
             last_flip = col;
-            if(a != '-') buffer.push_back(a);
+            if(a != gapchar) buffer.push_back(a);
         } else {
-            if(a != '-') buffer.push_back(a);
+            if(a != gapchar) buffer.push_back(a);
         }
 
         last_match = matched;
-        if(a != '-') ++col;
+        if(a != gapchar) ++col;
     }
 
     out.emplace_back(last_match, chunk_type{last_flip, col});
@@ -317,8 +319,11 @@ void trace_parser::save(const std::filesystem::path& dir){
             beg = end;
         }
 
-        std::ofstream idx(dir / "index.json");
-        idx << index.dump(2);
+        std::filesystem::path index_json_path = dir / "index.json";
+        if(!std::filesystem::exists(index_json_path)){
+            std::ofstream idx(index_json_path);
+            idx << index.dump(2);
+        }
     }
 }
 
@@ -389,7 +394,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         auto alignment = alignment_engine->Align(it->text, graph);
         graph.AddAlignment(alignment, it->text);
     }
-    auto msa = graph.GenerateMultipleSequenceAlignment();
+    auto msa = graph.GenerateMultipleSequenceAlignment(false, 0x7f);
 
     const std::size_t rows = N;
     const std::size_t cols = msa.front().size();
@@ -398,7 +403,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
         std::vector<std::string> possibilities;
         possibilities.resize(rows);
 
-        char gap_char = '-';
+        char gap_char = 0x7f;
         std::size_t gap_char_spotted = 0;
         for (std::size_t row = 0; row < rows; ++row) {
             for (std::size_t col = col_begin; col < col_end; ++col) {
@@ -466,6 +471,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
     //     std::cout << seq << std::endl;
     // }
 
+    char gap_char = 0x7f;
     all_zones.resize(rows);
     trace_parser::graph_type out;
     {
@@ -556,7 +562,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
                     all_zones[row].emplace_back(zone{last_match, (col-gaps)-last_change});
                     last_change = (col-gaps);
                 }
-                if(msa[row][col] == '-' && !matched) {
+                if(msa[row][col] == gap_char && !matched) {
                     ++gaps;
                 }
                 last_match = matched;
@@ -779,9 +785,28 @@ void trace_parser::adjust(graph_type& malignment, std::vector<std::vector<zone>>
     }
 }
 
-void trace_parser::save_alignments(const std::filesystem::path& dir, int cluster_id, const graph_type &malignment, const std::vector<std::vector<zone> > &all_zones) {
-    nlohmann::json alignment_info = nlohmann::json::object();
+void trace_parser::save_alignments(const std::filesystem::path& dir, int cluster_id, const graph_type &malignment, const std::vector<std::vector<zone> > &all_zones, nlohmann::json& json) {
+    std::filesystem::path aligned_path = dir / std::format("{}.aligned.log", cluster_id);
+    std::ofstream stream(aligned_path);
+    auto range = cluster_range(cluster_id);
+    std::size_t i = 0;
+    for(auto it = range.first; it != range.second; ++it) {
+        const std::vector<zone>& zones = all_zones.at(i);
+        std::size_t pos = 0;
+        for(const zone& z: zones) {
+            const auto& txt = *it;
+            if(!z.is_constant()) stream << "⎨";
+            // assert(pos < txt.text.size());
+            stream << txt.text.substr(pos, z.length());
+            if(!z.is_constant()) stream << "⎬";
+            pos += z.length();
+        }
+        stream << std::endl;
 
+        ++i;
+    }
+
+    nlohmann::json alignment_info = nlohmann::json::object();
     alignment_info["cluster"] = cluster_id;
     alignment_info["length"]  = malignment.matched();
     alignment_info["chunks"]  = nlohmann::json::array();
@@ -807,27 +832,22 @@ void trace_parser::save_alignments(const std::filesystem::path& dir, int cluster
             }));
         }
     }
+
+    if(!json.is_array()) {
+        throw std::runtime_error{"Malformed index.json"};
+    } else {
+        if(!json[cluster_id].is_object()){
+            throw std::runtime_error{std::format("Malformed index.json expecting element {} to be an object", cluster_id)};
+        } else {
+            json[cluster_id]["chunks"]  = alignment_info["chunks"];
+            json[cluster_id]["length"]  = alignment_info["length"];
+            json[cluster_id]["aligned"] = aligned_path;
+        }
+    }
+
+
     std::ofstream alignment_fs(dir / std::format("{}.alignment.json", cluster_id));
     alignment_fs << alignment_info.dump(2);
-
-    std::ofstream stream(dir / std::format("{}.aligned.log", cluster_id));
-    auto range = cluster_range(cluster_id);
-    std::size_t i = 0;
-    for(auto it = range.first; it != range.second; ++it) {
-        const std::vector<zone>& zones = all_zones.at(i);
-        std::size_t pos = 0;
-        for(const zone& z: zones) {
-            const auto& txt = *it;
-            if(!z.is_constant()) stream << "⎨";
-            // assert(pos < txt.text.size());
-            stream << txt.text.substr(pos, z.length());
-            if(!z.is_constant()) stream << "⎬";
-            pos += z.length();
-        }
-        stream << std::endl;
-
-        ++i;
-    }
 }
 
 

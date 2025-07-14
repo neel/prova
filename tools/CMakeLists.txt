@@ -14,22 +14,25 @@ find_package(mlpack 4.0 REQUIRED)
 
 include_directories(includes)
 
+set(PROVA_SOURCES
+    sources/action.cpp
+    sources/artifact.cpp
+    sources/process.cpp
+    sources/session.cpp
+    sources/store.cpp
+    sources/execution_unit.cpp
+    sources/distance.cpp
+    sources/trace_parser.cpp
+)
+
 set(SEQUENCE_SOURCES
-	sources/action.cpp
-	sources/artifact.cpp
-	sources/process.cpp
-	sources/session.cpp
-	sources/store.cpp
-	# sources/string_indexer.cpp
-	sources/execution_unit.cpp
-	sources/distance.cpp
-        sources/trace_parser.cpp
+    sources/trace_parser.cpp
 )
 
 include_directories(${SEQAN_INCLUDE_DIRS})
 add_definitions(${SEQAN_DEFINITIONS})
 
-add_library(prova-tools SHARED ${SEQUENCE_SOURCES})
+add_library(prova-tools SHARED ${PROVA_SOURCES})
 set_property(TARGET prova-tools PROPERTY CXX_STANDARD 20)
 target_link_libraries(prova-tools PUBLIC Boost::headers nlohmann_json::nlohmann_json)
 target_link_libraries(prova-tools PRIVATE Boost::filesystem Boost::system Boost::process Boost::thread Boost::program_options tash noch-lib spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
@@ -41,7 +44,7 @@ endif()
 
 add_executable(sequence ${SEQUENCE_SOURCES} sequence.cpp)
 set_property(TARGET sequence PROPERTY CXX_STANDARD 20)
-target_link_libraries(sequence PRIVATE Boost::filesystem Boost::system Boost::process Boost::thread Boost::program_options nlohmann_json::nlohmann_json tash noch-lib spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
+target_link_libraries(sequence PRIVATE Boost::thread Boost::program_options nlohmann_json::nlohmann_json spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
 if (MSVC)
   target_compile_definitions(sequence PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
   target_compile_options(sequence PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/includes/prova/win32_winsock_shim.hpp)
