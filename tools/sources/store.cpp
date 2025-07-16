@@ -19,8 +19,8 @@ bool prova::store::insert(prova::session::ptr session){
 	return _sessions.insert(session).second;
 }
 
-void prova::store::fetch(std::string host, unsigned port, std::string user, std::string pass){
-    tash::shell spade("spade", host, port, user, pass); // shell("school", "localhost", 8529, "root", "root")
+void prova::store::fetch(std::string database,std::string host, unsigned port, std::string user, std::string pass){
+    tash::shell spade(database, host, port, user, pass); // shell("school", "localhost", 8529, "root", "root")
     if(spade.exists() == boost::beast::http::status::not_found){
         throw std::runtime_error{"Cannot connect to ArangoDB server"};
     }

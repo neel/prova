@@ -27,6 +27,8 @@ void SettingsDialog::loadSettings() {
     ui->portEdit->setText(settings.value("port", "8529").toString());
     ui->userEdit->setText(settings.value("user", "root").toString());
     ui->passEdit->setText(settings.value("pass", "").toString());
+    ui->dbEdit  ->setText(settings.value("db",   "").toString());
+
     ui->apiKeyNVDLineEdit->setText(settings.value("apiKeyNVD", "").toString());
 
     ui->plantUmlPathEdit->setText(settings.value("plantUmlPath", "").toString());
@@ -44,6 +46,7 @@ void SettingsDialog::saveSettings() {
     settings.setValue("port", ui->portEdit->text());
     settings.setValue("user", ui->userEdit->text());
     settings.setValue("pass", ui->passEdit->text());
+    settings.setValue("db",   ui->dbEdit->text());
 
     settings.setValue("plantUmlPath", ui->plantUmlPathEdit->text());
     settings.setValue("cvePolicy", cvePolicyToVariant());

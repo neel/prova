@@ -179,8 +179,9 @@ void MainWindow::populate(){
     unsigned port = settings.value("port", 8529).toUInt();
     std::string username = settings.value("username", "root").toString().toStdString();
     std::string password = settings.value("password", "").toString().toStdString();
+    std::string database = settings.value("db", "").toString().toStdString();
     try{
-        _store.fetch(host, port, username, password);
+        _store.fetch(database, host, port, username, password);
     } catch(std::exception& ex){
         QMessageBox::critical(this,
             QString::fromStdString("Failed to Fetch"),
