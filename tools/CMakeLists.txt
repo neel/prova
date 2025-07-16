@@ -43,7 +43,7 @@ if (MSVC)
   target_compile_definitions(prova-tools PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
 endif()
 
-if(ARMADILLO_FOUND AND MLPACK_FOUND)
+if(WITH_LOG_ALIGNMENT_TOOL AND ARMADILLO_FOUND AND MLPACK_FOUND)
 
   set(SEQUENCE_SOURCES
       sources/trace_parser.cpp
