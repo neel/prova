@@ -39,6 +39,7 @@ if (MSVC)
   target_compile_definitions(prova-ui PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
 endif()
 
+
 if (WIN32)
   set_target_properties(prova-ui PROPERTIES WIN32_EXECUTABLE ON LINK_FLAGS "/SUBSYSTEM:CONSOLE")
 elseif(APPLE)

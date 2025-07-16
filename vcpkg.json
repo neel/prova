@@ -10,6 +10,7 @@
     "boost-format",
     "boost-multi-index",
     "boost-multiprecision",
+    "boost-program-options",
     "boost-process",
     "boost-system",
     "boost-thread",
