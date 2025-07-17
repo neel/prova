@@ -177,8 +177,8 @@ void MainWindow::populate(){
     QSettings settings("Simula", "SimVul");
     std::string host = settings.value("host", "localhost").toString().toStdString();
     unsigned port = settings.value("port", 8529).toUInt();
-    std::string username = settings.value("username", "root").toString().toStdString();
-    std::string password = settings.value("password", "").toString().toStdString();
+    std::string username = settings.value("user", "root").toString().toStdString();
+    std::string password = settings.value("pass", "").toString().toStdString();
     std::string database = settings.value("db", "").toString().toStdString();
     try{
         _store.fetch(database, host, port, username, password);
