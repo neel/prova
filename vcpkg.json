@@ -2,6 +2,8 @@
   "name": "prova",
   "version": "1.0.0",
   "dependencies": [
+    "armadillo",
+    "boost-serialization",
     "boost-asio",
     "boost-beast",
     "boost-crc",
@@ -14,6 +16,8 @@
     "boost-process",
     "boost-system",
     "boost-thread",
-    "nlohmann-json"
+    "nlohmann-json",
+    "ensmallen",
+    "mlpack"
   ]
 }

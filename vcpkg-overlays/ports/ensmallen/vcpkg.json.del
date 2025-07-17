@@ -1,0 +1,5 @@
+{
+  "name": "ensmallen",
+  "version-string": "2.21.1-oci-fix",
+  "description": "Overlay with CMake 3.5 compatibility"
+}

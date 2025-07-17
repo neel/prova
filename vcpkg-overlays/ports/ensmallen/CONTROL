@@ -1,0 +1,3 @@
+Source: ensmallen
+Version: 2.21.1
+Build-Depends: vcpkg-cmake, vcpkg-cmake-config

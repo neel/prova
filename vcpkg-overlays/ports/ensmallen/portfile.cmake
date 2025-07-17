@@ -1,8 +1,20 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO mlpack/ensmallen
-    PATCHES
-        0001-cmake-3.5.patch
+    REF 2.21.1
+    SHA512 1e86fc28a58694057262a8d036af8080be084c889f7b659b77a08fd4e0957d0f03d8866e47b682a1868b5ac2198cca85c591a334b284096659a123196de95a66
+)
+
+vcpkg_replace_string(
+    "${SOURCE_PATH}/CMakeLists.txt"
+    "cmake_minimum_required(VERSION 3.3.2)"
+    "cmake_minimum_required(VERSION 3.5)"
+)
+
+vcpkg_replace_string(
+    "${SOURCE_PATH}/CMakeLists.txt"
+    "Armadillo::Armadillo"
+    "armadillo"
 )
 
 vcpkg_cmake_configure(
