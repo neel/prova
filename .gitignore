@@ -1,3 +1,4 @@
 build
 vcpkg
 vcpkg_installed
+CMakeLists.txt.user

@@ -1,7 +1,0 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 56d5b87..ad1f6c1 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@
--cmake_minimum_required(VERSION 3.3.2)
-+cmake_minimum_required(VERSION 3.5...3.27)

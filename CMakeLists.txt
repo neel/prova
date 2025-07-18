@@ -13,20 +13,13 @@ project(provenance)
 add_subdirectory(deps/tash)
 add_subdirectory(deps/QJsonModel)
 add_subdirectory(deps/noch)
-
 option(BUILD_SHARED_LIBS "" ON)
+add_subdirectory(deps/spoa)
+# add_subdirectory(deps/seqan)
 
 add_subdirectory(tools)
 
-set(WITH_LOG_ALIGNMENT_TOOL OFF CACHE BOOL "Enable or disable log alignment command line tool")
 
-if(WITH_LOG_ALIGNMENT_TOOL)
-    add_subdirectory(deps/spoa)
-    # add_subdirectory(deps/seqan)
-
-    # find_path(MLPACK_INCLUDE_DIRS "mlpack.hpp")
-    # target_include_directories(main PRIVATE ${MLPACK_INCLUDE_DIRS})
-endif()
 
 # add_subdirectory(server)
 # find_package(ZeroMQ REQUIRED)

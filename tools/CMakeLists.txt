@@ -15,7 +15,7 @@ if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-find_package(Boost REQUIRED COMPONENTS filesystem system process thread program_options)
+find_package(Boost REQUIRED COMPONENTS filesystem system serialization process thread program_options)
 find_package(nlohmann_json REQUIRED)
 
 find_package(Armadillo)
@@ -43,18 +43,14 @@ if (MSVC)
   target_compile_definitions(prova-tools PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
 endif()
 
-if(WITH_LOG_ALIGNMENT_TOOL AND ARMADILLO_FOUND AND MLPACK_FOUND)
-
+if(ARMADILLO_FOUND AND MLPACK_FOUND)
   set(SEQUENCE_SOURCES
       sources/trace_parser.cpp
   )
 
-  include_directories(${SEQAN_INCLUDE_DIRS})
-  add_definitions(${SEQAN_DEFINITIONS})
-
   add_executable(sequence ${SEQUENCE_SOURCES} sequence.cpp)
   set_property(TARGET sequence PROPERTY CXX_STANDARD 20)
-  target_link_libraries(sequence PRIVATE Boost::thread Boost::program_options nlohmann_json::nlohmann_json spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
+  target_link_libraries(sequence PRIVATE Boost::serialization Boost::thread Boost::program_options nlohmann_json::nlohmann_json spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
   if (MSVC)
     target_compile_definitions(sequence PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
     target_compile_options(sequence PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/includes/prova/win32_winsock_shim.hpp)
