@@ -43,6 +43,7 @@ void prova::store::fetch(std::string database,std::string host, unsigned port, s
         LET src = DOCUMENT(vertices, sessions[0].original_from)
         LET tgt = DOCUMENT(vertices, sessions[0].original_to)
         FILTER src.type == 'Process' || tgt.type == 'Process'
+        FILTER src.subtype != 'memory' && tgt.subtype != 'memory'
         // FILTER src.exe == '/usr/sbin/nginx' || tgt.exe == '/usr/sbin/nginx'
         // FILTER src.pid == '13713' || tgt.pid == '13713'
         LET N = LENGTH(sessions)

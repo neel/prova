@@ -67,7 +67,23 @@ void ExUVulnerabilitiesViewer::setUnit(std::shared_ptr<prova::execution_unit> un
             const QString qPath   = QString::fromStdString(props["path"].get<std::string>()).trimmed();
             qDebug() << qPath;
             if (subtype == "file") {
-                const QString fileName = QFileInfo(qPath).fileName();
+                // if qPath contains node_mmodules then extract the part of teh string after node_modules
+                // else take only the filename
+                QString fileName;
+                if (qPath.contains("node_modules")) {
+                    int index = qPath.indexOf("node_modules");
+                    if (index != -1) {
+                        // Skip past "node_modules/"
+                        int start = index + QString("node_modules").length() + 1;
+                        int end = qPath.indexOf('/', start);
+                        if (end == -1) {
+                            end = qPath.length();
+                        }
+                        fileName = qPath.mid(start, end - start);
+                    }
+                } else {
+                    fileName = QFileInfo(qPath).fileName();
+                }
                 if (!fileName.isEmpty())
                     _paths.insert(qPath, fileName);
             } else if (subtype == "directory") {
