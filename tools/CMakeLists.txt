@@ -46,6 +46,7 @@ endif()
 if(ARMADILLO_FOUND AND MLPACK_FOUND)
   set(SEQUENCE_SOURCES
       sources/trace_parser.cpp
+      sources/algorithms.cpp
   )
 
   add_executable(sequence ${SEQUENCE_SOURCES} sequence.cpp)
@@ -57,6 +58,15 @@ if(ARMADILLO_FOUND AND MLPACK_FOUND)
     target_compile_definitions(sequence PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
   endif()
 
+endif()
+
+add_executable(align ${SEQUENCE_SOURCES} align.cpp)
+set_property(TARGET align PROPERTY CXX_STANDARD 20)
+target_link_libraries(align PRIVATE Boost::serialization Boost::thread Boost::program_options nlohmann_json::nlohmann_json spoa::spoa ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
+if (MSVC)
+  target_compile_definitions(align PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
+  target_compile_options(align PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/includes/prova/win32_winsock_shim.hpp)
+  target_compile_definitions(align PRIVATE $<$<PLATFORM_ID:Windows>:_WINSOCKAPI_> $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>)
 endif()
 
 install(TARGETS prova-tools
