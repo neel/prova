@@ -4,6 +4,7 @@
 #include <boost/range/combine.hpp>
 #include <boost/foreach.hpp>
 #include <set>
+#include <algorithm>
 #include <numeric>
 #include <iostream>
 #include <fstream>
@@ -192,6 +193,27 @@ void prova::algorithms::alignment::bubble(const index& idx, std::size_t threshol
     }
 }
 
+void prova::algorithms::alignment::bubble_pairwise(const_iterator u, const_iterator v, const index &idx, std::size_t threshold, std::size_t carry){
+    assert(idx.count() == 2);
+    bool color = (u->at(idx.at(0)) == v->at(idx.at(1)));
+    if (color) {
+        if(!idx.is_top()) {
+            bubble(idx.top_left(), threshold, carry + 1);
+        } else {
+            if(carry >= threshold-1) {
+                _memo[idx] = carry + 1;
+            }
+        }
+    } else {
+        if (carry >= threshold) {
+            _memo[idx.bottom_right()] = carry;
+        }
+        if(!idx.is_top()) {
+            bubble(idx.top_left(), threshold, 0);
+        }
+    }
+}
+
 // Iterative: least-significant index 0 rolls fastest.
 void enumerate_mixed_radix(const std::vector<std::size_t>& L, std::size_t j, const std::function<void(std::vector<std::size_t>)>& visit) {
     const std::size_t N = L.size();
@@ -247,6 +269,21 @@ prova::algorithms::graph prova::algorithms::alignment::bubble_all(std::size_t th
     segment finish{_collection.at(0), index{std::move(last_indices)}, 0};
 
     return prova::algorithms::graph{std::move(segments), std::move(start), std::move(finish)};
+}
+
+prova::algorithms::graph prova::algorithms::alignment::bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold){
+    assert(threshold > 0);
+    std::size_t N = 2;
+    std::vector<std::size_t> L{u->size(), v->size()};
+
+    for(std::size_t j = 0; j < N; ++j) {
+        enumerate_mixed_radix(L, j, [threshold, this](std::vector<std::size_t> x){
+            // std::cout << "[";
+            // std::ranges::copy(x, std::ostream_iterator<std::size_t>(std::cout, ","));
+            // std::cout << "]" << std::endl;
+            bubble(index{std::move(x)}, threshold, 0);
+        });
+    }
 }
 
 prova::algorithms::index prova::algorithms::face::move(const index &idx, int64_t delta) const {
@@ -502,5 +539,16 @@ std::ostream& prova::algorithms::path::print(std::ostream& out){
         out << s.get().view();
         ++i;
     }
+    out << " | " << score();
     return out;
+}
+
+std::size_t prova::algorithms::path::matched() const{
+    return std::accumulate(begin(), end(), 0, [](std::size_t last, const auto& s){
+        return last + s.get().length();
+    });
+}
+
+double prova::algorithms::path::score() const{
+    return static_cast<double>(matched()) / static_cast<double>((*begin()).get().base().size());
 }

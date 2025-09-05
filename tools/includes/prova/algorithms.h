@@ -201,6 +201,7 @@ class segment{
 
 public:
     inline explicit segment(const std::string& base, index start, std::size_t length): _base(base), _start(start), _length(length) {}
+    inline const std::string& base() const { return _base; }
     inline const prova::algorithms::index start() const { return _start; }
     inline const prova::algorithms::index end() const { return _start + _length-1; }
     inline std::size_t length() const { return _length; }
@@ -232,6 +233,9 @@ public:
     inline const_iterator end() const { return _segments.end(); }
     inline size_type size() const { return _segments.size(); }
     std::ostream& print(std::ostream& out);
+
+    std::size_t matched() const;
+    double score() const;
 };
 
 class graph{
@@ -277,6 +281,7 @@ class alignment{
 
     using memo_type                 = std::map<index, std::size_t>;
     using segment_collection_type   = std::vector<segment>;
+    using const_iterator            = collection::const_iterator;
     using graph_type                = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, boost::no_property, edge_props>;
     using vertex_type               = boost::graph_traits<graph_type>::vertex_descriptor;
 
@@ -287,7 +292,9 @@ public:
     const collection& inputs() const { return _collection; }
 
     void bubble(const index& idx, std::size_t threshold, std::size_t carry);
+    void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, std::size_t threshold, std::size_t carry);
     graph bubble_all(std::size_t threshold = 1);
+    graph bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold = 1);
 
     const memo_type& memo() const { return _memo; }
 
