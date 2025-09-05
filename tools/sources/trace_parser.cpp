@@ -386,7 +386,7 @@ trace_parser::graph_type trace_parser::align(int i, std::vector<std::vector<zone
     std::size_t N = cluster_count(i);
     std::cout << std::format("Cluster {} size {}", i, N) << std::endl;
 
-    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kSW, /*match*/2, /*mismatch*/-1, /*gap_open*/-4, /*gap_extend*/ -1);
+    auto alignment_engine = spoa::AlignmentEngine::Create(spoa::AlignmentType::kSW, /*match*/4, /*mismatch*/-1, /*gap_open*/-4, /*gap_extend*/ -1);
     spoa::Graph graph{};
 
     auto range = cluster_range(i);

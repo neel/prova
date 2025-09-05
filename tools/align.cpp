@@ -1,5 +1,6 @@
 #include "prova/algorithms.h"
 #include <iostream>
+#include <fstream>
 
 int main() {
     prova::algorithms::alignment alignment;
@@ -13,15 +14,26 @@ int main() {
     // alignment.add("ABC1234567DEFdwdwwdwdwwdwdwdw789654");
     // alignment.add("ABCDEF04558sou78654");
 
-    alignment.add("ABCDEFG89634146EFG89");
-    alignment.add("ABCDEFG66EFG89");
-    alignment.add("ABCDEFG6EFG89");
+    // alignment.add("ABCDEFG89634146EFG89");
+    // alignment.add("ABCDEFG66EFG89");
+    // alignment.add("ABCDEFG6EFG89");
 
-    alignment.bubble_all(2);
+    alignment.add("Hello W Here I am do you hear me");
+    alignment.add("J Here Jx am do you hear me");
 
-    for(const auto& segment: alignment) {
+    prova::algorithms::graph graph = alignment.bubble_all(2);
+
+    for(const auto& segment: graph) {
         std::cout << segment << std::endl;
     }
+
+    graph.build();
+    std::ofstream graphml{"out.graphml"};
+    graph.print(graphml);
+
+    std::cout << "Shortest Path" << std::endl;
+    prova::algorithms::path path = graph.shortest_path();
+    path.print(std::cout) << std::endl;
 
     return 0;
 }
