@@ -271,7 +271,7 @@ prova::algorithms::graph prova::algorithms::alignment::bubble_all(std::size_t th
     return prova::algorithms::graph{std::move(segments), std::move(start), std::move(finish)};
 }
 
-prova::algorithms::graph prova::algorithms::alignment::bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold){
+void prova::algorithms::alignment::bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold){
     assert(threshold > 0);
     std::size_t N = 2;
     std::vector<std::size_t> L{u->size(), v->size()};

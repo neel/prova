@@ -294,7 +294,7 @@ public:
     void bubble(const index& idx, std::size_t threshold, std::size_t carry);
     void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, std::size_t threshold, std::size_t carry);
     graph bubble_all(std::size_t threshold = 1);
-    graph bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold = 1);
+    void bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold = 1);
 
     const memo_type& memo() const { return _memo; }
 

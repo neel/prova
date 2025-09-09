@@ -32,7 +32,12 @@ qt_add_executable(prova-ui
     exufilterproxymodel.h exufilterproxymodel.cpp
 )
 
-target_link_libraries(prova-ui PRIVATE Qt6::Core Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::SvgWidgets Qt6::Network prova-tools QJsonModelShared)
+target_link_libraries(prova-ui PRIVATE Qt6::Core Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickWidgets Qt6::QuickControls2 Qt6::Svg Qt6::SvgWidgets Qt6::Network prova-tools)
+if(MSVC)
+  target_link_libraries(prova-ui PRIVATE Qt6::QJsonModel)
+else()
+  target_link_libraries(prova-ui PRIVATE QJsonModelShared)
+endif()
 if (MSVC)
   target_compile_definitions(prova-ui PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
   target_compile_options(prova-ui PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/win32_winsock_shim.hpp)
