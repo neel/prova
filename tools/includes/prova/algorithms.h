@@ -201,6 +201,14 @@ class segment{
 
 public:
     inline explicit segment(const std::string& base, index start, std::size_t length): _base(base), _start(start), _length(length) {}
+    inline segment(const segment& other) = default;
+    inline segment(segment&& other): _base(other._base), _start(std::move(other._start)), _length(std::move(other._length)) {
+        for(std::size_t i = 0; i != other._start.count(); ++i) {
+            other._start.at(i) = 0;
+        }
+        other._length = 0;
+    }
+
     inline const std::string& base() const { return _base; }
     inline const prova::algorithms::index start() const { return _start; }
     inline const prova::algorithms::index end() const { return _start + _length-1; }
@@ -225,6 +233,10 @@ public:
     using size_type = container_type::size_type;
     using reference = container_type::reference;
     using const_reference = container_type::const_reference;
+
+    inline path() = default;
+    inline path(const path&) = default;
+    inline path(path&& other): _segments(other._segments) {}
 
     inline void add(const segment& s){
         _segments.push_back(std::cref(s));
@@ -288,13 +300,53 @@ class alignment{
     collection _collection;
     memo_type  _memo;
 public:
+    using key_type = std::pair<std::uint32_t, std::uint32_t>;
+    struct pair_hash{
+        std::uint64_t operator()(const key_type& key) const noexcept {
+            std::uint64_t res = key.first;
+            res = std::rotl(res, 32) + key.second;
+            return res;
+        }
+    };
+    using matrix_type = std::unordered_map<key_type, prova::algorithms::path, pair_hash>;
+public:
     inline void add(const std::string& str) { _collection.add(str); }
     const collection& inputs() const { return _collection; }
 
+    /**
+     * @brief bubble accross the kD tensor starting from the given index through the diagonal (all 1) line
+     * @param idx
+     * @param threshold
+     * @param carry
+     * @pre expects idx.size() == inputs.size()
+     */
     void bubble(const index& idx, std::size_t threshold, std::size_t carry);
-    void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, std::size_t threshold, std::size_t carry);
+
+    /**
+     * @brief bubble from all floor points in the kD tensor
+     * @param threshold
+     * @return
+     */
     graph bubble_all(std::size_t threshold = 1);
-    void bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold = 1);
+
+    /**
+     * @brief bubble accross a matrix starting from the given index through the diagonal line
+     * @param u
+     * @param v
+     * @param idx
+     * @param threshold
+     * @param carry
+     * @pre expects the idx.size() == 2
+     */
+    void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, memo_type& memo, std::size_t threshold, std::size_t carry);
+
+    /**
+     * @brief Takes the first one as the base and others as the reference
+     * @param u
+     * @param v
+     * @param threshold
+     */
+    void bubble_all_pairwise(prova::algorithms::alignment::matrix_type& mat, std::size_t threshold = 1);
 
     const memo_type& memo() const { return _memo; }
 

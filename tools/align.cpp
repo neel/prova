@@ -1,6 +1,7 @@
 #include "prova/algorithms.h"
 #include <iostream>
 #include <fstream>
+#include <format>
 
 int main() {
     prova::algorithms::alignment alignment;
@@ -21,19 +22,26 @@ int main() {
     alignment.add("Hello W Here I am do you hear me");
     alignment.add("J Here Jx am do you hear me");
 
-    prova::algorithms::graph graph = alignment.bubble_all(2);
+    // prova::algorithms::graph graph = alignment.bubble_all(2);
 
-    for(const auto& segment: graph) {
-        std::cout << segment << std::endl;
+    // for(const auto& segment: graph) {
+    //     std::cout << segment << std::endl;
+    // }
+
+    // graph.build();
+    // std::ofstream graphml{"out.graphml"};
+    // graph.print(graphml);
+
+    // std::cout << "Shortest Path" << std::endl;
+    // prova::algorithms::path path = graph.shortest_path();
+    // path.print(std::cout) << std::endl;
+
+    prova::algorithms::alignment::matrix_type matrix;
+    alignment.bubble_all_pairwise(matrix, 2);
+
+    for(const auto& [key, path]: matrix) {
+        std::cout << std::format("({},{})", key.first, key.second) << ": " << (path.begin()).base()->get() << std::endl;
     }
-
-    graph.build();
-    std::ofstream graphml{"out.graphml"};
-    graph.print(graphml);
-
-    std::cout << "Shortest Path" << std::endl;
-    prova::algorithms::path path = graph.shortest_path();
-    path.print(std::cout) << std::endl;
 
     return 0;
 }

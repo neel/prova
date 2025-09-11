@@ -10,6 +10,7 @@
 #include <fstream>
 #include <format>
 #include <queue>
+#include <bit>
 #include <boost/lexical_cast.hpp>
 #include <boost/graph/dag_shortest_paths.hpp>
 #include <boost/graph/bellman_ford_shortest_paths.hpp>
@@ -193,23 +194,23 @@ void prova::algorithms::alignment::bubble(const index& idx, std::size_t threshol
     }
 }
 
-void prova::algorithms::alignment::bubble_pairwise(const_iterator u, const_iterator v, const index &idx, std::size_t threshold, std::size_t carry){
+void prova::algorithms::alignment::bubble_pairwise(const_iterator u, const_iterator v, const index &idx, memo_type& memo, std::size_t threshold, std::size_t carry){
     assert(idx.count() == 2);
     bool color = (u->at(idx.at(0)) == v->at(idx.at(1)));
     if (color) {
         if(!idx.is_top()) {
-            bubble(idx.top_left(), threshold, carry + 1);
+            bubble_pairwise(u, v, idx.top_left(), memo, threshold, carry + 1);
         } else {
             if(carry >= threshold-1) {
-                _memo[idx] = carry + 1;
+                memo[idx] = carry + 1;
             }
         }
     } else {
         if (carry >= threshold) {
-            _memo[idx.bottom_right()] = carry;
+            memo[idx.bottom_right()] = carry;
         }
         if(!idx.is_top()) {
-            bubble(idx.top_left(), threshold, 0);
+            bubble_pairwise(u, v, idx.top_left(), memo, threshold, 0);
         }
     }
 }
@@ -271,18 +272,50 @@ prova::algorithms::graph prova::algorithms::alignment::bubble_all(std::size_t th
     return prova::algorithms::graph{std::move(segments), std::move(start), std::move(finish)};
 }
 
-void prova::algorithms::alignment::bubble_all_pairwise(const_iterator u, const_iterator v, std::size_t threshold){
+void prova::algorithms::alignment::bubble_all_pairwise(prova::algorithms::alignment::matrix_type& mat, std::size_t threshold){
     assert(threshold > 0);
     std::size_t N = 2;
-    std::vector<std::size_t> L{u->size(), v->size()};
 
-    for(std::size_t j = 0; j < N; ++j) {
-        enumerate_mixed_radix(L, j, [threshold, this](std::vector<std::size_t> x){
-            // std::cout << "[";
-            // std::ranges::copy(x, std::ostream_iterator<std::size_t>(std::cout, ","));
-            // std::cout << "]" << std::endl;
-            bubble(index{std::move(x)}, threshold, 0);
-        });
+    std::size_t u = 0;
+    for(auto base = _collection.begin(); base != _collection.end(); ++base) {
+
+        std::size_t v = 0;
+        for(auto ref = _collection.begin(); ref != _collection.end(); ++ref) {
+            if(base == ref) {
+                ++v;
+                continue;
+            }
+
+            std::vector<std::size_t> L{base->size()-1, ref->size()-1};
+            memo_type memo;
+
+            for(std::size_t j = 0; j < N; ++j) {
+                enumerate_mixed_radix(L, j, [threshold, this, base, ref, &memo](std::vector<std::size_t> x){
+                    // std::cout << "[";
+                    // std::ranges::copy(x, std::ostream_iterator<std::size_t>(std::cout, ","));
+                    // std::cout << "]" << std::endl;
+                    bubble_pairwise(base, ref, index{std::move(x)}, memo, threshold, 0);
+                });
+            }
+
+            segment_collection_type segments;
+            for(const auto& [idx, length]: memo) {
+                segments.emplace_back(segment{*base, idx, length});
+            }
+            segment start{*base, index{2}, 0};
+            segment finish{*base, index{{base->size(), ref->size()}}, 0};
+
+            prova::algorithms::graph graph{std::move(segments), std::move(start), std::move(finish)};
+            graph.build();
+            prova::algorithms::path path = graph.shortest_path();
+
+            auto key = std::make_pair(u, v);
+            std::cout << "score: " << path.score() << std::endl;
+            mat.emplace(key, std::move(path));
+            std::cout << "score: " << mat.at(key).score() << std::endl;
+            ++v;
+        }
+        ++u;
     }
 }
 
@@ -481,6 +514,12 @@ std::ostream& prova::algorithms::graph::print(std::ostream& stream){
 prova::algorithms::path prova::algorithms::graph::shortest_path(){
     std::size_t vertex_count = boost::num_vertices(_graph);
 
+    if(vertex_count == 3){
+        prova::algorithms::path path;
+        path.add(_segments.at(0));
+        return path;
+    }
+
     std::vector<double> distances(boost::num_vertices(_graph), std::numeric_limits<double>::infinity());
     std::vector<vertex_type> predecessors(boost::num_vertices(_graph), _S);
     auto distance_map = boost::make_iterator_property_map(distances.begin(), boost::get(boost::vertex_index, _graph));
@@ -502,7 +541,7 @@ prova::algorithms::path prova::algorithms::graph::shortest_path(){
     );
 
     if (!no_negative_cycle) {
-        std::cout << "Negative weight cycle detected\n";
+        throw std::runtime_error{"Negative weight cycle detected"};
     } else {
         std::stack<vertex_type> vstack;
         vertex_type v = _T;
@@ -550,5 +589,8 @@ std::size_t prova::algorithms::path::matched() const{
 }
 
 double prova::algorithms::path::score() const{
-    return static_cast<double>(matched()) / static_cast<double>((*begin()).get().base().size());
+    assert(size() > 0);
+    const segment& first_segment = (*begin()).get();
+    const std::string& base = first_segment.base();
+    return static_cast<double>(matched()) / static_cast<double>(base.size());
 }
