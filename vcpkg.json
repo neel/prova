@@ -17,6 +17,7 @@
     "boost-system",
     "boost-thread",
     "boost-graph",
+    "boost-icl",
     "nlohmann-json",
     "ensmallen",
     "mlpack"

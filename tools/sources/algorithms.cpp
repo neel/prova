@@ -688,31 +688,96 @@ prova::algorithms::multi_alignment::region_map prova::algorithms::multi_alignmen
     return regions;
 }
 
-void prova::algorithms::multi_alignment::fixture_word_booundary(region_map &regions) const{
+prova::algorithms::multi_alignment::region_map prova::algorithms::multi_alignment::fixture_word_booundary(const region_map &regions) const{
     // ensures that a matched region is surrounded by non-word characters including end of line
     static std::string alphabets = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_:/.";
+    region_map result;
     for(auto& candidate: regions) {
         std::size_t candidate_id = candidate.first;
-        interval_set& intervals = candidate.second;
+        const interval_set& intervals = candidate.second;
+        std::vector<std::pair<region_type, zone>> updated_regions;
+        std::size_t squeeze_left_next = 0;
         for(auto& z: intervals) {
             auto& region = z.first;
+            auto updated_region = region;
+            // { check if there is any distance carried forward by the previous region
+            if(squeeze_left_next > 0) {
+                updated_region = region_type::right_open(updated_region.lower()-squeeze_left_next, updated_region.upper());
+            }
+            // }
             prova::algorithms::zone tag = *z.second.cbegin();
             if(tag == prova::algorithms::zone::constant) {
                 const std::string& ref = _collection.at(candidate_id);
                 // std::cout << z.first << " <" << ref.substr(region.lower(), region.upper()-region.lower()) << "> " << tag << std::endl;
                 std::string_view view{ref.begin()+region.lower(), ref.begin()+(region.upper()-region.lower())};
-                // check right to find
+
+                // { check right to find
                 auto rear = view.rbegin();
                 for(auto it = rear; it != view.rend(); ++it) {
-                    bool is_alpha = alphabets.find(*it);
+                    bool is_alpha = (alphabets.find(*it) != alphabets.npos);
                     if(!is_alpha) {
                         rear = it;
                     }
                 }
                 std::size_t dist_rear = std::distance(rear, view.rbegin());
+                if(dist_rear > 0) { // squeeze region from right
+                    updated_region = region_type::right_open(updated_region.lower(), updated_region.upper()-dist_rear);
+                    squeeze_left_next = dist_rear;
+                }
+                // }
+
+                // { check left to find
+                auto front = view.begin();
+                for(auto it = front; it != view.end(); ++it) {
+                    bool is_alpha = (alphabets.find(*it) != alphabets.npos);
+                    if(!is_alpha) {
+                        front = it;
+                    }
+                }
+                std::size_t dist_front = std::distance(rear, view.rbegin());
+                if(dist_front > 0) { // squeeze region from right
+                    updated_region = region_type::right_open(updated_region.lower()+dist_front, updated_region.upper());
+                    if(!updated_regions.empty()) {
+                        // expand the upper bound of the last region
+                        auto& last = updated_regions.back().first;
+                        last = region_type::right_open(last.lower(), last.upper()+dist_front);
+                    } else {
+                        // create a new placeholder
+                        auto new_region = region_type::right_open(0, dist_front);
+                        updated_regions.push_back(std::make_pair(new_region, zone::placeholder));
+                    }
+                }
+                // }
+
+                updated_regions.push_back(std::make_pair(updated_region, zone::constant));
+            } else {
+                updated_regions.push_back(std::make_pair(updated_region, zone::placeholder));
             }
         }
 
-        std::cout << std::endl;
+        interval_set updated_intervals;
+        for(const auto& pair: updated_regions) {
+            std::set<zone> zones;
+            zones.insert(pair.second);
+            updated_intervals.add(std::make_pair(pair.first, zones));
+        }
+
+        result.insert(std::make_pair(candidate_id, updated_intervals));
     }
+
+    return result;
+
+}
+
+std::ostream &prova::algorithms::multi_alignment::print_regions(const region_map &regions, std::ostream &stream){
+    for(auto& candidate: regions) {
+        for(const auto& z: candidate.second) {
+            prova::algorithms::zone tag = *z.second.cbegin();
+            const std::string& ref = _collection.at(candidate.first);
+            stream << z.first << " <" << ref.substr(z.first.lower(), z.first.upper()-z.first.lower()) << "> " << tag << std::endl;
+        }
+
+        stream << std::endl;
+    }
+    return stream;
 }

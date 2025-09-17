@@ -7,19 +7,19 @@
 #include <boost/icl/split_interval_map.hpp>
 #include <boost/icl/separate_interval_set.hpp>
 
-struct matched_val{
-    std::size_t id;
-    std::size_t ref_pos;
-    std::size_t base_pos;
+// struct matched_val{
+//     std::size_t id;
+//     std::size_t ref_pos;
+//     std::size_t base_pos;
 
-    bool operator<(const matched_val& other) const {
-        return id < other.id;
-    }
+//     bool operator<(const matched_val& other) const {
+//         return id < other.id;
+//     }
 
-    bool operator==(const matched_val& other) const {
-        return id == other.id && ref_pos == other.ref_pos && base_pos == other.base_pos;
-    }
-};
+//     bool operator==(const matched_val& other) const {
+//         return id == other.id && ref_pos == other.ref_pos && base_pos == other.base_pos;
+//     }
+// };
 
 // struct zone{
 //     bool        _constant;
@@ -64,15 +64,18 @@ int main() {
     prova::algorithms::multi_alignment malign(alignment.inputs(), matrix, 0);
     prova::algorithms::multi_alignment::region_map regions = malign.align();
 
-    for(auto& candidate: regions) {
-        for(const auto& z: candidate.second) {
-            prova::algorithms::zone tag = *z.second.cbegin();
-            const std::string& ref = alignment.inputs().at(candidate.first);
-            std::cout << z.first << " <" << ref.substr(z.first.lower(), z.first.upper()-z.first.lower()) << "> " << tag << std::endl;
-        }
+    regions = malign.fixture_word_booundary(regions);
+    malign.print_regions(regions, std::cout) << std::endl;
 
-        std::cout << std::endl;
-    }
+    // for(auto& candidate: regions) {
+    //     for(const auto& z: candidate.second) {
+    //         prova::algorithms::zone tag = *z.second.cbegin();
+    //         const std::string& ref = alignment.inputs().at(candidate.first);
+    //         std::cout << z.first << " <" << ref.substr(z.first.lower(), z.first.upper()-z.first.lower()) << "> " << tag << std::endl;
+    //     }
+
+    //     std::cout << std::endl;
+    // }
 }
 
 // int main2() {

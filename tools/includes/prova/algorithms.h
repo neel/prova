@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <map>
+#include <bit>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/icl/interval.hpp>
 #include <boost/icl/split_interval_map.hpp>
@@ -384,7 +385,6 @@ class multi_alignment{
     std::size_t _base_index;
 
 public:
-
     using interval_val  = std::set<matched_val>;
     using interval_map  = boost::icl::split_interval_map<std::size_t, interval_val>;
     using interval_set  = boost::icl::split_interval_map<std::size_t, std::set<zone>>;
@@ -392,13 +392,13 @@ public:
     using region_type   = interval_set::interval_type;
     using interval_type = interval_map::interval_type;
 
-
-
 public:
     inline multi_alignment(const collection& collection, const alignment::matrix_type& matrix, std::size_t base_index): _collection(collection), _matrix(matrix), _base_index(base_index) {}
     region_map align() const;
-    void fixture_word_booundary(region_map& regions) const;
+    region_map fixture_word_booundary(const region_map &regions) const;
 
+public:
+    std::ostream& print_regions(const region_map& regions, std::ostream& stream);
 };
 
 }
