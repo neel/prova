@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <map>
 #include <boost/graph/adjacency_list.hpp>
+#include <boost/icl/interval.hpp>
+#include <boost/icl/split_interval_map.hpp>
+#include <boost/icl/separate_interval_set.hpp>
 
 namespace prova{
 
@@ -223,7 +226,7 @@ public:
 };
 
 class path{
-    using container_type = std::vector<std::reference_wrapper<const segment>>;
+    using container_type = std::vector<segment>;
 
     container_type _segments;
 public:
@@ -239,7 +242,7 @@ public:
     inline path(path&& other): _segments(other._segments) {}
 
     inline void add(const segment& s){
-        _segments.push_back(std::cref(s));
+        _segments.push_back(s);
     }
     inline const_iterator begin() const { return _segments.begin(); }
     inline const_iterator end() const { return _segments.end(); }
@@ -349,7 +352,52 @@ public:
     void bubble_all_pairwise(prova::algorithms::alignment::matrix_type& mat, std::size_t threshold = 1);
 
     const memo_type& memo() const { return _memo; }
+};
 
+enum class zone{ constant, placeholder };
+inline std::ostream& operator<<(std::ostream& stream, const zone& z) {
+    if(z == zone::constant) {
+        stream << "C";
+    } else {
+        stream << "P";
+    }
+    return stream;
+}
+
+class multi_alignment{
+    struct matched_val{
+        std::size_t id;
+        std::size_t ref_pos;
+        std::size_t base_pos;
+
+        bool operator<(const matched_val& other) const {
+            return id < other.id;
+        }
+
+        bool operator==(const matched_val& other) const {
+            return id == other.id && ref_pos == other.ref_pos && base_pos == other.base_pos;
+        }
+    };
+
+    const collection& _collection;
+    const alignment::matrix_type& _matrix;
+    std::size_t _base_index;
+
+public:
+
+    using interval_val  = std::set<matched_val>;
+    using interval_map  = boost::icl::split_interval_map<std::size_t, interval_val>;
+    using interval_set  = boost::icl::split_interval_map<std::size_t, std::set<zone>>;
+    using region_map    = std::map<std::size_t, interval_set>;
+    using region_type   = interval_set::interval_type;
+    using interval_type = interval_map::interval_type;
+
+
+
+public:
+    inline multi_alignment(const collection& collection, const alignment::matrix_type& matrix, std::size_t base_index): _collection(collection), _matrix(matrix), _base_index(base_index) {}
+    region_map align() const;
+    void fixture_word_booundary(region_map& regions) const;
 
 };
 

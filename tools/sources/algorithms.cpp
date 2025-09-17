@@ -310,9 +310,9 @@ void prova::algorithms::alignment::bubble_all_pairwise(prova::algorithms::alignm
             prova::algorithms::path path = graph.shortest_path();
 
             auto key = std::make_pair(u, v);
-            std::cout << "score: " << path.score() << std::endl;
+            // std::cout << "score: " << path.score() << std::endl;
             mat.emplace(key, std::move(path));
-            std::cout << "score: " << mat.at(key).score() << std::endl;
+            // std::cout << "score: " << mat.at(key).score() << std::endl;
             ++v;
         }
         ++u;
@@ -575,7 +575,7 @@ std::ostream& prova::algorithms::path::print(std::ostream& out){
             out << " -> ";
         }
 
-        out << s.get().view();
+        out << s.view();
         ++i;
     }
     out << " | " << score();
@@ -584,13 +584,135 @@ std::ostream& prova::algorithms::path::print(std::ostream& out){
 
 std::size_t prova::algorithms::path::matched() const{
     return std::accumulate(begin(), end(), 0, [](std::size_t last, const auto& s){
-        return last + s.get().length();
+        return last + s.length();
     });
 }
 
 double prova::algorithms::path::score() const{
     assert(size() > 0);
-    const segment& first_segment = (*begin()).get();
+    const segment& first_segment = *begin();
     const std::string& base = first_segment.base();
     return static_cast<double>(matched()) / static_cast<double>(base.size());
+}
+
+prova::algorithms::multi_alignment::region_map prova::algorithms::multi_alignment::align() const {
+    interval_map intervals;
+
+    for(const auto& [key, path]: _matrix) {
+        if(key.first != _base_index) continue;
+        std::cout << std::format("({},{})", key.first, key.second) << "| ";
+        for(const auto& s: path){
+            prova::algorithms::index start = s.start();
+            std::size_t start_pos = start.at(0);
+            std::size_t end_pos   = start_pos + s.length();
+            interval_type::type interval = interval_type::right_open(start_pos, end_pos);
+            interval_val val;
+            matched_val matched;
+            matched.id = key.second;
+            matched.base_pos = start_pos;
+            matched.ref_pos = start.at(1);
+            val.insert(matched);
+            intervals.add(std::make_pair(interval, val)); //
+            std::cout << std::format("[{}, {})", start_pos, end_pos) << "-" << s.start();
+            // std::cout << s << "~~~";
+        }
+        std::cout << std::endl;
+    }
+
+    region_map regions;
+
+    for(std::size_t i = 0; i != _collection.count(); ++i) {
+        regions.insert(std::make_pair(i, interval_set{}));
+    }
+
+    const std::string& base_ref = _collection.at(_base_index);
+    // auto base_begin = base_ref.begin();
+    for(const auto& iv: intervals) {
+        if(iv.second.size() == _collection.count()-1) {
+            std::size_t len = iv.first.upper() - iv.first.lower();
+            // auto start = base_begin+iv.first.lower();
+            // auto end   = start + len;
+            // std::string_view base_view(start, end);
+            // std::cout << iv.first << ": <" << base_view << ">" << std::endl;
+            // regions[base_index].add(region_type::right_open(iv.first.lower(), iv.first.lower() +len));
+            std::set<zone> zones;
+            zones.insert(zone::constant);
+            regions[_base_index].add(std::make_pair(region_type::right_open(iv.first.lower(), iv.first.lower() +len), zones));
+            for(const matched_val& v: iv.second) {
+                // std::cout << "\t" << v.id << "-> " << v.ref_pos << " (" << v.base_pos << ")" << std::endl;
+                // const std::string& ref = _collection.at(v.id);
+                std::size_t delta = iv.first.lower() - v.base_pos;
+                std::size_t ref_start = v.ref_pos+delta;
+                std::size_t ref_end   = delta+v.ref_pos+len;
+                // std::string_view ref_view(ref.begin()+ref_start, ref.begin()+ref_end);
+                // std::cout << "\t<" << ref_view << ">" << std::endl;
+                // regions[v.id].add(region_type::closed(ref_start, ref_end));
+                std::set<zone> zones;
+                zones.insert(zone::constant);
+                regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
+            }
+        }
+    }
+
+    for(auto& candidate: regions) {
+        // std::cout << candidate.first << " {" << candidate.second.size() << "}" << std::endl;
+        std::size_t last = 0;
+        std::vector<region_type> placeholders;
+        for(const auto& z: candidate.second) {
+            if(z.first.lower() > last) {
+                placeholders.push_back(region_type::right_open(last, z.first.upper()));
+            }
+            last = z.first.upper();
+        }
+        std::size_t end = _collection.at(candidate.first).size();
+        if(end > last) {
+            placeholders.push_back(region_type::right_open(last, end));
+        }
+
+
+        std::set<zone> zones;
+        zones.insert(zone::placeholder);
+        for(const auto& p: placeholders) {
+            candidate.second.add(std::make_pair(p, zones));
+        }
+
+        // for(const auto& z: candidate.second) {
+        //     zone tag = *z.second.cbegin();
+        //     const std::string& ref = _collection.at(candidate.first);
+        //     std::cout << z.first << " <" << ref.substr(z.first.lower(), z.first.upper()-z.first.lower()) << "> " << tag << std::endl;
+        // }
+
+        // std::cout << std::endl;
+    }
+
+    return regions;
+}
+
+void prova::algorithms::multi_alignment::fixture_word_booundary(region_map &regions) const{
+    // ensures that a matched region is surrounded by non-word characters including end of line
+    static std::string alphabets = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_:/.";
+    for(auto& candidate: regions) {
+        std::size_t candidate_id = candidate.first;
+        interval_set& intervals = candidate.second;
+        for(auto& z: intervals) {
+            auto& region = z.first;
+            prova::algorithms::zone tag = *z.second.cbegin();
+            if(tag == prova::algorithms::zone::constant) {
+                const std::string& ref = _collection.at(candidate_id);
+                // std::cout << z.first << " <" << ref.substr(region.lower(), region.upper()-region.lower()) << "> " << tag << std::endl;
+                std::string_view view{ref.begin()+region.lower(), ref.begin()+(region.upper()-region.lower())};
+                // check right to find
+                auto rear = view.rbegin();
+                for(auto it = rear; it != view.rend(); ++it) {
+                    bool is_alpha = alphabets.find(*it);
+                    if(!is_alpha) {
+                        rear = it;
+                    }
+                }
+                std::size_t dist_rear = std::distance(rear, view.rbegin());
+            }
+        }
+
+        std::cout << std::endl;
+    }
 }
