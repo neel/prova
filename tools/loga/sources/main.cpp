@@ -14,6 +14,7 @@ int main() {
 
     prova::loga::alignment::matrix_type matrix;
     alignment.bubble_all_pairwise(matrix, 2);
+
     prova::loga::multi_alignment malign(alignment.inputs(), matrix, 0);
     prova::loga::multi_alignment::region_map regions = malign.align();
 

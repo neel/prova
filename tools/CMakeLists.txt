@@ -88,4 +88,4 @@ endif()
 
 
 add_subdirectory(ui)
-add_subdirectory(palign)
+add_subdirectory(loga)
