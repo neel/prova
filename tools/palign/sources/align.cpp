@@ -1,7 +1,6 @@
-#include "prova/algorithms.h"
+#include "prova/alignment.h"
+#include "prova/multi_alignment.h"
 #include <iostream>
-#include <fstream>
-#include <format>
 
 #include <boost/icl/interval.hpp>
 #include <boost/icl/split_interval_map.hpp>
@@ -54,15 +53,15 @@
 
 
 int main() {
-    prova::algorithms::alignment alignment;
+    prova::align::alignment alignment;
     alignment.add("Hello W Here I am do you hear me 579");
     alignment.add("J Here Jx am do you hear me 18303");
     alignment.add("Hola W Here We are do you hear me");
 
-    prova::algorithms::alignment::matrix_type matrix;
+    prova::align::alignment::matrix_type matrix;
     alignment.bubble_all_pairwise(matrix, 2);
-    prova::algorithms::multi_alignment malign(alignment.inputs(), matrix, 0);
-    prova::algorithms::multi_alignment::region_map regions = malign.align();
+    prova::align::multi_alignment malign(alignment.inputs(), matrix, 0);
+    prova::align::multi_alignment::region_map regions = malign.align();
 
     malign.print_regions(regions, std::cout) << std::endl;
     std::cout << "-----" << std::endl;
@@ -71,7 +70,7 @@ int main() {
 
     // for(auto& candidate: regions) {
     //     for(const auto& z: candidate.second) {
-    //         prova::algorithms::zone tag = *z.second.cbegin();
+    //         prova::align::zone tag = *z.second.cbegin();
     //         const std::string& ref = alignment.inputs().at(candidate.first);
     //         std::cout << z.first << " <" << ref.substr(z.first.lower(), z.first.upper()-z.first.lower()) << "> " << tag << std::endl;
     //     }
@@ -81,7 +80,7 @@ int main() {
 }
 
 // int main2() {
-//     prova::algorithms::alignment alignment;
+//     prova::align::alignment alignment;
 //     // alignment.add("[Sun Dec 04 04:47:44 2005] [notice] workerEnv.init() ok /etc/httpd/conf/workers2.properties");
 //     // alignment.add("[Sun Dec 04 04:51:14 2005] [notice] workerEnv.init() ok /etc/httpd/conf/workers2.properties");
 //     // alignment.add("[Sun Dec 04 04:51:52 2005] [notice] workerEnv.init() ok /etc/httpd/conf/workers2.properties");
@@ -100,7 +99,7 @@ int main() {
 //     alignment.add("J Here Jx am do you hear me 18303");
 //     alignment.add("Hola W Here We are do you hear me");
 
-//     // prova::algorithms::graph graph = alignment.bubble_all(2);
+//     // prova::align::graph graph = alignment.bubble_all(2);
 
 //     // for(const auto& segment: graph) {
 //     //     std::cout << segment << std::endl;
@@ -111,12 +110,12 @@ int main() {
 //     // graph.print(graphml);
 
 //     // std::cout << "Shortest Path" << std::endl;
-//     // prova::algorithms::path path = graph.shortest_path();
+//     // prova::align::path path = graph.shortest_path();
 //     // path.print(std::cout) << std::endl;
 
 //     std::size_t base_index = 0;
 
-//     prova::algorithms::alignment::matrix_type matrix;
+//     prova::align::alignment::matrix_type matrix;
 //     alignment.bubble_all_pairwise(matrix, 2);
 
 //     using interval_val  = std::set<matched_val>;
@@ -132,7 +131,7 @@ int main() {
 //         if(key.first != base_index) continue;
 //         std::cout << std::format("({},{})", key.first, key.second) << "| ";
 //         for(const auto& s: path){
-//             prova::algorithms::index start = s.start();
+//             prova::align::index start = s.start();
 //             std::size_t start_pos = start.at(0);
 //             std::size_t end_pos   = start_pos + s.length();
 //             interval_type::type interval = interval_type::right_open(start_pos, end_pos);

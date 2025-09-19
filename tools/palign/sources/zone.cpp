@@ -1,0 +1,10 @@
+#include <prova/zone.h>
+
+std::ostream &prova::align::operator<<(std::ostream &stream, const zone &z) {
+    if(z == zone::constant) {
+        stream << "C";
+    } else {
+        stream << "P";
+    }
+    return stream;
+}
