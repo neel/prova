@@ -1,5 +1,5 @@
-#include <prova/graph.h>
-#include <prova/path.h>
+#include <loga/graph.h>
+#include <loga/path.h>
 #include <iostream>
 #include <format>
 #include <stack>
@@ -12,11 +12,11 @@
 #include <boost/graph/bellman_ford_shortest_paths.hpp>
 #include <boost/graph/graphviz.hpp>
 
-prova::align::graph::graph(segment_collection_type&& segments, segment &&start, segment &&finish): _segments(std::move(segments)), _start(std::move(start)), _finish(std::move(finish)){
+prova::loga::graph::graph(segment_collection_type&& segments, segment &&start, segment &&finish): _segments(std::move(segments)), _start(std::move(start)), _finish(std::move(finish)){
 
 }
 
-void prova::align::graph::build(){
+void prova::loga::graph::build(){
     // { formulas
     auto weight_fn = [](std::size_t h, std::size_t g){ return static_cast<std::int64_t>(h) - static_cast<std::int64_t>(g); };
     auto dist_from_start = [&weight_fn](const segment& s){
@@ -134,7 +134,7 @@ void prova::align::graph::build(){
     // }
 }
 
-std::ostream& prova::align::graph::print(std::ostream& stream){
+std::ostream& prova::loga::graph::print(std::ostream& stream){
     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
         [&](const vertex_type& v) -> std::string {
             if(v == _S) return "S";
@@ -157,11 +157,11 @@ std::ostream& prova::align::graph::print(std::ostream& stream){
     return stream;
 }
 
-prova::align::path prova::align::graph::shortest_path(){
+prova::loga::path prova::loga::graph::shortest_path(){
     std::size_t vertex_count = boost::num_vertices(_graph);
 
     if(vertex_count == 3){
-        prova::align::path path;
+        prova::loga::path path;
         path.add(_segments.at(0));
         return path;
     }
@@ -200,7 +200,7 @@ prova::align::path prova::align::graph::shortest_path(){
             cost += distances[v];
         }
 
-        prova::align::path path;
+        prova::loga::path path;
         while(!vstack.empty()) {
             vertex_type v = vstack.top();
             if(v != _S && v != _T) {

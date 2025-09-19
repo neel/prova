@@ -3,7 +3,7 @@
 
 #include <ostream>
 
-namespace prova::align {
+namespace prova::loga {
 
 enum class zone{ constant, placeholder };
 std::ostream& operator<<(std::ostream& stream, const zone& z);

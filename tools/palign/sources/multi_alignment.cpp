@@ -1,15 +1,15 @@
-#include "prova/multi_alignment.h"
+#include "loga/multi_alignment.h"
 #include <iostream>
 #include <format>
 
-prova::align::multi_alignment::region_map prova::align::multi_alignment::align() const {
+prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() const {
     interval_map intervals;
     
     for(const auto& [key, path]: _matrix) {
         if(key.first != _base_index) continue;
         std::cout << std::format("({},{})", key.first, key.second) << "| ";
         for(const auto& s: path){
-            prova::align::index start = s.start();
+            prova::loga::index start = s.start();
             std::size_t start_pos = start.at(0);
             std::size_t end_pos   = start_pos + s.length();
             interval_type::type interval = interval_type::right_open(start_pos, end_pos);
@@ -95,7 +95,7 @@ prova::align::multi_alignment::region_map prova::align::multi_alignment::align()
     return regions;
 }
 
-prova::align::multi_alignment::region_map prova::align::multi_alignment::fixture_word_booundary(const region_map &regions) const{
+prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_word_booundary(const region_map &regions) const{
     // ensures that a matched region is surrounded by non-word characters including end of line
     static std::string alphabets = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_:/.";
     region_map result;
@@ -113,8 +113,8 @@ prova::align::multi_alignment::region_map prova::align::multi_alignment::fixture
                 squeeze_left_next = 0;
             }
             // }
-            prova::align::zone tag = *z.second.cbegin();
-            if(tag == prova::align::zone::constant) {
+            prova::loga::zone tag = *z.second.cbegin();
+            if(tag == prova::loga::zone::constant) {
                 const std::string& ref = _collection.at(candidate_id);
                 // std::cout << z.first << " <" << ref.substr(region.lower(), region.upper()-region.lower()) << "> " << tag << std::endl;
                 std::size_t len = region.upper()-region.lower();
@@ -172,10 +172,10 @@ prova::align::multi_alignment::region_map prova::align::multi_alignment::fixture
     
 }
 
-std::ostream &prova::align::multi_alignment::print_regions(const region_map &regions, std::ostream &stream){
+std::ostream &prova::loga::multi_alignment::print_regions(const region_map &regions, std::ostream &stream){
     for(auto& candidate: regions) {
         for(const auto& z: candidate.second) {
-            prova::align::zone tag = *z.second.cbegin(); // set has only one item
+            prova::loga::zone tag = *z.second.cbegin(); // set has only one item
             const std::string& ref = _collection.at(candidate.first);
             std::size_t offset = z.first.lower();
             std::size_t len = z.first.upper()-z.first.lower();

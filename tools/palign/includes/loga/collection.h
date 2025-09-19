@@ -1,12 +1,12 @@
 #ifndef PROVA_ALIGN_COLLECTION_H
 #define PROVA_ALIGN_COLLECTION_H
 
-#include <prova/face.h>
+#include <loga/face.h>
 #include <vector>
 #include <string>
 #include <cstddef>
 
-namespace prova::align{
+namespace prova::loga{
 
 class collection{
     std::vector<std::string> _inputs;

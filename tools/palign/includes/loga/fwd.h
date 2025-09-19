@@ -1,7 +1,7 @@
 #ifndef PROVA_ALIGN_FWD_H
 #define PROVA_ALIGN_FWD_H
 
-namespace prova::align{
+namespace prova::loga{
 
 class index;
 class segment;

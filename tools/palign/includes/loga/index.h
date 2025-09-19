@@ -1,14 +1,14 @@
 #ifndef PROVA_ALIGN_INDEX_H
 #define PROVA_ALIGN_INDEX_H
 
-#include <prova/fwd.h>
+#include <loga/fwd.h>
 #include <ostream>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
 
-namespace prova::align{
+namespace prova::loga{
 
 bool operator<(const index& left, const index& right);
 bool operator>(const index& left, const index& right);

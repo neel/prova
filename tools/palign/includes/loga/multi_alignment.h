@@ -1,16 +1,16 @@
 #ifndef PROVA_ALIGN_MULTI_ALIGNMENT_H
 #define PROVA_ALIGN_MULTI_ALIGNMENT_H
 
-#include <prova/fwd.h>
+#include <loga/fwd.h>
 #include <cstddef>
-#include <prova/alignment.h>
+#include <loga/alignment.h>
 #include <boost/icl/interval.hpp>
 #include <boost/icl/split_interval_map.hpp>
 #include <boost/icl/separate_interval_set.hpp>
-#include <prova/zone.h>
+#include <loga/zone.h>
 
 namespace prova {
-namespace align {
+namespace loga {
 
 class multi_alignment{
     struct matched_val{
@@ -28,7 +28,7 @@ class multi_alignment{
     };
     
     const collection& _collection;
-    const prova::align::alignment::matrix_type& _matrix;
+    const prova::loga::alignment::matrix_type& _matrix;
     std::size_t _base_index;
     
 public:

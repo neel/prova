@@ -1,9 +1,9 @@
-#include <prova/alignment.h>
-#include <prova/segment.h>
-#include <prova/graph.h>
-#include <prova/path.h>
+#include <loga/alignment.h>
+#include <loga/segment.h>
+#include <loga/graph.h>
+#include <loga/path.h>
 
-void prova::align::alignment::bubble(const prova::align::index& idx, std::size_t threshold, std::size_t carry) {
+void prova::loga::alignment::bubble(const prova::loga::index& idx, std::size_t threshold, std::size_t carry) {
     bool color = _collection.unanimous_concensus(idx);
     if (color) {
         if(!idx.is_top()) {
@@ -23,7 +23,7 @@ void prova::align::alignment::bubble(const prova::align::index& idx, std::size_t
     }
 }
 
-void prova::align::alignment::bubble_pairwise(const_iterator u, const_iterator v, const index &idx, memo_type& memo, std::size_t threshold, std::size_t carry){
+void prova::loga::alignment::bubble_pairwise(const_iterator u, const_iterator v, const index &idx, memo_type& memo, std::size_t threshold, std::size_t carry){
     assert(idx.count() == 2);
     bool color = (u->at(idx.at(0)) == v->at(idx.at(1)));
     if (color) {
@@ -66,7 +66,7 @@ void enumerate_mixed_radix(const std::vector<std::size_t>& L, std::size_t j, con
     }
 }
 
-prova::align::graph prova::align::alignment::bubble_all(std::size_t threshold) {
+prova::loga::graph prova::loga::alignment::bubble_all(std::size_t threshold) {
     assert(threshold > 0);
     std::size_t N = _collection.count();
     std::vector<std::size_t> L;
@@ -98,10 +98,10 @@ prova::align::graph prova::align::alignment::bubble_all(std::size_t threshold) {
 
     segment finish{_collection.at(0), index{std::move(last_indices)}, 0};
 
-    return prova::align::graph{std::move(segments), std::move(start), std::move(finish)};
+    return prova::loga::graph{std::move(segments), std::move(start), std::move(finish)};
 }
 
-void prova::align::alignment::bubble_all_pairwise(prova::align::alignment::matrix_type& mat, std::size_t threshold){
+void prova::loga::alignment::bubble_all_pairwise(prova::loga::alignment::matrix_type& mat, std::size_t threshold){
     assert(threshold > 0);
     std::size_t N = 2;
 
@@ -134,9 +134,9 @@ void prova::align::alignment::bubble_all_pairwise(prova::align::alignment::matri
             segment start{*base, index{2}, 0};
             segment finish{*base, index{{base->size(), ref->size()}}, 0};
 
-            prova::align::graph graph{std::move(segments), std::move(start), std::move(finish)};
+            prova::loga::graph graph{std::move(segments), std::move(start), std::move(finish)};
             graph.build();
-            prova::align::path path = graph.shortest_path();
+            prova::loga::path path = graph.shortest_path();
 
             auto key = std::make_pair(u, v);
             // std::cout << "score: " << path.score() << std::endl;
@@ -148,7 +148,7 @@ void prova::align::alignment::bubble_all_pairwise(prova::align::alignment::matri
     }
 }
 
-std::uint64_t prova::align::alignment::pair_hash::operator()(const key_type &key) const noexcept {
+std::uint64_t prova::loga::alignment::pair_hash::operator()(const key_type &key) const noexcept {
     std::uint64_t res = key.first;
     res = std::rotl(res, 32) + key.second;
     return res;

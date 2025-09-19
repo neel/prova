@@ -1,12 +1,12 @@
 #ifndef PROVA_ALIGN_FACE_H
 #define PROVA_ALIGN_FACE_H
 
-#include <prova/fwd.h>
+#include <loga/fwd.h>
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
 
-namespace prova::align{
+namespace prova::loga{
 
 class face{
     std::size_t _dimensions;

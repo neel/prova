@@ -1,11 +1,11 @@
 #ifndef PROVA_ALIGN_PATH_H
 #define PROVA_ALIGN_PATH_H
 
-#include <prova/fwd.h>
+#include <loga/fwd.h>
 #include <vector>
 #include <ostream>
 
-namespace prova::align{
+namespace prova::loga{
 
 class path{
     using container_type = std::vector<segment>;

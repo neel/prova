@@ -1,17 +1,17 @@
 #ifndef PROVA_ALIGN_ALIGNMENT_H
 #define PROVA_ALIGN_ALIGNMENT_H
 
-#include <prova/fwd.h>
+#include <loga/fwd.h>
 #include <map>
 #include <cstddef>
 #include <vector>
-#include <prova/collection.h>
+#include <loga/collection.h>
 #include <boost/graph/adjacency_list.hpp>
-#include <prova/index.h>
-#include <prova/segment.h>
-#include <prova/path.h>
+#include <loga/index.h>
+#include <loga/segment.h>
+#include <loga/path.h>
 
-namespace prova::align{
+namespace prova::loga{
 
 class alignment{
     struct edge_props {
@@ -32,7 +32,7 @@ public:
     struct pair_hash{
         std::uint64_t operator()(const key_type& key) const noexcept;
     };
-    using matrix_type = std::unordered_map<key_type, prova::align::path, pair_hash>;
+    using matrix_type = std::unordered_map<key_type, prova::loga::path, pair_hash>;
 public:
     inline void add(const std::string& str) { _collection.add(str); }
     const collection& inputs() const { return _collection; }
@@ -70,7 +70,7 @@ public:
      * @param v
      * @param threshold
      */
-    void bubble_all_pairwise(prova::align::alignment::matrix_type& mat, std::size_t threshold = 1);
+    void bubble_all_pairwise(prova::loga::alignment::matrix_type& mat, std::size_t threshold = 1);
 
     const memo_type& memo() const { return _memo; }
 };

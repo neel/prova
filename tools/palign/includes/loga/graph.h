@@ -1,13 +1,13 @@
 #ifndef PROVA_ALIGN_GRAPH_H
 #define PROVA_ALIGN_GRAPH_H
 
-#include <prova/fwd.h>
+#include <loga/fwd.h>
 #include <ostream>
 #include <map>
-#include <prova/segment.h>
+#include <loga/segment.h>
 #include <boost/graph/adjacency_list.hpp>
 
-namespace prova::align{
+namespace prova::loga{
 
 class graph{
     struct edge_props {
