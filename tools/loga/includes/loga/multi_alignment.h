@@ -22,9 +22,11 @@ class multi_alignment{
         bool operator==(const matched_val& other) const;
     };
     
+
     const collection& _collection;
     const prova::loga::alignment::matrix_type& _matrix;
     std::size_t _base_index;
+    std::set<std::size_t> _filter;
     
 public:
     using interval_val  = std::set<matched_val>;
@@ -33,14 +35,18 @@ public:
     using region_map    = std::map<std::size_t, interval_set>;
     using region_type   = interval_set::interval_type;
     using interval_type = interval_map::interval_type;
+    using filter_type   = std::set<std::size_t>;
     
 public:
+    multi_alignment(const collection& collection, const alignment::matrix_type& matrix, const filter_type& filter, std::size_t base_index);
     multi_alignment(const collection& collection, const alignment::matrix_type& matrix, std::size_t base_index);
     region_map align() const;
-    region_map fixture_word_booundary(const region_map &regions) const;
+    region_map fixture_word_boundary(const region_map &regions) const;
     
 public:
     std::ostream& print_regions(const region_map& regions, std::ostream& stream);
+    std::ostream& print_regions_string(const region_map& regions, std::ostream& stream);
+    static std::ostream& print_interval_set(const interval_set& interval, const std::string& str, std::ostream& stream);
 };
 
 } // namespace algorithms

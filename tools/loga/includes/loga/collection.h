@@ -26,7 +26,11 @@ public:
     void parse(std::istream& stream);
     std::size_t unique(const index& idx) const;
     bool unanimous_concensus(const index& idx) const;
+public:
+    friend collection& operator<<(const collection& col, const std::string& str);
 };
+
+collection& operator<<(collection& col, const std::string& str);
 
 }
 

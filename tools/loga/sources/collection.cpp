@@ -28,6 +28,11 @@ void prova::loga::collection::parse(std::istream &stream){
     }
 }
 
+prova::loga::collection& prova::loga::operator<<(collection& col, const std::string& str){
+    col.add(str);
+    return col;
+}
+
 std::size_t prova::loga::collection::unique(const index &idx) const{
     std::set<char> chars;
     for(const auto& zipped: boost::combine(idx, _inputs)){

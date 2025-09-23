@@ -1,13 +1,21 @@
 #include "loga/multi_alignment.h"
 #include <iostream>
 #include <format>
+#include <iomanip>
 
 prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() const {
     interval_map intervals;
+
+    assert(_filter.contains(_base_index));
     
+    // { construct intervals mapping [s, e) -> {t, s, r}
+    //      by considering all paths starting from the base item to all reference items allowed by the filter
+    //      where (s, e) are the offsets of the start and end position of the base string corresponding to a matched string segment
+    //      t is the index of the reference string and r is the start position in the reference string that align with the matched segment
     for(const auto& [key, path]: _matrix) {
         if(key.first != _base_index) continue;
-        std::cout << std::format("({},{})", key.first, key.second) << "| ";
+        if(!_filter.contains(key.second)) continue;
+        // std::cout << std::format("({},{})", key.first, key.second) << "| ";
         for(const auto& s: path){
             prova::loga::index start = s.start();
             std::size_t start_pos = start.at(0);
@@ -20,40 +28,39 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() c
             matched.ref_pos = start.at(1);
             val.insert(matched);
             intervals.add(std::make_pair(interval, val)); //
-            std::cout << std::format("[{}, {})", start_pos, end_pos) << "-" << s.start();
+            // std::cout << std::format("[{}, {})", start_pos, end_pos) << "-" << s.start();
             // std::cout << s << "~~~";
         }
-        std::cout << std::endl;
+        // std::cout << std::endl;
     }
+    // }
+    // postcondition: intervals only contains references allowed by the filter
     
     region_map regions;
     
+    // { construct regions and empty regions map mapping t -> interval_set
+    //      where interval_set is an association of [s, e) -> {constant, placeholder}
+    //      and s, e are offsets in the reference string
     for(std::size_t i = 0; i != _collection.count(); ++i) {
+        if(!_filter.contains(i)) continue;
         regions.insert(std::make_pair(i, interval_set{}));
     }
-    
+    // }
+    // postcondition: all keys in the regions refers to an index pointing to an item allowed by the filter
+    // postcondition: all values in the regions are empty interval_set
+
     const std::string& base_ref = _collection.at(_base_index);
-    // auto base_begin = base_ref.begin();
     for(const auto& iv: intervals) {
-        if(iv.second.size() == _collection.count()-1) {
+        std::size_t num_references = iv.second.size();
+        if(num_references == _filter.size()-1) {
             std::size_t len = iv.first.upper() - iv.first.lower();
-            // auto start = base_begin+iv.first.lower();
-            // auto end   = start + len;
-            // std::string_view base_view(start, end);
-            // std::cout << iv.first << ": <" << base_view << ">" << std::endl;
-            // regions[base_index].add(region_type::right_open(iv.first.lower(), iv.first.lower() +len));
             std::set<zone> zones;
             zones.insert(zone::constant);
             regions[_base_index].add(std::make_pair(region_type::right_open(iv.first.lower(), iv.first.lower() +len), zones));
             for(const matched_val& v: iv.second) {
-                // std::cout << "\t" << v.id << "-> " << v.ref_pos << " (" << v.base_pos << ")" << std::endl;
-                // const std::string& ref = _collection.at(v.id);
                 std::size_t delta = iv.first.lower() - v.base_pos;
                 std::size_t ref_start = v.ref_pos+delta;
                 std::size_t ref_end   = delta+v.ref_pos+len;
-                // std::string_view ref_view(ref.begin()+ref_start, ref.begin()+ref_end);
-                // std::cout << "\t<" << ref_view << ">" << std::endl;
-                // regions[v.id].add(region_type::closed(ref_start, ref_end));
                 std::set<zone> zones;
                 zones.insert(zone::constant);
                 regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
@@ -76,26 +83,17 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() c
             placeholders.push_back(region_type::right_open(last, end));
         }
         
-        
         std::set<zone> zones;
         zones.insert(zone::placeholder);
         for(const auto& p: placeholders) {
             candidate.second.add(std::make_pair(p, zones));
         }
-        
-        // for(const auto& z: candidate.second) {
-        //     zone tag = *z.second.cbegin();
-        //     const std::string& ref = _collection.at(candidate.first);
-        //     std::cout << z.first << " <" << ref.substr(z.first.lower(), z.first.upper()-z.first.lower()) << "> " << tag << std::endl;
-        // }
-        
-        // std::cout << std::endl;
     }
     
     return regions;
 }
 
-prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_word_booundary(const region_map &regions) const{
+prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_word_boundary(const region_map &regions) const{
     // ensures that a matched region is surrounded by non-word characters including end of line
     static std::string alphabets = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_:/.";
     region_map result;
@@ -120,7 +118,7 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_w
                 std::size_t len = region.upper()-region.lower();
                 auto begin = ref.begin()+region.lower();
                 std::string_view view{begin, begin+len};
-                
+
                 // { check right to find
                 bool eol = (region.upper() == ref.size());
                 auto rear = std::ranges::find_if_not(view.rbegin(), view.rend(), [&](auto const& x) {
@@ -132,7 +130,7 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_w
                     squeeze_left_next = dist_rear;
                 }
                 // }
-                
+
                 // { check left to find
                 auto front = std::ranges::find_if_not(view.begin(), view.end(), [&](auto const& x) {
                     return std::ranges::find(alphabets, x) != alphabets.end();
@@ -151,7 +149,7 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_w
                     }
                 }
                 // }
-                
+
                 updated_regions.push_back(std::make_pair(updated_region, zone::constant));
             } else {
                 updated_regions.push_back(std::make_pair(updated_region, zone::placeholder));
@@ -172,7 +170,13 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_w
     
 }
 
-prova::loga::multi_alignment::multi_alignment(const collection &collection, const alignment::matrix_type &matrix, std::size_t base_index): _collection(collection), _matrix(matrix), _base_index(base_index) {}
+prova::loga::multi_alignment::multi_alignment(const collection &collection, const alignment::matrix_type &matrix, const filter_type &filter, std::size_t base_index): _collection(collection), _matrix(matrix), _filter(filter), _base_index(base_index) {}
+
+prova::loga::multi_alignment::multi_alignment(const collection &collection, const alignment::matrix_type &matrix, std::size_t base_index): _collection(collection), _matrix(matrix), _base_index(base_index)  {
+    for(std::size_t i = 0; i != _collection.count(); ++i) {
+        _filter.insert(i);
+    }
+}
 
 std::ostream &prova::loga::multi_alignment::print_regions(const region_map &regions, std::ostream &stream){
     for(auto& candidate: regions) {
@@ -185,6 +189,75 @@ std::ostream &prova::loga::multi_alignment::print_regions(const region_map &regi
         }
         
         stream << std::endl;
+    }
+    return stream;
+}
+
+std::ostream &prova::loga::multi_alignment::print_regions_string(const region_map &regions, std::ostream &stream){
+    constexpr std::string_view red     = "\033[0;31m";
+    constexpr std::string_view green   = "\033[0;32m";
+    constexpr std::string_view yellow  = "\033[0;33m";
+    constexpr std::string_view blue    = "\033[0;34m";
+    constexpr std::string_view magenta = "\033[0;35m";
+    constexpr std::string_view cyan    = "\033[0;36m";
+    constexpr std::string_view bright_black   = "\033[1;30m";
+    constexpr std::string_view bright_red     = "\033[1;31m";
+    constexpr std::string_view bright_green   = "\033[1;32m";
+    constexpr std::string_view bright_yellow  = "\033[1;33m";
+    constexpr std::string_view bright_blue    = "\033[1;34m";
+    constexpr std::string_view bright_magenta = "\033[1;35m";
+    constexpr std::string_view bright_cyan    = "\033[1;36m";
+
+    constexpr std::array<std::string_view, 13> palette = {
+        red, green, yellow, blue, magenta,
+        cyan, bright_red, bright_green, bright_yellow,
+        bright_blue, bright_magenta, bright_cyan, bright_black
+    };
+
+    constexpr std::string_view reset = "\033[0m";
+
+    for(const auto& [id, zones]: regions) {
+        stream << std::right << std::setw(4) << id << "|" << std::resetiosflags(std::ios::showbase);
+        print_interval_set(zones, _collection.at(id), stream);
+        stream << std::endl;
+    }
+    return stream;
+}
+
+std::ostream &prova::loga::multi_alignment::print_interval_set(const interval_set &interval, const std::string &ref, std::ostream &stream){
+    constexpr std::string_view red     = "\033[0;31m";
+    constexpr std::string_view green   = "\033[0;32m";
+    constexpr std::string_view yellow  = "\033[0;33m";
+    constexpr std::string_view blue    = "\033[0;34m";
+    constexpr std::string_view magenta = "\033[0;35m";
+    constexpr std::string_view cyan    = "\033[0;36m";
+    constexpr std::string_view bright_black   = "\033[1;30m";
+    constexpr std::string_view bright_red     = "\033[1;31m";
+    constexpr std::string_view bright_green   = "\033[1;32m";
+    constexpr std::string_view bright_yellow  = "\033[1;33m";
+    constexpr std::string_view bright_blue    = "\033[1;34m";
+    constexpr std::string_view bright_magenta = "\033[1;35m";
+    constexpr std::string_view bright_cyan    = "\033[1;36m";
+
+    constexpr std::array<std::string_view, 13> palette = {
+        red, green, yellow, blue, magenta,
+        cyan, bright_red, bright_green, bright_yellow,
+        bright_blue, bright_magenta, bright_cyan, bright_black
+    };
+
+    constexpr std::string_view reset = "\033[0m";
+
+    std::size_t placeholder_count = 0;
+    for(const auto& z: interval) {
+        prova::loga::zone tag = *z.second.cbegin(); // set has only one item
+        std::size_t offset = z.first.lower();
+        std::size_t len = z.first.upper()-z.first.lower();
+        if(tag == zone::constant)
+            stream << ref.substr(offset, len);
+        else {
+            const auto& color = palette.at(placeholder_count++ % palette.size());
+            stream << color << ref.substr(offset, len) << reset;
+        }
     }
     return stream;
 }

@@ -20,8 +20,12 @@ class group{
 
 public:
     class label_proxy{
+    public:
+        using mask_type = std::set<std::size_t>;
+    private:
         const group& _group;
         std::size_t  _label;
+        mask_type    _mask;
 
         friend class group;
 
@@ -42,6 +46,7 @@ public:
         std::size_t label() const;
         value at(std::size_t i) const;
         std::size_t count() const;
+        const mask_type& mask() const;
     };
 
 public:
