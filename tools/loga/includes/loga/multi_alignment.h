@@ -18,13 +18,8 @@ class multi_alignment{
         std::size_t ref_pos;
         std::size_t base_pos;
         
-        bool operator<(const matched_val& other) const {
-            return id < other.id;
-        }
-        
-        bool operator==(const matched_val& other) const {
-            return id == other.id && ref_pos == other.ref_pos && base_pos == other.base_pos;
-        }
+        bool operator<(const matched_val& other) const;
+        bool operator==(const matched_val& other) const;
     };
     
     const collection& _collection;
@@ -40,7 +35,7 @@ public:
     using interval_type = interval_map::interval_type;
     
 public:
-    inline multi_alignment(const collection& collection, const alignment::matrix_type& matrix, std::size_t base_index): _collection(collection), _matrix(matrix), _base_index(base_index) {}
+    multi_alignment(const collection& collection, const alignment::matrix_type& matrix, std::size_t base_index);
     region_map align() const;
     region_map fixture_word_booundary(const region_map &regions) const;
     

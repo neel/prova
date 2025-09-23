@@ -2,6 +2,7 @@
 #include <set>
 #include <boost/range/combine.hpp>
 #include <loga/index.h>
+#include <boost/algorithm/string/trim.hpp>
 
 prova::loga::collection::size_type prova::loga::collection::count() const { return _inputs.size(); }
 
@@ -15,6 +16,16 @@ const std::string &prova::loga::collection::operator[](std::size_t index) const 
 
 void prova::loga::collection::add(const std::string &str){
     _inputs.push_back(str);
+}
+
+void prova::loga::collection::parse(std::istream &stream){
+    std::string line;
+    while (std::getline(stream, line)) {
+        boost::algorithm::trim(line);
+        if (!line.empty()) {
+            add(line);
+        }
+    }
 }
 
 std::size_t prova::loga::collection::unique(const index &idx) const{

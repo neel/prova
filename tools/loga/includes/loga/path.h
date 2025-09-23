@@ -4,11 +4,17 @@
 #include <loga/fwd.h>
 #include <vector>
 #include <ostream>
+#include <cstdint>
 
 namespace prova::loga{
 
 class path{
     using container_type = std::vector<segment>;
+
+    template <class Archive>
+    void serialize(Archive & ar, std::uint32_t const version) {
+        ar & _segments;
+    }
 
     container_type _segments;
 public:

@@ -172,6 +172,8 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_w
     
 }
 
+prova::loga::multi_alignment::multi_alignment(const collection &collection, const alignment::matrix_type &matrix, std::size_t base_index): _collection(collection), _matrix(matrix), _base_index(base_index) {}
+
 std::ostream &prova::loga::multi_alignment::print_regions(const region_map &regions, std::ostream &stream){
     for(auto& candidate: regions) {
         for(const auto& z: candidate.second) {
@@ -188,3 +190,11 @@ std::ostream &prova::loga::multi_alignment::print_regions(const region_map &regi
 }
 
 
+
+bool prova::loga::multi_alignment::matched_val::operator<(const matched_val &other) const {
+    return id < other.id;
+}
+
+bool prova::loga::multi_alignment::matched_val::operator==(const matched_val &other) const {
+    return id == other.id && ref_pos == other.ref_pos && base_pos == other.base_pos;
+}

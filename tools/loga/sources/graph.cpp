@@ -49,7 +49,7 @@ void prova::loga::graph::build(){
                 _graph[e].weight = dist_from_start(_segments[i]);
                 _graph[e].slide  = 0;
 
-                std::cout << "* " << "S          \t->\t " << _segments[i] << " >> " << _graph[e].weight << std::endl;
+                // std::cout << "* " << "S          \t->\t " << _segments[i] << " >> " << _graph[e].weight << std::endl;
             }
         } { // p -> T
             auto pair = boost::add_edge(segment_vertices[i], _T, _graph);
@@ -58,7 +58,7 @@ void prova::loga::graph::build(){
                 _graph[e].weight = dist_to_finish(_segments[i]);
                 _graph[e].slide  = 0;
 
-                std::cout << "* " << _segments[i] << " \t->\t T" << " >> " << _graph[e].weight << std::endl;
+                // std::cout << "* " << _segments[i] << " \t->\t T" << " >> " << _graph[e].weight << std::endl;
             }
         }
     }
@@ -96,7 +96,7 @@ void prova::loga::graph::build(){
                     _graph[e].weight =  weight_fn(distance, q.length());
                     _graph[e].slide  = 0;
 
-                    std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << std::endl;
+                    // std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << std::endl;
                 }
             } else if(q_starts_after_p_starts && q_ends_after_p_ends) {    // at least one dimension overlaps
                 // definitely q_starts_after_p_ends is false.
@@ -125,7 +125,7 @@ void prova::loga::graph::build(){
                     _graph[e].weight =  weight_fn(distance, q.length()-slide);
                     _graph[e].slide  = slide;
 
-                    std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << " | " << _graph[e].slide << std::format("({} -> {})", boost::lexical_cast<std::string>(pe), boost::lexical_cast<std::string>(qs)) << std::endl;
+                    // std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << " | " << _graph[e].slide << std::format("({} -> {})", boost::lexical_cast<std::string>(pe), boost::lexical_cast<std::string>(qs)) << std::endl;
                 }
 
             }
@@ -141,13 +141,13 @@ std::ostream& prova::loga::graph::print(std::ostream& stream){
             if(v == _T) return "T";
             return boost::lexical_cast<std::string>(_segments.at(_vertices.at(v)));
         }
-        );
+    );
 
     auto vertex_weight_map = boost::make_function_property_map<edge_type>(
         [&](const edge_type& e) -> double {
             return _graph[e].weight;
         }
-        );
+     );
 
     boost::dynamic_properties properties;
     properties.property("label", vertex_label_map);

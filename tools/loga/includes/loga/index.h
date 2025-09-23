@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
+#include <cereal/archives/binary.hpp>
 
 namespace prova::loga{
 
@@ -24,6 +25,11 @@ index operator-(const index& left, const index& right);
 
 class index{
     std::vector<std::size_t> _positions;
+
+    template <class Archive>
+    void serialize(Archive & ar, std::uint32_t const version) {
+        ar & _positions;
+    }
 
     friend bool operator<(const index& left, const index& right);
     friend bool operator>(const index& left, const index& right);

@@ -16,6 +16,11 @@ class segment{
 
     friend std::ostream& operator<<(std::ostream& stream, const segment& s);
 
+    template <class Archive>
+    void serialize(Archive & ar, std::uint32_t const version) {
+        ar & _base & _start & _length;
+    }
+
 public:
     explicit segment(const std::string& base, index start, std::size_t length);
     inline segment(const segment& other) = default;

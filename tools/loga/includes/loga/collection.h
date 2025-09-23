@@ -23,6 +23,7 @@ public:
     const std::string& operator[](std::size_t index) const;
 public:
     void add(const std::string& str);
+    void parse(std::istream& stream);
     std::size_t unique(const index& idx) const;
     bool unanimous_concensus(const index& idx) const;
 };

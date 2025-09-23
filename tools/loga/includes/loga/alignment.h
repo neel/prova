@@ -5,11 +5,11 @@
 #include <map>
 #include <cstddef>
 #include <vector>
-#include <loga/collection.h>
 #include <boost/graph/adjacency_list.hpp>
 #include <loga/index.h>
 #include <loga/segment.h>
 #include <loga/path.h>
+#include <loga/collection.h>
 
 namespace prova::loga{
 
@@ -25,7 +25,7 @@ class alignment{
     using graph_type                = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, boost::no_property, edge_props>;
     using vertex_type               = boost::graph_traits<graph_type>::vertex_descriptor;
 
-    collection _collection;
+    const collection& _collection;
     memo_type  _memo;
 public:
     using key_type = std::pair<std::uint32_t, std::uint32_t>;
@@ -34,8 +34,8 @@ public:
     };
     using matrix_type = std::unordered_map<key_type, prova::loga::path, pair_hash>;
 public:
-    inline void add(const std::string& str) { _collection.add(str); }
-    const collection& inputs() const { return _collection; }
+    explicit alignment(const collection& collection);
+    const collection& inputs() const;
 
     /**
      * @brief bubble accross the kD tensor starting from the given index through the diagonal (all 1) line
@@ -62,7 +62,7 @@ public:
      * @param carry
      * @pre expects the idx.size() == 2
      */
-    void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, memo_type& memo, std::size_t threshold, std::size_t carry);
+    void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, memo_type& memo, std::size_t threshold, std::size_t carry) const;
 
     /**
      * @brief Takes the first one as the base and others as the reference
@@ -70,7 +70,7 @@ public:
      * @param v
      * @param threshold
      */
-    void bubble_all_pairwise(prova::loga::alignment::matrix_type& mat, std::size_t threshold = 1);
+    void bubble_all_pairwise(prova::loga::alignment::matrix_type& mat, std::size_t threshold = 1, std::size_t threads = 0);
 
     const memo_type& memo() const { return _memo; }
 };
