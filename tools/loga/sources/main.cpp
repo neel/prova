@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
     auto end = begin;
     std::advance(end, num_clusters);
     std::string largest_cluster_name = *std::max_element(begin, end, [](const std::string& l, const std::string& r){
-        return l > r;
+        return l < r;
     });
 
     std::cout << "largest_cluster_name: " << largest_cluster_name << " " << num_clusters << std::endl;
