@@ -53,6 +53,9 @@ std::size_t prova::loga::group::labels() const {
 
     for (const auto& kv : _mapping) {
         if (kv.first != last_label) {
+            if(kv.first == std::numeric_limits<std::size_t>::max()){
+                continue;
+            }
             ++unique_labels;
             last_label = kv.first;
         }

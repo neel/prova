@@ -89,6 +89,9 @@ void prova::loga::graph::build(){
 
             if (q_starts_after_p_ends) {                                  // non overlapping
                 index hop = qs - pe;
+                if(std::any_of(hop.begin(), hop.end(), [](const auto& d){ return d <= 1; })) {
+                    continue;
+                }
                 std::size_t distance = hop.l1_from_zero();
                 auto pair = boost::add_edge(segment_vertices[i], segment_vertices[j], _graph);
                 if(pair.second) {
@@ -98,7 +101,7 @@ void prova::loga::graph::build(){
 
                     // std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << std::endl;
                 }
-            } else if(q_starts_after_p_starts && q_ends_after_p_ends) {    // at least one dimension overlaps
+            } /*else if(q_starts_after_p_starts && q_ends_after_p_ends) {    // at least one dimension overlaps
                 // definitely q_starts_after_p_ends is false.
                 // therefore q starts before p ends
                 // therefore at least one dim overlaps
@@ -128,7 +131,7 @@ void prova::loga::graph::build(){
                     // std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << " | " << _graph[e].slide << std::format("({} -> {})", boost::lexical_cast<std::string>(pe), boost::lexical_cast<std::string>(qs)) << std::endl;
                 }
 
-            }
+            }*/
         }
     }
     // }
@@ -175,7 +178,7 @@ prova::loga::path prova::loga::graph::shortest_path(){
         [&](const edge_type& e) -> double {
             return _graph[e].weight;
         }
-        );
+    );
 
     bool no_negative_cycle = boost::bellman_ford_shortest_paths(
         _graph,
