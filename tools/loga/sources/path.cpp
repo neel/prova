@@ -20,7 +20,7 @@ std::ostream& prova::loga::path::print(std::ostream& out){
             out << " -> ";
         }
 
-        out << "{{{" << s.view() << "}}}";
+        out << "{{{" << s.start() << "-" << s.end() << "|" << s.view() << "}}}";
         ++i;
     }
     out << " | " << score();

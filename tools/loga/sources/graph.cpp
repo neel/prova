@@ -42,20 +42,41 @@ void prova::loga::graph::build(){
 
     // { terminal connections
     for(std::size_t i = 0; i != _segments.size(); ++i) {
-        { // S -> p
-            auto pair = boost::add_edge(_S, segment_vertices[i], _graph);
+        const auto& segment = _segments[i];
+        const auto& start   = segment.start();
+        const auto& end     = segment.end();
+        const auto& vertex  = segment_vertices[i];
+
+        bool touches_start_line = std::ranges::any_of(boost::combine(start, _start.start()), [](const auto& zipped){
+            return zipped.template get<0>() == zipped.template get<1>();
+        });
+        bool touches_finish_line = std::ranges::any_of(boost::combine(end, _finish.start()), [](const auto& zipped){
+            return zipped.template get<0>() == zipped.template get<1>()-1;
+        });
+
+        bool touches_finish_corner = std::ranges::all_of(boost::combine(end, _finish.start()), [](const auto& zipped){
+            return zipped.template get<0>() == zipped.template get<1>()-1;
+        });
+        bool touches_start_corner = std::ranges::all_of(boost::combine(start, _start.start()), [](const auto& zipped){
+            return zipped.template get<0>() == zipped.template get<1>();
+        });
+
+        if(touches_start_corner || !touches_start_line){ // S -> p
+            auto pair = boost::add_edge(_S, vertex, _graph);
             if(pair.second) {
                 auto e = pair.first;
-                _graph[e].weight = dist_from_start(_segments[i]);
+                _graph[e].weight = dist_from_start(segment);
                 _graph[e].slide  = 0;
 
                 // std::cout << "* " << "S          \t->\t " << _segments[i] << " >> " << _graph[e].weight << std::endl;
             }
-        } { // p -> T
-            auto pair = boost::add_edge(segment_vertices[i], _T, _graph);
+        }
+
+        if(touches_finish_corner || !touches_finish_line){ // p -> T
+            auto pair = boost::add_edge(vertex, _T, _graph);
             if(pair.second) {
                 auto e = pair.first;
-                _graph[e].weight = dist_to_finish(_segments[i]);
+                _graph[e].weight = dist_to_finish(segment);
                 _graph[e].slide  = 0;
 
                 // std::cout << "* " << _segments[i] << " \t->\t T" << " >> " << _graph[e].weight << std::endl;

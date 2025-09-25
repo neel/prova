@@ -1,6 +1,7 @@
 #include "loga/multi_alignment.h"
 #include <iostream>
 #include <format>
+#include <array>
 #include <iomanip>
 
 prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() const {
