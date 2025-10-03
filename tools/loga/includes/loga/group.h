@@ -53,6 +53,7 @@ public:
     group(const collection& collection, const labels_type& labels);
     group::label_proxy proxy(std::size_t label);
     std::size_t labels() const;
+    std::size_t unclustered() const;
 };
 
 }

@@ -17,8 +17,11 @@ private:
     distance_matrix_type    _distances;
 public:
     explicit distance(const path_matrix_type& paths, std::size_t count);
-    double dist(std::size_t i, std::size_t j) const;
-    void compute(std::size_t threads = 0);
+    double dist(const prova::loga::collection& collection, std::size_t i, std::size_t j) const;
+    // double dist_neighbourhood(std::size_t i, std::size_t j) const;
+    // double dist_sequential(std::size_t i, std::size_t j) const;
+    void compute(const prova::loga::collection& collection, std::size_t threads = 0);
+    std::ostream& print_graphml(std::ostream& stream) const;
     bool computed() const;
 public:
     const distance_matrix_type& matrix() const;

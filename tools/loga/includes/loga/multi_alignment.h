@@ -13,6 +13,7 @@ namespace prova {
 namespace loga {
 
 class multi_alignment{
+public:
     struct matched_val{
         std::size_t id;
         std::size_t ref_pos;
@@ -22,7 +23,7 @@ class multi_alignment{
         bool operator==(const matched_val& other) const;
     };
     
-
+private:
     const collection& _collection;
     const prova::loga::alignment::matrix_type& _matrix;
     std::size_t _base_index;
@@ -48,6 +49,9 @@ public:
     std::ostream& print_regions_string(const region_map& regions, std::ostream& stream);
     static std::ostream& print_interval_set(const interval_set& interval, const std::string& str, std::ostream& stream);
 };
+
+std::ostream& operator<<(std::ostream& stream, const prova::loga::multi_alignment::matched_val& mval);
+std::ostream& operator<<(std::ostream& stream, const std::set<prova::loga::multi_alignment::matched_val>& set);
 
 } // namespace algorithms
 } // namespace prova

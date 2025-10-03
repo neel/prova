@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cassert>
 #include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
 
 namespace prova::loga{
 
@@ -26,10 +27,14 @@ index operator-(const index& left, const index& right);
 class index{
     std::vector<std::size_t> _positions;
 
+    friend class cereal::access;
     template <class Archive>
     void serialize(Archive & ar, std::uint32_t const version) {
         ar & _positions;
     }
+
+    index() = default;
+    friend class prova::loga::segment;
 
     friend bool operator<(const index& left, const index& right);
     friend bool operator>(const index& left, const index& right);
@@ -46,6 +51,7 @@ public:
     using const_iterator = std::vector<std::size_t>::const_iterator;
     using size_type = std::vector<std::size_t>::size_type;
 public:
+
     inline explicit index(std::size_t dims): _positions(dims, 0) {
         assert(_positions.size() == dims);
         assert(_positions.size() >= 2);

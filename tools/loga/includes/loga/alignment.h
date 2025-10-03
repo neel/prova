@@ -10,6 +10,8 @@
 #include <loga/segment.h>
 #include <loga/path.h>
 #include <loga/collection.h>
+#include <cereal/types/utility.hpp>
+#include <cereal/types/unordered_map.hpp>
 
 namespace prova::loga{
 
@@ -51,7 +53,7 @@ public:
      * @param threshold
      * @return
      */
-    graph bubble_all(std::size_t threshold = 1);
+    graph bubble_all(std::size_t threshold = 1, std::size_t threads = 0);
 
     /**
      * @brief bubble accross a matrix starting from the given index through the diagonal line

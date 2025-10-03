@@ -61,7 +61,7 @@ void prova::loga::graph::build(){
             return zipped.template get<0>() == zipped.template get<1>();
         });
 
-        if(touches_start_corner || !touches_start_line){ // S -> p
+        if(touches_start_corner || !touches_start_line || (!touches_start_line && !touches_start_corner)){ // S -> p
             auto pair = boost::add_edge(_S, vertex, _graph);
             if(pair.second) {
                 auto e = pair.first;
@@ -72,7 +72,7 @@ void prova::loga::graph::build(){
             }
         }
 
-        if(touches_finish_corner || !touches_finish_line){ // p -> T
+        if(touches_finish_corner || !touches_finish_line || (!touches_finish_line && !touches_finish_corner)){ // p -> T
             auto pair = boost::add_edge(vertex, _T, _graph);
             if(pair.second) {
                 auto e = pair.first;
@@ -122,56 +122,59 @@ void prova::loga::graph::build(){
 
                     // std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << std::endl;
                 }
-            } /*else if(q_starts_after_p_starts && q_ends_after_p_ends) {    // at least one dimension overlaps
+            } else if(q_starts_after_p_starts && q_ends_after_p_ends) {    // at least one dimension overlaps
                 // definitely q_starts_after_p_ends is false.
                 // therefore q starts before p ends
                 // therefore at least one dim overlaps
 
-                std::size_t dim = 0;
-                bool overlapped = false;
-                for(const auto& zipped: boost::combine(qs, pe)) {
-                    if(zipped.get<0>() <= zipped.get<1>()) {
-                        break;
-                    }
-                    dim++;
-                }
-                assert(dim < qs.count());
+                // std::size_t dim = 0;
+                // bool overlapped = false;
+                // for(const auto& zipped: boost::combine(qs, pe)) {
+                //     if(zipped.get<0>() == zipped.get<1>()) {
+                //         overlapped = true;
+                //         break;
+                //     }
+                //     dim++;
+                // }
+                // if(overlapped) continue;
 
-                std::size_t gap = pe[dim] - qs[dim];
-                std::size_t slide = gap +1;
-                index ql = pe;
-                ql[dim] = qs[dim] + slide;
-                index hop = ql - pe;
-                std::size_t distance = hop.l1_from_zero();
-                auto pair = boost::add_edge(segment_vertices[i], segment_vertices[j], _graph);
-                if(pair.second) {
-                    auto e = pair.first;
-                    _graph[e].weight =  weight_fn(distance, q.length()-slide);
-                    _graph[e].slide  = slide;
+                // std::size_t gap = pe[dim] - qs[dim];
+                // std::size_t slide = gap +1;
+                // index ql = pe;
+                // ql[dim] = qs[dim] + slide;
+                // index hop = ql - pe;
+                // std::size_t distance = hop.l1_from_zero();
+                // auto pair = boost::add_edge(segment_vertices[i], segment_vertices[j], _graph);
+                // if(pair.second) {
+                //     auto e = pair.first;
+                //     _graph[e].weight = weight_fn(distance, q.length()-slide);
+                //     _graph[e].slide  = slide;
 
-                    // std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << " | " << _graph[e].slide << std::format("({} -> {})", boost::lexical_cast<std::string>(pe), boost::lexical_cast<std::string>(qs)) << std::endl;
-                }
+                //     std::cout << _segments[i] << " \t->\t " << _segments[j] << " >> " << _graph[e].weight << " | " << _graph[e].slide << std::format("({} -> {})", boost::lexical_cast<std::string>(pe), boost::lexical_cast<std::string>(qs)) << std::endl;
+                // }
 
-            }*/
+            }
         }
     }
     // }
 }
 
-std::ostream& prova::loga::graph::print(std::ostream& stream){
+std::ostream& prova::loga::graph::print(std::ostream& stream, const prova::loga::collection& collection){
     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
-        [&](const vertex_type& v) -> std::string {
+        [&](const vertex_type& v) -> std::string_view {
             if(v == _S) return "S";
             if(v == _T) return "T";
-            return boost::lexical_cast<std::string>(_segments.at(_vertices.at(v)));
+            // return boost::lexical_cast<std::string>(_segments.at(_vertices.at(v)));
+            return _segments.at(_vertices.at(v)).view(collection);
         }
     );
 
     auto vertex_weight_map = boost::make_function_property_map<edge_type>(
         [&](const edge_type& e) -> double {
-            return _graph[e].weight;
+            double w = _graph[e].weight;
+            return (w == 0) ? std::numeric_limits<double>::epsilon() : w;
         }
-     );
+    );
 
     boost::dynamic_properties properties;
     properties.property("label", vertex_label_map);

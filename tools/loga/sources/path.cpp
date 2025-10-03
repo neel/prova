@@ -13,17 +13,17 @@ prova::loga::path::const_iterator prova::loga::path::end() const { return _segme
 
 prova::loga::path::const_iterator prova::loga::path::begin() const { return _segments.begin(); }
 
-std::ostream& prova::loga::path::print(std::ostream& out){
+std::ostream& prova::loga::path::print(std::ostream& out, const prova::loga::collection& collection) const  {
     std::size_t i = 0;
     for(const auto& s: _segments) {
         if(i != 0) {
             out << " -> ";
         }
 
-        out << "{{{" << s.start() << "-" << s.end() << "|" << s.view() << "}}}";
+        out << "{{{" << s.start() << "-" << s.end() << "|" << s.view(collection) << "}}}" << "\n";
         ++i;
     }
-    out << " | " << score();
+    out << " | " << score(collection);
     return out;
 }
 
@@ -33,10 +33,10 @@ std::size_t prova::loga::path::matched() const{
     });
 }
 
-double prova::loga::path::score() const{
+double prova::loga::path::score(const collection &collection) const{
     assert(size() > 0);
     const segment& first_segment = *begin();
-    const std::string& base = first_segment.base();
+    const std::string& base = first_segment.base(collection);
     return static_cast<double>(matched()) / static_cast<double>(base.size());
 }
 

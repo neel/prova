@@ -5,12 +5,14 @@
 #include <vector>
 #include <ostream>
 #include <cstdint>
+#include <cereal/types/vector.hpp>
 
 namespace prova::loga{
 
 class path{
     using container_type = std::vector<segment>;
 
+    friend class cereal::access;
     template <class Archive>
     void serialize(Archive & ar, std::uint32_t const version) {
         ar & _segments;
@@ -33,10 +35,10 @@ public:
     const_iterator begin() const;
     const_iterator end() const;
     size_type size() const;
-    std::ostream& print(std::ostream& out);
+    std::ostream& print(std::ostream& out, const collection &collection) const;
 
     std::size_t matched() const;
-    double score() const;
+    double score(const prova::loga::collection& collection) const;
 };
 
 

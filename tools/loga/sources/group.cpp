@@ -63,6 +63,11 @@ std::size_t prova::loga::group::labels() const {
     return unique_labels;
 }
 
+std::size_t prova::loga::group::unclustered() const {
+    const auto range = _mapping.equal_range(std::numeric_limits<std::size_t>::max());
+    return std::distance(range.first, range.second);
+}
+
 prova::loga::group::label_proxy::value::value(const std::string &str, std::size_t index): _str(str), _index(index) {}
 
 const std::string &prova::loga::group::label_proxy::value::str() const{

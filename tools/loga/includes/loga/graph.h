@@ -29,7 +29,7 @@ class graph{
 public:
     explicit graph(segment_collection_type&& segments, segment&& start, segment&& finish);
     void build();
-    std::ostream& print(std::ostream& stream);
+    std::ostream& print(std::ostream& stream, const collection &collection);
     path shortest_path();
 public:
     using iterator = segment_collection_type::iterator;
