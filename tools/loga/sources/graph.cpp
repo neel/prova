@@ -188,7 +188,7 @@ prova::loga::path prova::loga::graph::shortest_path(){
     std::size_t vertex_count = boost::num_vertices(_graph);
 
     if(vertex_count == 3){
-        prova::loga::path path;
+        prova::loga::path path(_finish.start());
         path.add(_segments.at(0));
         return path;
     }
@@ -227,7 +227,7 @@ prova::loga::path prova::loga::graph::shortest_path(){
             cost += distances[v];
         }
 
-        prova::loga::path path;
+        prova::loga::path path(_finish.start());
         while(!vstack.empty()) {
             vertex_type v = vstack.top();
             if(v != _S && v != _T) {

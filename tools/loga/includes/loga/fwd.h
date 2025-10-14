@@ -12,6 +12,9 @@ class graph;
 class alignment;
 class multi_alignment;
 
+class tokenized_alignment;
+class tokenized_collection;
+
 }
 
 #endif // PROVA_ALIGN_FWD_H

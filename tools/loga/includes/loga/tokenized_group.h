@@ -1,20 +1,20 @@
-#ifndef LOGA_ALIGN_GROUP_H
-#define LOGA_ALIGN_GROUP_H
+#ifndef PROVA_ALIGN_TOKENIZED_GROUP_H
+#define PROVA_ALIGN_TOKENIZED_GROUP_H
 
 #include <armadillo>
-#include <loga/collection.h>
-#include <loga/alignment.h>
+#include <loga/tokenized_collection.h>
+#include <loga/tokenized_alignment.h>
 #include <loga/cluster.h>
 #include <map>
 
 namespace prova::loga {
 
-class group{
+class tokenized_group{
     using distance_matrix_type = arma::mat;
     using labels_type          = arma::Row<std::size_t>;
     using mapping_type         = std::multimap<std::size_t, std::size_t>;
 
-    const collection&       _collection;
+    const tokenized_collection&       _collection;
     const labels_type&      _labels;
     mapping_type            _mapping;
 
@@ -23,13 +23,13 @@ public:
     public:
         using mask_type = std::set<std::size_t>;
     private:
-        const group& _group;
+        const tokenized_group& _group;
         std::size_t  _label;
         mask_type    _mask;
 
-        friend class group;
+        friend class tokenized_group;
 
-        explicit label_proxy(const group& g, std::size_t label);
+        explicit label_proxy(const tokenized_group& g, std::size_t label);
     public:
         class value{
             const std::string& _str;
@@ -50,12 +50,13 @@ public:
     };
 
 public:
-    group(const collection& collection, const labels_type& labels);
-    group::label_proxy proxy(std::size_t label);
+    tokenized_group(const tokenized_collection& collection, const labels_type& labels);
+    tokenized_group::label_proxy proxy(std::size_t label);
     std::size_t labels() const;
     std::size_t unclustered() const;
 };
 
 }
 
-#endif // LOGA_ALIGN_GROUP_H
+
+#endif // PROVA_ALIGN_TOKENIZED_GROUP_H

@@ -30,11 +30,13 @@ class index{
     friend class cereal::access;
     template <class Archive>
     void serialize(Archive & ar, std::uint32_t const version) {
-        ar & _positions;
+        ar(_positions);
     }
 
     index() = default;
+
     friend class prova::loga::segment;
+    friend class prova::loga::path;
 
     friend bool operator<(const index& left, const index& right);
     friend bool operator>(const index& left, const index& right);
@@ -59,6 +61,8 @@ public:
     explicit index(std::vector<std::size_t>&& positions) : _positions(std::move(positions)) {
         assert(_positions.size() >= 2);
     }
+
+    index(const index&) = default;
 
     void move_all(std::int64_t delta);
     void move(std::size_t dim, std::int64_t delta);

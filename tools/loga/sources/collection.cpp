@@ -61,3 +61,7 @@ bool prova::loga::collection::unanimous_concensus(const index &idx) const{
     return true;
 }
 
+
+// bool prova::loga::operator==(const token &l, const token &r) {
+//     return l.view() == r.view();
+// }

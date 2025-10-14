@@ -13,7 +13,7 @@
 #include <boost/icl/separate_interval_set.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
-#if 1
+#if 0
 
 int main() {
     prova::loga::collection collection;

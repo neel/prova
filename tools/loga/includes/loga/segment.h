@@ -11,16 +11,16 @@ namespace prova::loga{
 std::ostream& operator<<(std::ostream& stream, const segment& s);
 
 class segment{
-    std::size_t         _base;
+    std::size_t        _base;
     prova::loga::index _start;
-    std::size_t         _length;
+    std::size_t        _length;
 
     friend std::ostream& operator<<(std::ostream& stream, const segment& s);
 
     friend class cereal::access;
     template <class Archive>
     void serialize(Archive & ar, std::uint32_t const version) {
-        ar & _base & _start & _length;
+        ar(_base, _start, _length);
     }
 
 public:
@@ -30,10 +30,13 @@ public:
     segment(segment&& other);
 
     const std::string& base(const prova::loga::collection &collection) const;
+    const std::string& base(const prova::loga::tokenized_collection &collection) const;
     const prova::loga::index start() const;
     const prova::loga::index end() const;
     std::size_t length() const;
     std::string_view view(const prova::loga::collection& collection) const;
+    std::string view(const prova::loga::tokenized_collection& collection) const;
+    std::size_t chars(const tokenized_collection &collection) const;
 };
 
 }

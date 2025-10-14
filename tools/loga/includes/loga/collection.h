@@ -6,6 +6,7 @@
 #include <string>
 #include <cstddef>
 
+
 namespace prova::loga{
 
 class collection{
