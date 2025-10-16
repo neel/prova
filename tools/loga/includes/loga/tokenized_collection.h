@@ -33,6 +33,8 @@ public:
     friend tokenized_collection& operator<<(tokenized_collection& col, const std::string& str);
 };
 
+tokenized_collection& operator<<(tokenized_collection& col, const std::string& str);
+
 }
 
 #endif // PROVA_ALIGN_TOKENIZED_COLLECTION_H

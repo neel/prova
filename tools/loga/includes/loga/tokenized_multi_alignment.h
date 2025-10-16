@@ -1,5 +1,5 @@
-#ifndef PROVA_ALIGN_MULTI_ALIGNMENT_H
-#define PROVA_ALIGN_MULTI_ALIGNMENT_H
+#ifndef PROVA_ALIGN_TOKENIZED_MULTI_ALIGNMENT_H
+#define PROVA_ALIGN_TOKENIZED_MULTI_ALIGNMENT_H
 
 #include <loga/fwd.h>
 #include <cstddef>
@@ -58,4 +58,4 @@ std::ostream& operator<<(std::ostream& stream, const std::set<prova::loga::token
 } // namespace algorithms
 } // namespace prova
 
-#endif // PROVA_ALIGN_MULTI_ALIGNMENT_H
+#endif // PROVA_ALIGN_TOKENIZED_MULTI_ALIGNMENT_H

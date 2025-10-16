@@ -100,7 +100,7 @@ double levenshtein_distance_detail(Iterator l_begin, Iterator l_it, Iterator l_e
                 if(l_scale == r_scale) {
                     d = 0.0f;                            // perfect 0 to get rid of floating point issues
                 } else {
-                    double bray_curtis_dissym = std::abs((double)l_scale - (double)r_scale) / double(l_scale + r_scale);
+                    double bray_curtis_dissym = 1 - (2* std::min(l_scale, r_scale) / double(l_scale + r_scale));
                     d = bray_curtis_dissym;
                 }
                 break;
@@ -163,9 +163,42 @@ template <typename Iterator>
 double levenshtein_distance(Iterator l_begin, Iterator l_end, Iterator r_begin, Iterator r_end) {
     std::unordered_map<std::pair<std::size_t, std::size_t>, double, index_pair_hasher> memo;
     double distance = levenshtein_distance_detail(l_begin, l_begin, l_end, r_begin, r_begin, r_end, memo);
-    double max = std::max(std::distance(l_begin, l_end), std::distance(r_begin, r_end));
-    double res = distance / max;
-    return res;
+    return distance;
+}
+
+template <typename Iterator>
+std::size_t lcs_detail(Iterator l_begin, Iterator l_it, Iterator l_end, Iterator r_begin, Iterator r_it, Iterator r_end, std::unordered_map<std::pair<std::size_t, std::size_t>, std::size_t, index_pair_hasher>& memo) {
+    std::size_t l_length = std::distance(l_it, l_end);
+    std::size_t r_length = std::distance(r_it, r_end);
+
+    auto key = std::make_pair(std::distance(l_begin, l_it), std::distance(r_begin, r_it));
+    if(memo.contains(key)) return memo.at(key);
+
+    if(l_length == 0 || r_length == 0) return memo.insert(std::make_pair(key, 0)).first->second;
+
+    const auto& l_value = *l_it;
+    const auto& r_value = *r_it;
+
+    bool matched = (l_value == r_value);
+
+    std::size_t result = 0;
+    if(matched) {
+        result = 1+lcs_detail(l_begin, std::next(l_it), l_end, r_begin, std::next(r_it), r_end, memo);
+    } else {
+        result = std::max(
+                lcs_detail(l_begin, std::next(l_it), l_end, r_begin, r_it,            r_end, memo),
+                lcs_detail(l_begin, l_it,            l_end, r_begin, std::next(r_it), r_end, memo)
+            );
+    }
+
+    return memo.insert(std::make_pair(key, result)).first->second;
+}
+
+template <typename Iterator>
+double lcs(Iterator l_begin, Iterator l_end, Iterator r_begin, Iterator r_end){
+    std::unordered_map<std::pair<std::size_t, std::size_t>, std::size_t, index_pair_hasher> memo;
+    std::size_t distance = lcs_detail(l_begin, l_begin, l_end, r_begin, r_begin, r_end, memo);
+    return distance;
 }
 
 inline bool operator==(const token::coordinate& lc, const token::coordinate& rc) {

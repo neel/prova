@@ -17,7 +17,9 @@ double prova::loga::tokenized_distance::dist(const tokenized_collection &collect
         key_type key{i, j};
         try{
             const prova::loga::path& path = _paths.at(key);
-            double score = path.score(collection);
+            double score = path.score(collection); // / std::max(collection.at(i).raw().size(), collection.at(j).raw().size());
+            return score;
+
             if((i == 45 && j == 46)|| (i == 46 && j == 45)) {
                 std::cout << std::format("{}, {} - > {}", i, j, 1-score) << std::endl;
             }
@@ -45,15 +47,32 @@ double prova::loga::tokenized_distance::dist_structural(const tokenized_collecti
         const auto& l_structure = collection.at(i).structure();
         const auto& r_structure = collection.at(j).structure();
         double distance = prova::loga::levenshtein_distance(l_structure.cbegin(), l_structure.cend(), r_structure.cbegin(), r_structure.cend());
-        double max = std::max(l_structure.size(), r_structure.size());
-        double d = static_cast<double>(distance)/static_cast<double>(max);
-        return d;
+        // double max = std::max(l_structure.size(), r_structure.size());
+        // double d = static_cast<double>(distance)/static_cast<double>(max);
+        // return d;
+        return distance;
+    }
+}
+
+double prova::loga::tokenized_distance::dist_lcs(const tokenized_collection &collection, std::size_t i, std::size_t j) const {
+    if(i == j) {
+        return 0.0;
+    } else {
+        const std::string& l_str = collection.at(i).raw();
+        const std::string& r_str = collection.at(j).raw();
+        double distance = prova::loga::lcs(l_str.cbegin(), l_str.cend(), r_str.cbegin(), r_str.cend());
+        // double max = std::max(l_structure.size(), r_structure.size());
+        // double d = static_cast<double>(distance)/static_cast<double>(max);
+        // return d;
+        return distance;
     }
 }
 
 void prova::loga::tokenized_distance::compute(const prova::loga::tokenized_collection &collection, std::size_t threads){
     _distances.set_size(_count, _count);
     _distances.zeros();
+    _structural_distances.set_size(_count, _count);
+    _structural_distances.zeros();
 
     unsigned int T = !threads ? std::thread::hardware_concurrency() : threads;
 
@@ -67,13 +86,10 @@ void prova::loga::tokenized_distance::compute(const prova::loga::tokenized_colle
     for (std::size_t i = 0; i < _count; ++i) {
         boost::asio::post(pool, [this, i,  &jobs_completed, &observer, &collection]() {
             for (std::size_t j = 0; j < _count; ++j) {
-                double d_alignment  = dist(collection, i, j);
-                double d_structural = dist_structural(collection, i, j);
-                _distances(i, j) = d_structural;
-                // _distances(i, j) = d_structural;
-                // std::cout << std::format("{}<>{} = {}", i, j, _distances(i, j)) << std::endl;
-                // _distances(i, j) = dist_neighbourhood(i, j);
-                // _distances(i, j) = dist_sequential(i, j);
+                // double d_alignment          = dist(collection, i, j);
+                double d_structural         = dist_structural(collection, i, j);
+                // _distances(i, j)            = d_alignment;
+                _structural_distances(i, j) = d_structural;
             }
             jobs_completed.fetch_add(1);
             observer.notify_one();
@@ -90,38 +106,61 @@ void prova::loga::tokenized_distance::compute(const prova::loga::tokenized_colle
         const auto upto = jobs_completed.load();
         while (printed < upto) {
             ++printed;
-            std::cout << std::format("\rDistance Matrix rows {}/{}", printed, _count) << std::flush;
+            // std::cout << std::format("\rDistance Matrix rows {}/{}", printed, _count) << std::flush;
+
+            double percent = ((double)++printed / (double)_count) * 10.0f;
+            std::string progress(20, '=');
+            std::fill(progress.begin()+(((int)percent)*2), progress.end(), '-');
+            std::cout << std::format("\r{:.2f}% {}", percent*10, progress) << std::flush;
         }
     }
 
     pool.join();
 
-    for (std::size_t i = 0; i < _count; ++i) {
-        auto row = _distances.row(i);
-        std::set<double> distances_in_row;
-        for(double d: row){
-            distances_in_row.insert(d);
-        }
-        double min = 0;
-        for(double d: distances_in_row) {
-            if(d > 0) {
-                min = d;
-                break;
-            }
-        }
-        for(std::size_t j = 0; j < _count; ++j) {
-            double v = row[j];
-            if(v != 0){
-                row[j] = v - min;
-            }
-        }
-    }
+    // for (std::size_t i = 0; i < _count; ++i) {
+    //     auto row = _distances.row(i);
+    //     std::set<double> distances_in_row;
+    //     for(double d: row){
+    //         distances_in_row.insert(d);
+    //     }
+    //     double min = 0;
+    //     for(double d: distances_in_row) {
+    //         if(d > 0) {
+    //             min = d;
+    //             break;
+    //         }
+    //     }
+    //     for(std::size_t j = 0; j < _count; ++j) {
+    //         double v = row[j];
+    //         if(v != 0){
+    //             row[j] = v - min;
+    //         }
+    //     }
+    // }
 
     std::cout << std::endl << std::endl << std::flush;
     std::cout.flush();
 }
 
+bool prova::loga::tokenized_distance::load(std::istream& stream) {
+    return _structural_distances.load(stream);
+}
+
+bool prova::loga::tokenized_distance::save(std::ostream& stream) const  {
+    return _structural_distances.save(stream);
+}
+
 prova::loga::tokenized_distance::directed_graph_type prova::loga::tokenized_distance::knn_digraph(std::size_t k) const {
+    // auto similarities = _distances;
+    // similarities.each_row([](auto row){
+    //     row = row.max() - row;
+    // });
+
+    auto structural_similarities = _structural_distances;
+    structural_similarities.each_row([](auto row){
+        row = row.max() - row;
+    });
+
     directed_graph_type graph;
 
     using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
@@ -139,11 +178,11 @@ prova::loga::tokenized_distance::directed_graph_type prova::loga::tokenized_dist
         for(std::size_t j = 0; j != _count; ++j){
             if(i == j) continue;
 
-            auto w = _distances(i, j);
+            auto w = /*similarities(i, j) +*/ structural_similarities(i, j);
             weights.push_back(std::make_pair(j, w));
         }
         std::sort(weights.begin(), weights.end(), [](const std::pair<std::size_t, double>& l, const std::pair<std::size_t, double>& r){
-            return l.second < r.second;
+            return l.second > r.second;
         });
         const auto neighbourhood = std::span(weights.cbegin(), std::min(k, _count - 1));
         for(const auto& [j, w]: neighbourhood) {
@@ -159,6 +198,18 @@ prova::loga::tokenized_distance::directed_graph_type prova::loga::tokenized_dist
 }
 
 prova::loga::tokenized_distance::undirected_graph_type prova::loga::tokenized_distance::knn_graph(std::size_t k, bool soft) const {
+    // { transform distances into similarities
+    auto similarities = _distances;
+    similarities.each_row([](arma::rowvec& row){
+        row = row.max() - row;
+    });
+
+    auto structural_similarities = _structural_distances;
+    structural_similarities.each_row([](arma::rowvec& row){
+        row = row.max() - row;
+    });
+    // }
+
     undirected_graph_type graph;
 
     using vertex_type = boost::graph_traits<undirected_graph_type>::vertex_descriptor;
@@ -176,11 +227,11 @@ prova::loga::tokenized_distance::undirected_graph_type prova::loga::tokenized_di
         for(std::size_t j = 0; j != _count; ++j){
             if(i == j) continue;
 
-            auto w = _distances(i, j);
+            auto w = /*similarities(i, j) +*/ structural_similarities(i, j);
             weights.push_back(std::make_pair(j, w));
         }
         std::sort(weights.begin(), weights.end(), [](const std::pair<std::size_t, double>& l, const std::pair<std::size_t, double>& r){
-            return l.second < r.second;
+            return l.second > r.second;
         });
         // if !soft then neighbourhood is limited to size k which implies that degree of a vertex may
         //     eventually be much less than k due to presence of a reverse edge.
@@ -192,58 +243,58 @@ prova::loga::tokenized_distance::undirected_graph_type prova::loga::tokenized_di
             vertex_type u = V[i];
             vertex_type v = V[j];
 
-            auto pair = boost::add_edge(u, v, graph);
-            if(pair.second) {
-                edge_type e = pair.first;
+            auto [e, inserted] = boost::add_edge(u, v, graph);
+            if (inserted) {
                 graph[e].weight = w;
                 ++counter;
+            } else {
+                graph[e].weight = std::min(graph[e].weight, w);
             }
 
             if(soft && counter >= k) {
                 break;
             }
-
         }
     }
 
     return graph;
 }
 
-std::ostream& prova::loga::tokenized_distance::print_graphml(std::ostream& stream) const {
-    directed_graph_type graph = knn_digraph(5);
+// std::ostream& prova::loga::tokenized_distance::print_graphml(std::ostream& stream) const {
+//     directed_graph_type graph = knn_digraph(5);
 
-    using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
-    using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
+//     using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
+//     using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
 
-    auto vertex_label_map = boost::make_function_property_map<vertex_type>(
-        [&](const vertex_type& v) -> std::string {
-            return boost::lexical_cast<std::string>(graph[v].id);
-        }
-    );
+//     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> std::string {
+//             return boost::lexical_cast<std::string>(graph[v].id);
+//         }
+//     );
 
-    auto edge_weight_map = boost::make_function_property_map<edge_type>(
-        [&](const edge_type& e) -> double {
-            double w = graph[e].weight;
-            if(w == 0) {
-                return std::numeric_limits<double>::epsilon();
-            }
-            return w;
-        }
-    );
+//     auto edge_weight_map = boost::make_function_property_map<edge_type>(
+//         [&](const edge_type& e) -> double {
+//             double w = graph[e].weight;
+//             if(w == 0) {
+//                 return std::numeric_limits<double>::epsilon();
+//             }
+//             return w;
+//         }
+//     );
 
-    boost::dynamic_properties properties;
-    properties.property("label", vertex_label_map);
-    properties.property("weight", edge_weight_map);
+//     boost::dynamic_properties properties;
+//     properties.property("label", vertex_label_map);
+//     properties.property("weight", edge_weight_map);
 
-    boost::write_graphml(stream, graph, properties, true);
-    return stream;
-}
+//     boost::write_graphml(stream, graph, properties, true);
+//     return stream;
+// }
 
 bool prova::loga::tokenized_distance::computed() const {
     return _paths.size() > 0;
 }
 
-const prova::loga::tokenized_distance::distance_matrix_type &prova::loga::tokenized_distance::matrix() const { return _distances; }
+const prova::loga::tokenized_distance::distance_matrix_type &prova::loga::tokenized_distance::matrix() const { return _structural_distances; }
 
 
 void prova::loga::bgl_to_igraph(const tokenized_distance::undirected_graph_type &G_in, igraph_t* G_out, igraph_vector_t* E_out){
@@ -268,7 +319,7 @@ void prova::loga::bgl_to_igraph(const tokenized_distance::undirected_graph_type 
 
         igraph_vector_int_push_back(&edgelist, static_cast<igraph_integer_t>(u));
         igraph_vector_int_push_back(&edgelist, static_cast<igraph_integer_t>(v));
-        igraph_vector_push_back(E_out, 1-w);
+        igraph_vector_push_back(E_out, w);
     }
 
     igraph_create(G_out, &edgelist, static_cast<::igraph_integer_t>(V_count), IGRAPH_UNDIRECTED);
@@ -305,7 +356,8 @@ void prova::loga::leiden_membership(igraph_t* G, const igraph_vector_t* W, arma:
     igraph_real_t quality = 0.0;
 
     // igraph_community_leiden(G, const_cast<igraph_vector_t*>(W), &v_out, 0x0, resolution, beta, 1, -1, &membership, &n_clusters, &quality);
-    igraph_community_leiden_simple(G, const_cast<igraph_vector_t*>(W), IGRAPH_LEIDEN_OBJECTIVE_MODULARITY, resolution, beta, 1, -1, &membership, &n_clusters, &quality);
+    // igraph_community_leiden_simple(G, const_cast<igraph_vector_t*>(W), IGRAPH_LEIDEN_OBJECTIVE_MODULARITY, resolution, beta, 1, -1, &membership, &n_clusters, &quality);
+    igraph_community_leiden_simple(G, const_cast<igraph_vector_t*>(W), IGRAPH_LEIDEN_OBJECTIVE_ER, resolution, beta, 1, -1, &membership, &n_clusters, &quality);
 
     L.set_size(n);
     for (std::size_t i = 0; i < n; ++i)

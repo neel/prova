@@ -11,7 +11,7 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() c
 
     assert(_filter.contains(_base_index));
     
-    // { construct intervals mapping [s, e) -> {t, s, r}
+    // { construct intervals mapping [s, e) -> {t, s, r}+
     //      by considering all paths starting from the base item to all reference items allowed by the filter
     //      where (s, e) are the offsets of the start and end position of the base string corresponding to a matched string segment
     //      t is the index of the reference string and r is the start position in the reference string that align with the matched segment
@@ -24,11 +24,13 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() c
             std::size_t start_pos = start.at(0);
             std::size_t end_pos   = start_pos + s.length();
             interval_type::type interval = interval_type::right_open(start_pos, end_pos);
-            interval_val val;
-            matched_val matched;
+            interval_val val;    // Set<{t, s, r}>()
+
+            matched_val matched; // {t, s, r}
             matched.id = key.second;
             matched.base_pos = start_pos;
             matched.ref_pos = start.at(1);
+
             val.insert(matched);
             intervals.add(std::make_pair(interval, val)); //
             // std::cout << std::format("[{}, {})", start_pos, end_pos) << "-" << s.start();
@@ -37,6 +39,7 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() c
         // std::cout << std::endl;
     }
     // }
+
     // postcondition: intervals only contains references allowed by the filter
     region_map regions;
     
@@ -54,15 +57,15 @@ prova::loga::multi_alignment::region_map prova::loga::multi_alignment::align() c
     const std::string& base_ref = _collection.at(_base_index);
     for(const auto& iv: intervals) {
         std::size_t num_references = iv.second.size();
-        if(num_references == _filter.size()-1) {
+        if(num_references >= (_filter.size()-1)/2) {
             std::size_t len = iv.first.upper() - iv.first.lower();
             std::set<zone> zones;
             zones.insert(zone::constant);
             regions[_base_index].add(std::make_pair(region_type::right_open(iv.first.lower(), iv.first.lower() +len), zones));
             for(const matched_val& v: iv.second) {
-                std::size_t delta = iv.first.lower() - v.base_pos;
-                std::size_t ref_start = v.ref_pos+delta;
-                std::size_t ref_end   = delta+v.ref_pos+len;
+                std::size_t delta       = iv.first.lower() - v.base_pos;
+                std::size_t ref_start   = v.ref_pos+delta;
+                std::size_t ref_end     = delta+v.ref_pos+len;
                 std::set<zone> zones;
                 zones.insert(zone::constant);
                 regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
@@ -391,9 +394,9 @@ std::ostream &prova::loga::multi_alignment::print_interval_set(const interval_se
         std::size_t offset = z.first.lower();
         std::size_t len = z.first.upper()-z.first.lower();
         std::string substr = ref.substr(offset, len);
-        std::transform(substr.cbegin(), substr.cend(), substr.begin(), [](const char& c){
-            return c == ' ' ? '~' : c;
-        });
+        // std::transform(substr.cbegin(), substr.cend(), substr.begin(), [](const char& c){
+        //     return c == ' ' ? '~' : c;
+        // });
         if(tag == zone::constant)
             stream << substr;
         else {

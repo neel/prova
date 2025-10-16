@@ -1,15 +1,20 @@
 #include <loga/token.h>
+#include <loga/collection.h>
 #include <loga/tokenized_collection.h>
 #include <loga/tokenized_alignment.h>
+#include <loga/alignment.h>
 #include <loga/tokenized_distance.h>
 #include <loga/cluster.h>
 #include <loga/path.h>
 #include <loga/tokenized_group.h>
+#include <loga/group.h>
 #include <loga/tokenized_multi_alignment.h>
+#include <loga/multi_alignment.h>
 #include <iostream>
 #include <filesystem>
 #include <cereal/archives/portable_binary.hpp>
 #include <igraph/igraph.h>
+#include <boost/program_options.hpp>
 
 class parsed{
     std::size_t _id;
@@ -23,77 +28,85 @@ public:
     std::size_t cluster() const { return _cluster; }
 };
 
-int main() {
-    prova::loga::tokenized_collection collection;
-    // collection.add("Hello W Here I am do you hear me 579");
-    // collection.add("J Here Jx am do you hear me 18303");
-    // // collection.add("Hola W Here We are do you hear me");
-    // // prova::loga::tokenized_alignment::matrix_type tpaths;
-    // // prova::loga::tokenized_distance tdistance(tpaths, collection.count());
-    // // tdistance.compute(collection, 1);
-    // const auto& l_structure = collection.at(0).structure();
-    // const auto& r_structure = collection.at(1).structure();
-    // double d = prova::loga::levenshtein_distance(l_structure.cbegin(), l_structure.cend(), r_structure.cbegin(), r_structure.cend());
-    // std::cout << "d: " << d << std::endl;
-    // return 1;
+int main(int argc, char** argv) {
+    boost::program_options::variables_map vm;
+    try{
+        boost::program_options::options_description desc("Allowed options");
+        desc.add_options()
+            ("help,h",            "Print help message")
+            ("input",             boost::program_options::value<std::string>(),                "Log file path")
+        ;
+        boost::program_options::positional_options_description p;
+        p.add("input", 1);
 
-    // collection
-    //     << "- 1131566463 2005.11.09 cn142 Nov 9 12:01:03 cn142/cn142 ntpd[7467]: synchronized to 10.100.20.250, stratum 3"
-    //     << "- 1131566467 2005.11.09 cn46 Nov 9 12:01:07 cn46/cn46 ntpd[15291]: synchronized to 10.100.16.250, stratum 3"
-    //     << "- 1131566470 2005.11.09 cn661 Nov 9 12:01:10 cn661/cn661 ntpd[18505]: synchronized to 10.100.20.250, stratum 3"
-    //     << "- 1131566473 2005.11.09 cn379 Nov 9 12:01:13 cn379/cn379 ntpd[10573]: synchronized to 10.100.18.250, stratum 3"
-    //     << "- 1131566473 2005.11.09 cn733 Nov 9 12:01:13 cn733/cn733 ntpd[27716]: synchronized to 10.100.20.250, stratum 3"
-    //     << "- 1131566477 2005.11.09 cn543 Nov 9 12:01:17 cn543/cn543 ntpd[13785]: synchronized to 10.100.18.250, stratum 3"
-    //     << "- 1131566479 2005.11.09 bn431 Nov 9 12:01:19 bn431/bn431 ntpd[28723]: synchronized to 10.100.20.250, stratum 3"
-    //     << "- 1131566484 2005.11.09 cn931 Nov 9 12:01:24 cn931/cn931 ntpd[29054]: synchronized to 10.100.20.250, stratum 3"
-    //     ;
+        auto options = boost::program_options::command_line_parser(argc, argv).options(desc).positional(p).run();
+        boost::program_options::store(options, vm);
+        boost::program_options::notify(vm);
 
-    std::ifstream log("Thunderbird_2k.small.log");
-    collection.parse(log);
-
-    std::filesystem::path archive_file_path = std::format("Thunderbird_2k.small.log.1g.paths");
-
-    for(const prova::loga::tokenized& word: collection) {
-        std::cout << word << std::endl;
+        if (vm.count("help")) {
+            std::cout << "Usage: " << argv[0] << " <path>\n";
+            std::cout << desc << "\n";
+            return 0;
+        }
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << "\n";
+        return 1;
     }
 
-    prova::loga::tokenized_alignment alignment(collection);
-    prova::loga::tokenized_alignment::matrix_type paths;
+    if (!vm.count("input")) {
+        throw boost::program_options::error("missing required positional argument <path>");
+    }
+
+    prova::loga::tokenized_collection collection;
+    std::string log_path = vm["input"].as<std::string>();
+
+    std::string archive_file_path = std::format("{}.1g.paths",    log_path);
+    std::string dist_file_path    = std::format("{}.lev.dmat",    log_path);
+    std::string graphml_file_path = std::format("{}.1nn.graphml", log_path);
+
+    std::ifstream log(log_path);
+    collection.parse(log);
+
+    prova::loga::tokenized_alignment::matrix_type all_paths;
     if(std::filesystem::exists(archive_file_path)){
         std::ifstream archive_file(archive_file_path);
         cereal::PortableBinaryInputArchive archive(archive_file);
-        archive(paths);
+        archive(all_paths);
     } else {
-        alignment.bubble_all_pairwise(paths, 1);
-
         std::ofstream archive_file(archive_file_path);
         cereal::PortableBinaryOutputArchive archive(archive_file);
-        archive(paths);
+        archive(all_paths);
     }
-
-    prova::loga::tokenized_distance distance(paths, collection.count());
-    distance.compute(collection, 1);
-    {
-        std::ofstream graphml("distances.graphml");
-        distance.print_graphml(graphml);
+    prova::loga::tokenized_distance distance(all_paths, collection.count());
+    if(std::filesystem::exists(dist_file_path)){
+        std::ifstream dist_file(dist_file_path);
+        if(!distance.load(dist_file)){
+            std::cout << "failed to load dmat" << std::endl;
+            return 1;
+        }
+    } else {
+        distance.compute(collection);
+        std::ofstream dist_file(dist_file_path);
+        if(!distance.save(dist_file)){
+            std::cout << "failed to save dmat" << std::endl;
+            return 1;
+        }
     }
     prova::loga::tokenized_distance::distance_matrix_type dmat = distance.matrix();
-    std::cout << "dmat " << dmat.size() << std::endl;
+    assert(dmat.n_rows == collection.count());
+    assert(dmat.n_cols == collection.count());
 
-    auto bgl_graph = distance.knn_graph(1);
+    auto bgl_graph = distance.knn_graph(1, false);
+    {
+        std::ofstream graphml(graphml_file_path);
+        prova::loga::print_graphml(bgl_graph, graphml);
+    }
     igraph_t igraph;
     igraph_vector_t edges;
     prova::loga::bgl_to_igraph(bgl_graph, &igraph, &edges);
     prova::loga::cluster::labels_type labels(collection.count());
     prova::loga::leiden_membership(&igraph, &edges, labels);
-
-
-
-    // prova::loga::cluster cluster(dmat);
-
-    // cluster.compute(0.0001, 3);
-    // prova::loga::cluster::labels_type labels = cluster.labels();
-    // std::cout << "labels " << labels.size() << std::endl;
 
     const std::array<std::string, 20> fruits = {
         "Apple", "Banana", "Orange", "Mango", "Grape", "Pineapple", "Strawberry", "Cherry", "Peach", "Pear",
@@ -102,6 +115,7 @@ int main() {
 
     std::map<std::size_t, parsed> parsed_log;
     prova::loga::tokenized_group group(collection, labels);
+    std::cout << "Clusters: " << group.labels() << std::endl;
     for(std::size_t c = 0; /*c != group.labels()*/; ++c) {
         if(c == group.labels()) {
             if(group.unclustered() == 0){
@@ -118,45 +132,82 @@ int main() {
         }
         prova::loga::tokenized_group::label_proxy proxy = group.proxy(c);
         std::size_t count = proxy.count();
-        std::size_t min_matched = std::numeric_limits<std::size_t>::max();
-        std::size_t min_matched_id = std::numeric_limits<std::size_t>::max();
-        for(std::size_t i = 0; i != count; ++i) {
-            auto v = proxy.at(i);
-            for(const auto& [k, path]: paths) {
-                if(k.first == v.id()) {
-                    std::size_t matched_chars = path.matched();
-                    if(matched_chars < min_matched) {
-                        min_matched = matched_chars;
-                        min_matched_id = v.id();
+
+        std::string cluster_name = (c < std::numeric_limits<std::size_t>::max()) ? ((c < fruits.size()) ? fruits.at(c) : std::format("C{}", c)) : " Failed ";
+        std::cout << "Label: " << cluster_name << std::format(" ({})", count) << std::endl;
+        // std::cout << std::resetiosflags(std::ios::showbase) << std::right << std::setw(3) << "*" << min_matched_id << "|" << "\033[4m" << collection.at(min_matched_id) << "\033[0m" << std::resetiosflags(std::ios::showbase) << std::endl;
+
+        prova::loga::tokenized_multi_alignment::region_map regions;
+        if(true) {
+            prova::loga::tokenized_collection subcollection;
+            std::vector<std::size_t> references;
+            for(std::size_t i = 0; i < count; ++i) {
+                prova::loga::tokenized_group::label_proxy::value v = proxy.at(i);
+                const std::string& str = v.str();
+                subcollection.add(str);
+                references.push_back(v.id());
+            }
+
+            std::size_t base = 0;
+            std::size_t cache_hits = 0;
+            prova::loga::tokenized_alignment::matrix_type paths;
+            std::size_t ref_c_i = 0;
+            for(auto ref_i = references.cbegin(); ref_i != references.cend(); ++ref_i) {
+                std::size_t ref_c_j = 0;
+                for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
+                    if(ref_i != ref_j){
+                        auto global_key = std::make_pair(*ref_i, *ref_j);
+                        auto it = all_paths.find(global_key);
+                        if(it != all_paths.cend()) {
+                            auto local_key = std::make_pair(ref_c_i, ref_c_j);
+                            paths.insert(std::make_pair(local_key, it->second));
+                            ++cache_hits;
+                        }
                     }
+                    ++ref_c_j;
+                }
+                ++ref_c_i;
+            }
+            std::cout << std::format("Cache hits {}/{}", cache_hits, (references.size() * references.size()) - references.size()) << std::endl;
+
+            prova::loga::tokenized_alignment subalignment(subcollection);
+            subalignment.bubble_all_pairwise(paths, 1);
+
+            for(const auto& [key, path]: paths) {
+                auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
+                if(!all_paths.contains(global_key)) {
+                    all_paths.insert(std::make_pair(global_key, path));
                 }
             }
-        }
+            {
+                std::ofstream archive_file(archive_file_path);
+                cereal::PortableBinaryOutputArchive archive(archive_file);
+                archive(all_paths);
+            }
 
-        if(min_matched_id == std::numeric_limits<std::size_t>::max()){
-            std::cout << "Unexpected " << __LINE__ << std::endl;
-            continue;
-        }
-
-        if(true /*params.clusterwise*/) {
-            std::string cluster_name = (c < std::numeric_limits<std::size_t>::max()) ? ((c < fruits.size()) ? fruits.at(c) : std::format("C{}", c)) : " Failed ";
-            std::cout << "Label: " << cluster_name << std::format(" ({})", count) << std::endl;
-            std::cout << std::resetiosflags(std::ios::showbase) << std::right << std::setw(3) << "*" << min_matched_id << "|" << "\033[4m" << collection.at(min_matched_id) << "\033[0m" << std::resetiosflags(std::ios::showbase) << std::endl;
-        }
-
-        prova::loga::tokenized_multi_alignment malign(collection, paths, proxy.mask(), min_matched_id);
-        prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
-        if(false /*params.fixtures*/) {
+            prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
+            regions = malign.align();
+            malign.print_regions_string(regions, std::cout) << std::endl;
+        } else {
+            prova::loga::collection subcollection;
+            for(std::size_t i = 0; i < count; ++i) {
+                auto v = proxy.at(i);
+                const std::string& str = v.str();
+                subcollection.add(str);
+            }
+            prova::loga::alignment::matrix_type paths;
+            prova::loga::alignment subalignment(subcollection);
+            subalignment.bubble_all_pairwise(paths, 2);
+            prova::loga::multi_alignment malign(subcollection, paths, 0);
+            regions = malign.align();
             // regions = malign.fixture_word_boundary(regions);
-        }
-        if(true /*params.clusterwise*/) {
             malign.print_regions_string(regions, std::cout) << std::endl;
         }
 
-        // for(auto& [id, zones]: regions) {
-        //     parsed p(id, c, std::move(zones));
-        //     parsed_log.emplace(std::make_pair(id, p));
-        // }
+        for(auto& [id, zones]: regions) {
+            parsed p(id, c, std::move(zones));
+            parsed_log.emplace(std::make_pair(id, p));
+        }
     }
     return 0;
 }

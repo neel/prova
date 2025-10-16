@@ -66,7 +66,7 @@ std::size_t prova::loga::segment::chars(const tokenized_collection &collection) 
     auto finish = start;
     std::advance(finish, _length);
 
-    std::size_t res;
+    std::size_t res = 0;
     for(auto it = start; it != finish; ++it) {
         res += it->view().size();
     }

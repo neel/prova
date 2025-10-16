@@ -4,6 +4,7 @@
 #include <loga/path.h>
 #include <thread>
 #include <boost/asio.hpp>
+#include <array>
 
 std::uint64_t prova::loga::tokenized_alignment::pair_hash::operator()(const key_type &key) const noexcept {
     std::uint64_t res = key.first;
@@ -85,7 +86,7 @@ void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, std
     std::mutex mutex;
     boost::asio::thread_pool pool(T);
     std::atomic_uint32_t jobs_completed = 0;
-    std::size_t total_jobs = _collection.count() * _collection.count();
+    std::size_t total_jobs = _collection.count() * _collection.count() - _collection.count();
 
     std::size_t u = 0;
     for(auto base = _collection.begin(); base != _collection.end(); ++base) {
@@ -96,7 +97,8 @@ void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, std
                 continue;
             }
 
-            auto lambda = [base, ref, threshold, this, N, &mutex, u, v, &jobs_completed, total_jobs, &mat](){
+            auto key = std::make_pair(u, v);
+            auto lambda = [key, base, ref, threshold, this, N, &mutex, u, v, &jobs_completed, total_jobs, &mat](){
                 std::vector<std::size_t> L{base->count()-1, ref->count()-1};
                 memo_type memo;
 
@@ -120,15 +122,20 @@ void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, std
                 graph.build();
                 prova::loga::path path = graph.shortest_path();
 
-                auto key = std::make_pair(u, v);
                 // std::cout << "score: " << path.score() << std::endl;
                 std::lock_guard lock(mutex);
                 mat.emplace(key, std::move(path));
                 // std::cout << "score: " << mat.at(key).score() << std::endl;
-                std::cout << std::format("\rPairwise {}/{}", jobs_completed++, total_jobs) << std::flush;
+                // std::cout << std::format("\rPairwise {}/{}", ++jobs_completed, total_jobs) << std::flush;
+                double percent = ((double)++jobs_completed / (double)total_jobs) * 10.0f;
+                std::string progress(20, '=');
+                std::fill(progress.begin()+(((int)percent)*2), progress.end(), '-');
+                std::cout << std::format("\r{:.2f}% {}", percent*10, progress) << std::flush;
             };
 
-            boost::asio::post(pool, lambda);
+            if(!mat.contains(key)) {
+                boost::asio::post(pool, lambda);
+            }
 
             ++v;
         }

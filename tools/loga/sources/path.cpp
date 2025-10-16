@@ -62,7 +62,7 @@ double prova::loga::path::score(const tokenized_collection &collection) const{
     std::size_t matched = std::accumulate(begin(), end(), 0, [&collection](std::size_t last, const prova::loga::segment& s){
         return last + s.chars(collection);
     });
-    return static_cast<double>(matched) / static_cast<double>(std::ranges::max(_finish));
+    return static_cast<double>(matched);
 }
 
 

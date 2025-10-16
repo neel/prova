@@ -86,6 +86,7 @@ prova::loga::token::coordinate prova::loga::token::vector(token::category cat) {
     if (cat == category::symbol) return coordinate(2);
     if (cat == category::space)  return coordinate(3);
     assert(cat != category::none);
+    return coordinate(4);
 }
 
 prova::loga::token::category prova::loga::token::classify(uint8_t ch) {
