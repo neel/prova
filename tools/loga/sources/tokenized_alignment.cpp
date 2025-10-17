@@ -78,6 +78,73 @@ void prova::loga::tokenized_alignment::bubble_pairwise(const_iterator u, const_i
     }
 }
 
+
+void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, const_iterator base, std::size_t threshold, std::size_t threads) {
+    assert(threshold > 0);
+    std::size_t N = 2;
+
+    unsigned int T = !threads ? std::thread::hardware_concurrency() : threads;
+    std::mutex mutex;
+    boost::asio::thread_pool pool(T);
+    std::atomic_uint32_t jobs_completed = 0;
+    std::size_t total_jobs = _collection.count() - 1;
+
+    std::size_t u = std::distance(_collection.begin(), base);
+
+    std::size_t v = 0;
+    for(auto ref = _collection.begin(); ref != _collection.end(); ++ref) {
+        if(base == ref) {
+            ++v;
+            continue;
+        }
+
+        auto key = std::make_pair(u, v);
+        auto lambda = [key, base, ref, threshold, this, N, &mutex, u, v, &jobs_completed, total_jobs, &mat](){
+            std::vector<std::size_t> L{base->count()-1, ref->count()-1};
+            memo_type memo;
+
+            for(std::size_t j = 0; j < N; ++j) {
+                enumerate_mixed_radix(L, j, [threshold, this, base, ref, &memo](std::vector<std::size_t> x){
+                    // std::cout << "[";
+                    // std::ranges::copy(x, std::ostream_iterator<std::size_t>(std::cout, ","));
+                    // std::cout << "]" << std::endl;
+                    bubble_pairwise(base, ref, index{std::move(x)}, memo, threshold, 0);
+                });
+            }
+
+            segment_collection_type segments;
+            for(const auto& [idx, length]: memo) {
+                segments.emplace_back(segment{u, idx, length});
+            }
+            segment start{u, index{2}, 0};
+            segment finish{u, index{{base->count(), ref->count()}}, 0};
+
+            prova::loga::graph graph{std::move(segments), std::move(start), std::move(finish)};
+            graph.build();
+            prova::loga::path path = graph.shortest_path();
+
+            // std::cout << "score: " << path.score() << std::endl;
+            std::lock_guard lock(mutex);
+            mat.emplace(key, std::move(path));
+            // std::cout << "score: " << mat.at(key).score() << std::endl;
+            // std::cout << std::format("\rPairwise {}/{}", ++jobs_completed, total_jobs) << std::flush;
+            double percent = ((double)++jobs_completed / (double)total_jobs) * 10.0f;
+            std::string progress(20, '=');
+            std::fill(progress.begin()+(((int)percent)*2), progress.end(), '-');
+            std::cout << std::format("\r{:.2f}% {}", percent*10, progress) << std::flush;
+        };
+
+        if(!mat.contains(key)) {
+            boost::asio::post(pool, lambda);
+        }
+
+        ++v;
+    }
+
+    pool.join();
+    std::cout << std::endl;
+}
+
 void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, std::size_t threshold, std::size_t threads) {
     assert(threshold > 0);
     std::size_t N = 2;
@@ -145,3 +212,4 @@ void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, std
     pool.join();
     std::cout << std::endl;
 }
+

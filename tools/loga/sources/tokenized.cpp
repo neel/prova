@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
             std::cout << std::format("Cache hits {}/{}", cache_hits, (references.size() * references.size()) - references.size()) << std::endl;
 
             prova::loga::tokenized_alignment subalignment(subcollection);
-            subalignment.bubble_all_pairwise(paths, 1);
+            subalignment.bubble_all_pairwise(paths, subcollection.begin(), 1);
 
             for(const auto& [key, path]: paths) {
                 auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
@@ -187,6 +187,7 @@ int main(int argc, char** argv) {
 
             prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
             regions = malign.align();
+            // regions = malign.fixture_word_boundary(regions);
             malign.print_regions_string(regions, std::cout) << std::endl;
         } else {
             prova::loga::collection subcollection;

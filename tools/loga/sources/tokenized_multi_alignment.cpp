@@ -93,96 +93,12 @@ prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_
     return regions;
 }
 
-// prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_alignment::fixture_word_boundary(const region_map &regions) const{
-//     // ensures that a matched region is surrounded by non-word characters including end of line
-//     static std::string alphabets = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_:/.@";
-//     region_map result;
-//     for(auto& candidate: regions) {
-//         std::size_t candidate_id = candidate.first;
-//         const interval_set& intervals = candidate.second;
-//         std::vector<std::pair<region_type, zone>> updated_regions;
-//         std::size_t squeeze_left_next = 0;
-//         for(auto& z: intervals) {
-//             auto& region = z.first;
-//             auto updated_region = region;
-//             // { check if there is any distance carried forward by the previous region
-//             if(squeeze_left_next > 0) {
-//                 updated_region = region_type::right_open(updated_region.lower()-squeeze_left_next, updated_region.upper());
-//                 squeeze_left_next = 0;
-//             }
-//             // }
-//             prova::loga::zone tag = *z.second.cbegin();
-//             if(tag == prova::loga::zone::constant) {
-//                 const std::string& ref = _collection.at(candidate_id);
-//                 // std::cout << z.first << " <" << ref.substr(region.lower(), region.upper()-region.lower()) << "> " << tag << std::endl;
-//                 std::size_t len = region.upper()-region.lower();
-//                 auto begin = ref.begin()+region.lower();
-//                 std::string_view view{begin, begin+len};
+prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_alignment::fixture_word_boundary(const region_map &regions) const{
+    region_map result;
 
-//                 // { check right to find
-//                 bool eol = (region.upper() == ref.size());
-//                 auto rear = std::ranges::find_if_not(view.rbegin(), view.rend(), [&](auto const& x) {
-//                     return std::ranges::find(alphabets, x) != alphabets.end();
-//                 });
-//                 std::size_t dist_rear = eol ? 0 : std::distance(view.rbegin(), rear);
-//                 if(dist_rear > 0) { // squeeze region from right
-//                     updated_region = region_type::right_open(updated_region.lower(), updated_region.upper()-dist_rear);
-//                     squeeze_left_next = dist_rear;
-//                 }
-//                 // }
+    return result;
 
-//                 // { check left to find
-//                 auto front = std::ranges::find_if_not(view.begin(), view.end(), [&](auto const& x) {
-//                     return std::ranges::find(alphabets, x) != alphabets.end();
-//                 });
-//                 std::size_t dist_front = std::distance(view.begin(), front);
-
-//                 if(dist_front > 0 && dist_rear > 0 && dist_front == dist_rear) {
-//                     // PPPCCCPPP
-//                     // where C is not a word break
-//                     // therefore merge CCC with left and right Ps
-//                     // PPPPPPPPP
-//                     if(!updated_regions.empty()) {
-//                         // remove the previous region
-//                         auto& last = updated_regions.back().first;
-//                         squeeze_left_next += (last.upper() - last.lower());
-//                         updated_regions.pop_back();
-//                     }
-//                     continue;
-//                 }
-
-//                 if(dist_front > 0) { // squeeze region from right
-//                     updated_region = region_type::right_open(updated_region.lower()+dist_front, updated_region.upper());
-//                     if(!updated_regions.empty()) {
-//                         // expand the upper bound of the last region
-//                         auto& last = updated_regions.back().first;
-//                         last = region_type::right_open(last.lower(), last.upper()+dist_front);
-//                     } else {
-//                         // create a new placeholder
-//                         auto new_region = region_type::right_open(0, dist_front);
-//                         updated_regions.push_back(std::make_pair(new_region, zone::placeholder));
-//                     }
-//                 }
-//                 // }
-//                 updated_regions.push_back(std::make_pair(updated_region, zone::constant));
-//             } else {
-//                 updated_regions.push_back(std::make_pair(updated_region, zone::placeholder));
-//             }
-//         }
-
-//         interval_set updated_intervals;
-//         for(const auto& pair: updated_regions) {
-//             std::set<zone> zones;
-//             zones.insert(pair.second);
-//             updated_intervals.add(std::make_pair(pair.first, zones));
-//         }
-
-//         result.insert(std::make_pair(candidate_id, updated_intervals));
-//     }
-
-//     return result;
-
-// }
+}
 
 // prova::loga::multi_alignment::region_map prova::loga::multi_alignment::fixture_word_boundary(const region_map &regions) const{
 //     // ensures that a matched region is surrounded by non-word characters including end of line
