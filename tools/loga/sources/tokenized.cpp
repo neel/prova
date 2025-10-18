@@ -137,72 +137,144 @@ int main(int argc, char** argv) {
         std::cout << "Label: " << cluster_name << std::format(" ({})", count) << std::endl;
         // std::cout << std::resetiosflags(std::ios::showbase) << std::right << std::setw(3) << "*" << min_matched_id << "|" << "\033[4m" << collection.at(min_matched_id) << "\033[0m" << std::resetiosflags(std::ios::showbase) << std::endl;
 
-        prova::loga::tokenized_multi_alignment::region_map regions;
-        if(true) {
-            prova::loga::tokenized_collection subcollection;
-            std::vector<std::size_t> references;
-            for(std::size_t i = 0; i < count; ++i) {
-                prova::loga::tokenized_group::label_proxy::value v = proxy.at(i);
-                const std::string& str = v.str();
-                subcollection.add(str);
-                references.push_back(v.id());
+        prova::loga::tokenized_collection subcollection;
+        std::vector<std::size_t> references;
+        for(std::size_t i = 0; i < count; ++i) {
+            prova::loga::tokenized_group::label_proxy::value v = proxy.at(i);
+            const std::string& str = v.str();
+            subcollection.add(str);
+            references.push_back(v.id());
+        }
+
+        std::vector<std::string> outliers;
+        std::vector<double> confidence;
+        arma::vec lof(count, arma::fill::none);
+        if(count > 2){
+            std::size_t K = std::min<std::size_t>(3, count -1);
+            arma::mat local_distances(count, count, arma::fill::zeros);
+            arma::vec kdist(count, arma::fill::none);
+            for (std::size_t i = 0; i < count; ++i) {
+                for (std::size_t j = i + 1; j < count; ++j) {
+                    const std::string& si = subcollection.at(i).raw();
+                    const std::string& sj = subcollection.at(j).raw();
+
+                    // std::size_t lcs_len  = prova::loga::lcs(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
+                    // std::size_t lcs_dist = std::max(si.size(), sj.size()) - lcs_len;
+                    // local_distances(i,j) = local_distances(j,i) = lcs_dist;
+
+                    // local_distances(i,j) = local_distances(j,i) = dmat(i, j);
+
+                    std::size_t lev_dist = prova::loga::levenshtein_distance(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
+                    local_distances(i,j) = local_distances(j,i) = lev_dist;// /std::max(si.size(), sj.size());
+                }
+                arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
+                kdist(i) = sorted(K);
             }
 
-            std::size_t base = 0;
-            std::size_t cache_hits = 0;
-            prova::loga::tokenized_alignment::matrix_type paths;
-            std::size_t ref_c_i = 0;
-            for(auto ref_i = references.cbegin(); ref_i != references.cend(); ++ref_i) {
-                std::size_t ref_c_j = 0;
-                for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
-                    if(ref_i != ref_j){
-                        auto global_key = std::make_pair(*ref_i, *ref_j);
-                        auto it = all_paths.find(global_key);
-                        if(it != all_paths.cend()) {
-                            auto local_key = std::make_pair(ref_c_i, ref_c_j);
-                            paths.insert(std::make_pair(local_key, it->second));
-                            ++cache_hits;
-                        }
+            arma::field<arma::uvec> neighbours(count);  // each entry can have a different length
+            for (std::size_t i = 0; i < count; ++i) {
+                arma::uvec idx = arma::find(local_distances.row(i).t() <= kdist(i));
+                idx = idx(arma::find(idx != i));
+                neighbours(i) = idx;
+                assert(neighbours(i).n_elem >= K);
+            }
+
+            auto reach = [&](std::size_t x, std::size_t y) {
+                return std::max(kdist(y), local_distances(x, y));
+            };
+
+            arma::vec lrd(count, arma::fill::none);
+            for (arma::uword i = 0; i < count; ++i) {
+                const arma::uvec& locals_i = neighbours(i);
+                arma::vec r(locals_i.n_elem);
+                for (std::size_t t = 0; t < locals_i.n_elem; ++t)
+                    r(t) = reach(i, locals_i(t));
+
+                double mrd = arma::mean(r);
+                lrd(i) = 1.0 / std::max(mrd, std::numeric_limits<double>::epsilon());
+            }
+
+            for (arma::uword i = 0; i < count; ++i) {
+                const arma::uvec& N = neighbours(i);
+                double avgNbr = arma::mean(lrd(N));
+                lof(i) = avgNbr / lrd(i);
+            }
+
+            // std::cout << lof << std::endl;
+            std::vector<std::size_t> excluded;
+            for (arma::uword i = 0; i < count; ++i) {
+                if(lof(i) >= 1.1f){
+                    excluded.push_back(i);
+                }
+                confidence.push_back(lof(i));
+            }
+
+            for(auto it = excluded.rbegin(); it != excluded.rend(); ++it) {
+                std::size_t index = *it;
+                outliers.push_back(subcollection.at(index).raw());
+                subcollection.remove(index);
+                references.erase(references.begin() + index);
+                confidence.erase(confidence.begin() + index);
+            }
+        }
+
+        std::size_t base = 0;
+        std::size_t cache_hits = 0;
+        prova::loga::tokenized_alignment::matrix_type paths;
+        std::size_t ref_c_i = 0;
+        for(auto ref_i = references.cbegin(); ref_i != references.cend(); ++ref_i) {
+            std::size_t ref_c_j = 0;
+            for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
+                if(ref_i != ref_j){
+                    auto global_key = std::make_pair(*ref_i, *ref_j);
+                    auto it = all_paths.find(global_key);
+                    if(it != all_paths.cend()) {
+                        auto local_key = std::make_pair(ref_c_i, ref_c_j);
+                        paths.insert(std::make_pair(local_key, it->second));
+                        ++cache_hits;
                     }
-                    ++ref_c_j;
                 }
-                ++ref_c_i;
+                ++ref_c_j;
             }
-            std::cout << std::format("Cache hits {}/{}", cache_hits, (references.size() * references.size()) - references.size()) << std::endl;
+            ++ref_c_i;
+        }
+        std::cout << std::format("Cache hits {}/{}", cache_hits, (references.size() * references.size()) - references.size()) << std::endl;
 
-            prova::loga::tokenized_alignment subalignment(subcollection);
-            subalignment.bubble_all_pairwise(paths, subcollection.begin(), 1);
+        prova::loga::tokenized_alignment subalignment(subcollection);
+        subalignment.bubble_all_pairwise(paths, subcollection.begin(), 1);
 
-            for(const auto& [key, path]: paths) {
-                auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
-                if(!all_paths.contains(global_key)) {
-                    all_paths.insert(std::make_pair(global_key, path));
-                }
+        for(const auto& [key, path]: paths) {
+            auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
+            if(!all_paths.contains(global_key)) {
+                all_paths.insert(std::make_pair(global_key, path));
             }
-            {
-                std::ofstream archive_file(archive_file_path);
-                cereal::PortableBinaryOutputArchive archive(archive_file);
-                archive(all_paths);
-            }
+        }
+        {
+            std::ofstream archive_file(archive_file_path);
+            cereal::PortableBinaryOutputArchive archive(archive_file);
+            archive(all_paths);
+        }
 
-            prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
-            regions = malign.align();
-            // regions = malign.fixture_word_boundary(regions);
-            malign.print_regions_string(regions, std::cout) << std::endl;
-        } else {
-            prova::loga::collection subcollection;
-            for(std::size_t i = 0; i < count; ++i) {
-                auto v = proxy.at(i);
-                const std::string& str = v.str();
-                subcollection.add(str);
+        prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
+        prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
+        // regions = malign.fixture_word_boundary(regions);
+        // malign.print_regions_string(regions, std::cout) << std::endl;
+        for(const auto& [id, zones]: regions) {
+            std::cout << std::right << std::setw(5) << id;
+            if(count > 2) {
+                std::cout << ":" << std::fixed << std::setprecision(2) << std::abs(confidence.at(id) - 1.0f);
             }
-            prova::loga::alignment::matrix_type paths;
-            prova::loga::alignment subalignment(subcollection);
-            subalignment.bubble_all_pairwise(paths, 2);
-            prova::loga::multi_alignment malign(subcollection, paths, 0);
-            regions = malign.align();
-            // regions = malign.fixture_word_boundary(regions);
-            malign.print_regions_string(regions, std::cout) << std::endl;
+            std::cout << "|" << std::resetiosflags(std::ios::showbase);
+            prova::loga::tokenized_multi_alignment::print_interval_set(zones, subcollection.at(id), std::cout);
+            std::cout << std::endl;
+        }
+
+        if(outliers.size() > 0){
+            std::cout << prova::loga::colors::bright_red << "    Excluded " << outliers.size() << std::fixed << std::setprecision(2) << lof.t() << prova::loga::colors::reset << std::endl;
+            for(const std::string& outlier: outliers){
+                std::cout << prova::loga::colors::bright_red << "    X| " << prova::loga::colors::reset << outlier << std::endl;
+            }
+            std::cout << std::endl;
         }
 
         for(auto& [id, zones]: regions) {

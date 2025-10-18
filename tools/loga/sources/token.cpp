@@ -56,6 +56,18 @@ prova::loga::tokenized::tokenized(const std::string &str): _str(str) {
     });
 }
 
+prova::loga::tokenized& prova::loga::tokenized::operator=(prova::loga::tokenized&& other) {
+    _str = std::move(other._str);
+    _characteristics = std::move(other._characteristics);
+    _tokens.clear();
+    std::transform(other._tokens.cbegin(), other._tokens.cend(), std::back_inserter(_tokens), [this](const wrapped& w){
+        return wrapped{_str, w._token};
+    });
+    other._tokens.clear();
+
+    return *this;
+}
+
 std::size_t prova::loga::tokenized::count() const { return _tokens.size(); }
 
 const prova::loga::tokenized::structure_type &prova::loga::tokenized::structure() const{

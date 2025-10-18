@@ -19,6 +19,16 @@ void prova::loga::tokenized_collection::add(const std::string& str) {
     _tokenized_inputs.emplace_back(prova::loga::tokenized(str));
 }
 
+void prova::loga::tokenized_collection::remove(std::size_t i){
+    auto raw_it = _raw_inputs.begin();
+    std::advance(raw_it, i);
+    _raw_inputs.erase(raw_it);
+
+    auto tok_it = _tokenized_inputs.begin();
+    std::advance(tok_it, i);
+    _tokenized_inputs.erase(tok_it);
+}
+
 void prova::loga::tokenized_collection::parse(std::istream &stream){
     std::string line;
     while (std::getline(stream, line)) {

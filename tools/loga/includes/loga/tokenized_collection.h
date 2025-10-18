@@ -26,6 +26,7 @@ public:
     const value_type& operator[](std::size_t index) const;
 public:
     void add(const std::string& str);
+    void remove(std::size_t i);
     void parse(std::istream& stream);
     std::size_t unique(const index& idx) const;
     bool unanimous_concensus(const index& idx) const;

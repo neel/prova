@@ -73,24 +73,12 @@ struct index_pair_hasher{
     }
 };
 
-template <typename Iterator>
-double levenshtein_distance_detail(Iterator l_begin, Iterator l_it, Iterator l_end, Iterator r_begin, Iterator r_it, Iterator r_end, std::unordered_map<std::pair<std::size_t, std::size_t>, double, index_pair_hasher>& memo) {
-    std::size_t l_length = std::distance(l_it, l_end);
-    std::size_t r_length = std::distance(r_it, r_end);
-
-    auto key = std::make_pair(std::distance(l_begin, l_it), std::distance(r_begin, r_it));
-    if(memo.contains(key)) return memo.at(key);
-
-    if(r_length == 0) return memo.insert(std::make_pair(key, l_length)).first->second;
-    if(l_length == 0) return memo.insert(std::make_pair(key, r_length)).first->second;
-
-    const prova::loga::token::coordinate& l_coordinate = *l_it;
-    const prova::loga::token::coordinate& r_coordinate = *r_it;
-
+template <typename T, std::enable_if_t<std::is_same_v<T, prova::loga::token::coordinate>, bool> = true>
+double sim_score(const T& l_coordinate, const T& r_coordinate) {
     double d = 1.0f;
     for(const auto& z: boost::combine(l_coordinate, r_coordinate)){
-        std::size_t l_scale = z.get<0>();
-        std::size_t r_scale = z.get<1>();
+        std::size_t l_scale = z.template get<0>();
+        std::size_t r_scale = z.template get<1>();
 
         bool l_pos = l_scale > 0;
         bool r_pos = r_scale > 0;
@@ -110,6 +98,26 @@ double levenshtein_distance_detail(Iterator l_begin, Iterator l_it, Iterator l_e
             break;
         }
     }
+    return d;
+}
+
+template <typename T, std::enable_if_t<!std::is_same_v<T, prova::loga::token::coordinate>, bool> = true>
+double sim_score(const T& l, const T& r) {
+    return (l == r);
+}
+
+template <typename Iterator>
+double levenshtein_distance_detail(Iterator l_begin, Iterator l_it, Iterator l_end, Iterator r_begin, Iterator r_it, Iterator r_end, std::unordered_map<std::pair<std::size_t, std::size_t>, double, index_pair_hasher>& memo) {
+    std::size_t l_length = std::distance(l_it, l_end);
+    std::size_t r_length = std::distance(r_it, r_end);
+
+    auto key = std::make_pair(std::distance(l_begin, l_it), std::distance(r_begin, r_it));
+    if(memo.contains(key)) return memo.at(key);
+
+    if(r_length == 0) return memo.insert(std::make_pair(key, l_length)).first->second;
+    if(l_length == 0) return memo.insert(std::make_pair(key, r_length)).first->second;
+
+    double d = sim_score(*l_it, *r_it);
 
     Iterator l_tail = l_it;
     Iterator r_tail = r_it;
@@ -362,6 +370,8 @@ struct tokenized{
     tokenized(const tokenized&) = delete;
     tokenized(tokenized&& other);
     tokenized(const std::string& str);
+
+    tokenized& operator=(tokenized&& other);
 
     const_iterator begin() const;
     const_iterator end() const;
