@@ -15,6 +15,7 @@
 #include <cereal/archives/portable_binary.hpp>
 #include <igraph/igraph.h>
 #include <boost/program_options.hpp>
+#include <boost/asio.hpp>
 
 class parsed{
     std::size_t _id;
@@ -153,22 +154,38 @@ int main(int argc, char** argv) {
             std::size_t K = std::min<std::size_t>(3, count -1);
             arma::mat local_distances(count, count, arma::fill::zeros);
             arma::vec kdist(count, arma::fill::none);
-            for (std::size_t i = 0; i < count; ++i) {
-                for (std::size_t j = i + 1; j < count; ++j) {
-                    const std::string& si = subcollection.at(i).raw();
-                    const std::string& sj = subcollection.at(j).raw();
+            {
+                boost::asio::thread_pool pool(std::thread::hardware_concurrency());
+                for (std::size_t i = 0; i < count; ++i) {
+                    boost::asio::post(pool, [i,  count, &subcollection, &local_distances, &kdist, K]() {
+                        for (std::size_t j = i + 1; j < count; ++j) {
+                            const std::string& si = subcollection.at(i).raw();
+                            const std::string& sj = subcollection.at(j).raw();
 
-                    // std::size_t lcs_len  = prova::loga::lcs(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
-                    // std::size_t lcs_dist = std::max(si.size(), sj.size()) - lcs_len;
-                    // local_distances(i,j) = local_distances(j,i) = lcs_dist;
+                            // std::size_t lcs_len  = prova::loga::lcs(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
+                            // std::size_t lcs_dist = std::max(si.size(), sj.size()) - lcs_len;
+                            // local_distances(i,j) = local_distances(j,i) = lcs_dist;
 
-                    // local_distances(i,j) = local_distances(j,i) = dmat(i, j);
+                            // local_distances(i,j) = local_distances(j,i) = dmat(i, j);
 
-                    std::size_t lev_dist = prova::loga::levenshtein_distance(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
-                    local_distances(i,j) = local_distances(j,i) = lev_dist;// /std::max(si.size(), sj.size());
+                            std::size_t lev_dist = prova::loga::levenshtein_distance(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
+                            local_distances(i,j) = local_distances(j,i) = lev_dist;// /std::max(si.size(), sj.size());
+                        }
+                        // arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
+                        // kdist(i) = sorted(K);
+                    });
                 }
-                arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
-                kdist(i) = sorted(K);
+                pool.join();
+            }
+            {
+                boost::asio::thread_pool pool(std::thread::hardware_concurrency());
+                for (std::size_t i = 0; i < count; ++i) {
+                    boost::asio::post(pool, [i, K, &local_distances, &kdist]() {
+                        arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
+                        kdist(i) = sorted(K);
+                    });
+                }
+                pool.join();
             }
 
             arma::field<arma::uvec> neighbours(count);  // each entry can have a different length
@@ -259,6 +276,24 @@ int main(int argc, char** argv) {
         prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
         // regions = malign.fixture_word_boundary(regions);
         // malign.print_regions_string(regions, std::cout) << std::endl;
+        const auto& base_zones = regions.at(0);
+        std::size_t placeholder_count = 0;
+        std::cout << std::right << std::setw(5) << "     " << prova::loga::colors::bright_yellow << "●" << prova::loga::colors::reset << " " << std::resetiosflags(std::ios::showbase);
+        for(const auto& z: base_zones) {
+            prova::loga::zone tag = *z.second.cbegin(); // set has only one item
+            std::size_t offset = z.first.lower();
+            std::size_t len = z.first.upper()-z.first.lower();
+            std::string substr = subcollection.at(0).subset(offset, len).view();
+            if(tag == prova::loga::zone::constant)
+                std::cout << substr;
+            else {
+                const auto& color = prova::loga::colors::palette.at(placeholder_count % prova::loga::colors::palette.size());
+                std::cout << color << std::format("${}", placeholder_count) << prova::loga::colors::reset;
+                ++placeholder_count;
+            }
+        }
+        std::cout << prova::loga::colors::reset;
+        std::cout << std::endl << "------------------------------------------" << std::endl;
         for(const auto& [id, zones]: regions) {
             std::cout << std::right << std::setw(5) << id;
             if(count > 2) {
