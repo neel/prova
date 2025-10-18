@@ -109,10 +109,47 @@ int main(int argc, char** argv) {
     prova::loga::cluster::labels_type labels(collection.count());
     prova::loga::leiden_membership(&igraph, &edges, labels);
 
-    const std::array<std::string, 20> fruits = {
-        "Apple", "Banana", "Orange", "Mango", "Grape", "Pineapple", "Strawberry", "Cherry", "Peach", "Pear",
-        "Watermelon", "Papaya", "Coconut", "Lemon", "Lime", "Kiwi", "Plum", "Apricot", "Pomegranate", "Guava"
+    const std::array<std::string, 209> label_names = {
+        // Fruits (40) - Alphabetical
+        "Apple", "Apricot", "Avocado", "Banana", "Blackberry", "Blueberry", "Cantaloupe", "Cherry", "Coconut",
+        "Cranberry", "Date", "Dragonfruit", "Fig", "Grape", "Grapefruit", "Guava", "Honeydew", "Jackfruit", "Kiwi",
+        "Lemon", "Lime", "Lychee", "Mango", "Mandarin", "Mulberry", "Nectarine", "Orange", "Papaya", "Peach",
+        "Pear", "Persimmon", "Pineapple", "Plum", "Pomegranate", "Raspberry", "Starfruit", "Strawberry",
+        "Tangerine", "Watermelon",
+
+        // Flowers (40) - Alphabetical (with "Heather" replacing the stray "Sweet")
+        "Anemone", "Aster", "Azalea", "Begonia", "Bluebell", "Buttercup", "Camellia", "Carnation", "Chrysanthemum",
+        "Daffodil", "Dahlia", "Daisy", "Foxglove", "Freesia", "Gardenia", "Geranium", "Gladiolus", "Heather",
+        "Hibiscus", "Hyacinth", "Hydrangea", "Iris", "Jasmine", "Lavender", "Lilac", "Lily", "Lotus", "Magnolia",
+        "Marigold", "Orchid", "Pansy", "Peony", "Petunia", "Poppy", "Primrose", "Rose", "Snapdragon", "Sunflower",
+        "Tulip", "Violet",
+
+        // Animals (40) - Alphabetical
+        "Bear", "Buffalo", "Camel", "Cat", "Cheetah", "Chicken", "Chimpanzee", "Cow", "Deer", "Dog",
+        "Dolphin", "Donkey", "Duck", "Eagle", "Elephant", "Falcon", "Fox", "Giraffe", "Goat", "Goose",
+        "Gorilla", "Hippopotamus", "Horse", "Kangaroo", "Koala", "Leopard", "Lion", "Monkey", "Owl", "Panda",
+        "Penguin", "Pig", "Rabbit", "Rhinoceros", "Sheep", "Shark", "Tiger", "Whale", "Wolf", "Zebra",
+
+        // Trees (20) - Alphabetical
+        "Ash", "Bamboo", "Baobab", "Birch", "Cedar", "Cypress", "Elm", "Fir", "Maple", "Oak",
+        "Olive", "Palm", "Pine", "Poplar", "Redwood", "Sequoia", "Spruce", "Teak", "Walnut", "Willow",
+
+        // Insects (20) - Alphabetical
+        "Ant", "Aphid", "Bee", "Beetle", "Butterfly", "Cockroach", "Cricket", "Dragonfly", "Earwig", "Firefly",
+        "Flea", "Fly", "Gnat", "Grasshopper", "Ladybug", "Locust", "Mantis", "Mosquito", "Moth", "Termite",
+
+        // Fish (20) - Alphabetical
+        "Anchovy", "Bass", "Carp", "Catfish", "Cod", "Eel", "Goldfish", "Haddock", "Halibut", "Herring",
+        "Mackerel", "Perch", "Pike", "Salmon", "Sardine", "Swordfish", "Tilapia", "Trout", "Tuna", "Walleye",
+
+        // Planets (9) - Alphabetical
+        "Earth", "Jupiter", "Mars", "Mercury", "Neptune", "Pluto", "Saturn", "Uranus", "Venus",
+
+        // Periodic Table Elements (20) - Alphabetical
+        "Calcium", "Carbon", "Chlorine", "Copper", "Fluorine", "Gold", "Helium", "Hydrogen", "Iron", "Lithium",
+        "Magnesium", "Neon", "Nitrogen", "Oxygen", "Phosphorus", "Potassium", "Silicon", "Silver", "Sodium", "Sulfur"
     };
+
 
     std::map<std::size_t, parsed> parsed_log;
     prova::loga::tokenized_group group(collection, labels);
@@ -134,8 +171,8 @@ int main(int argc, char** argv) {
         prova::loga::tokenized_group::label_proxy proxy = group.proxy(c);
         std::size_t count = proxy.count();
 
-        std::string cluster_name = (c < std::numeric_limits<std::size_t>::max()) ? ((c < fruits.size()) ? fruits.at(c) : std::format("C{}", c)) : " Failed ";
-        std::cout << "Label: " << cluster_name << std::format(" ({})", count) << std::endl;
+        std::string cluster_name = (c < std::numeric_limits<std::size_t>::max()) ? ((c < label_names.size()) ? label_names.at(c) : std::format("C{}", c)) : " Failed ";
+        std::cout << std::endl << prova::loga::colors::bright_yellow << "◪" << prova::loga::colors::reset << " Label: " << cluster_name << std::format(" ({})", count) << std::endl;
         // std::cout << std::resetiosflags(std::ios::showbase) << std::right << std::setw(3) << "*" << min_matched_id << "|" << "\033[4m" << collection.at(min_matched_id) << "\033[0m" << std::resetiosflags(std::ios::showbase) << std::endl;
 
         prova::loga::tokenized_collection subcollection;
@@ -155,9 +192,12 @@ int main(int argc, char** argv) {
             arma::mat local_distances(count, count, arma::fill::zeros);
             arma::vec kdist(count, arma::fill::none);
             {
+                std::condition_variable observer;
+                std::mutex mutex;
+                std::atomic_uint32_t jobs_completed = 0;
                 boost::asio::thread_pool pool(std::thread::hardware_concurrency());
                 for (std::size_t i = 0; i < count; ++i) {
-                    boost::asio::post(pool, [i,  count, &subcollection, &local_distances, &kdist, K]() {
+                    boost::asio::post(pool, [i,  count, &subcollection, &local_distances, &kdist, K, &jobs_completed, &observer]() {
                         for (std::size_t j = i + 1; j < count; ++j) {
                             const std::string& si = subcollection.at(i).raw();
                             const std::string& sj = subcollection.at(j).raw();
@@ -173,9 +213,33 @@ int main(int argc, char** argv) {
                         }
                         // arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
                         // kdist(i) = sorted(K);
+                        jobs_completed.fetch_add(1);
+                        observer.notify_one();
                     });
                 }
+
+                std::uint32_t printed = 0;
+                while (printed < count) {
+                    std::unique_lock<std::mutex> lock(mutex);
+                    observer.wait(lock, [&]{
+                        return jobs_completed.load() > printed;
+                    });
+
+                    const auto upto = jobs_completed.load();
+                    while (printed < upto) {
+                        ++printed;
+                        // std::cout << std::format("\rDistance Matrix rows {}/{}", printed, _count) << std::flush;
+
+                        double percent = ((double)printed / (double)count) * 10.0f;
+                        std::string progress(20, '|');
+                        std::fill(progress.begin()+(((int)percent)*2), progress.end(), '~');
+                        std::cout << std::format("\r{:.2f}% {}", percent*10, progress) << std::flush;
+                    }
+                }
+
                 pool.join();
+                std::cout << std::endl << std::endl << std::flush;
+                std::cout.flush();
             }
             {
                 boost::asio::thread_pool pool(std::thread::hardware_concurrency());
@@ -255,7 +319,7 @@ int main(int argc, char** argv) {
             }
             ++ref_c_i;
         }
-        std::cout << std::format("Cache hits {}/{}", cache_hits, (references.size() * references.size()) - references.size()) << std::endl;
+        std::cout << std::format("Cache hits {}/{}", cache_hits, references.size()-1) << std::endl;
 
         prova::loga::tokenized_alignment subalignment(subcollection);
         subalignment.bubble_all_pairwise(paths, subcollection.begin(), 1);

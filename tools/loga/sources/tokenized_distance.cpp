@@ -108,7 +108,7 @@ void prova::loga::tokenized_distance::compute(const prova::loga::tokenized_colle
             ++printed;
             // std::cout << std::format("\rDistance Matrix rows {}/{}", printed, _count) << std::flush;
 
-            double percent = ((double)++printed / (double)_count) * 10.0f;
+            double percent = ((double)printed / (double)_count) * 10.0f;
             std::string progress(20, '=');
             std::fill(progress.begin()+(((int)percent)*2), progress.end(), '-');
             std::cout << std::format("\r{:.2f}% {}", percent*10, progress) << std::flush;
