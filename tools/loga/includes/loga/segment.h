@@ -37,6 +37,7 @@ public:
     std::string_view view(const prova::loga::collection& collection) const;
     std::string view(const prova::loga::tokenized_collection& collection) const;
     std::size_t chars(const tokenized_collection &collection) const;
+
 };
 
 }

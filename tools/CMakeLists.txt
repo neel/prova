@@ -15,7 +15,7 @@ if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-find_package(Boost REQUIRED COMPONENTS filesystem system serialization process thread program_options)
+find_package(Boost REQUIRED COMPONENTS filesystem serialization process thread program_options)
 find_package(nlohmann_json REQUIRED)
 
 find_package(Armadillo)
@@ -36,7 +36,7 @@ set(PROVA_SOURCES
 add_library(prova-tools SHARED ${PROVA_SOURCES})
 set_property(TARGET prova-tools PROPERTY CXX_STANDARD 20)
 target_link_libraries(prova-tools PUBLIC Boost::headers nlohmann_json::nlohmann_json)
-target_link_libraries(prova-tools PRIVATE Boost::filesystem Boost::system Boost::process Boost::thread Boost::program_options tash noch-lib ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
+target_link_libraries(prova-tools PRIVATE Boost::filesystem Boost::process Boost::thread Boost::program_options tash noch-lib ${MLPACK_LIBRARIES} ${ARMADILLO_LIBRARIES})
 if (MSVC)
   target_compile_definitions(prova-tools PRIVATE NOMINMAX _WINSOCKAPI_ WIN32_LEAN_AND_MEAN)
   target_compile_options(prova-tools PRIVATE /FI${CMAKE_CURRENT_SOURCE_DIR}/includes/prova/win32_winsock_shim.hpp)
