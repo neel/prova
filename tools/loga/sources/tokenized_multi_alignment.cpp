@@ -3,6 +3,7 @@
 #include <format>
 #include <array>
 #include <iomanip>
+#include <numeric>
 
 prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_alignment::align() const {
     interval_map intervals;
@@ -17,6 +18,7 @@ prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_
         if(key.first != _base_index) continue;
         if(!_filter.contains(key.second)) continue;
         // std::cout << std::format("({},{})", key.first, key.second) << "| ";
+        // std::cout << "Key: " << std::format("({},{})", key.first, key.second) << " " << path.size() << std::endl;
         for(const auto& s: path){
             prova::loga::index start = s.start();
             std::size_t start_pos = start.at(0);
@@ -50,6 +52,7 @@ prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_
     // postcondition: all values in the regions are empty interval_set
 
     // const prova::loga::tokenized& base_ref = _collection.at(_base_index);
+    std::vector<std::size_t> accidentally_aligned_wrong_position;
     for(const auto& iv: intervals) {
         std::size_t num_references = iv.second.size();
         if(num_references == _filter.size()-1) {
@@ -64,6 +67,31 @@ prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_
                 std::set<zone> zones;
                 zones.insert(zone::constant);
                 regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
+            }
+        } else {
+            std::size_t offset = iv.first.lower();
+            std::size_t len = iv.first.upper() - iv.first.lower();
+            std::string substr = _collection.at(0).subset(offset, len).view();
+            std::cout << "not voted: " << substr << " " << "votes: " << num_references << std::endl;
+            std::set<std::size_t> accidentals;
+            if(num_references > (4*_filter.size())/5) {
+                std::size_t max = _collection.count()+1;
+                std::vector<std::size_t> responded_refs(_collection.count(), max);
+                responded_refs[_base_index] = _base_index;
+                for(const matched_val& v: iv.second) {
+                    responded_refs[v.id] = v.id;
+                }
+                for(std::size_t i = 0; i < _collection.count(); ++i) {
+                    if(responded_refs.at(i) != i) {
+                        accidentals.insert(i);
+                    }
+                }
+            }
+
+            if(accidentals.size() > 0) {
+                std::cout << "accidentals ";
+                std::copy(accidentals.begin(), accidentals.end(), std::ostream_iterator<std::size_t>(std::cout, " "));
+                std::cout << std::endl;
             }
         }
     }
@@ -92,6 +120,8 @@ prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_
     
     return regions;
 }
+
+
 
 prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_alignment::fixture_word_boundary(const region_map &regions) const{
     region_map result;

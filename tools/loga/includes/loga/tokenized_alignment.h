@@ -11,6 +11,7 @@
 namespace prova::loga{
 
 class tokenized_alignment{
+public:
     struct edge_props {
         double weight;
         int    slide;
@@ -21,7 +22,7 @@ class tokenized_alignment{
     using const_iterator            = tokenized_collection::const_iterator;
     using graph_type                = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, boost::no_property, edge_props>;
     using vertex_type               = boost::graph_traits<graph_type>::vertex_descriptor;
-
+private:
     const tokenized_collection& _collection;
 public:
     using key_type = std::pair<std::uint32_t, std::uint32_t>;
@@ -36,6 +37,7 @@ public:
     void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, memo_type& memo, std::size_t threshold, std::size_t carry) const;
     void bubble_all_pairwise(prova::loga::tokenized_alignment::matrix_type& mat, std::size_t threshold = 1, std::size_t threads = 0);
     void bubble_all_pairwise(prova::loga::tokenized_alignment::matrix_type& mat, const_iterator base, std::size_t threshold = 1, std::size_t threads = 0);
+    void bubble_all_pairwise_ref(prova::loga::tokenized_alignment::matrix_type& mat, const_iterator ref, std::size_t threshold = 1, std::size_t threads = 0);
 };
 
 }

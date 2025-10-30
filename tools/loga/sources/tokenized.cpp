@@ -176,9 +176,9 @@ int main(int argc, char** argv) {
         // std::cout << std::resetiosflags(std::ios::showbase) << std::right << std::setw(3) << "*" << min_matched_id << "|" << "\033[4m" << collection.at(min_matched_id) << "\033[0m" << std::resetiosflags(std::ios::showbase) << std::endl;
 
         prova::loga::tokenized_collection subcollection;
-        std::vector<std::size_t> references;
+        std::vector<std::size_t> references;                                    // global ids of all items belonging to the same cluster
         for(std::size_t i = 0; i < count; ++i) {
-            prova::loga::tokenized_group::label_proxy::value v = proxy.at(i);
+            prova::loga::tokenized_group::label_proxy::value v = proxy.at(i);   // v: {str, id} where the id is the global id and the str is the string (not token list) value of the item
             const std::string& str = v.str();
             subcollection.add(str);
             references.push_back(v.id());
@@ -310,9 +310,11 @@ int main(int argc, char** argv) {
                     auto global_key = std::make_pair(*ref_i, *ref_j);
                     auto it = all_paths.find(global_key);
                     if(it != all_paths.cend()) {
-                        auto local_key = std::make_pair(ref_c_i, ref_c_j);
-                        paths.insert(std::make_pair(local_key, it->second));
-                        ++cache_hits;
+                        if(ref_c_i == base) {
+                            auto local_key = std::make_pair(ref_c_i, ref_c_j);
+                            paths.insert(std::make_pair(local_key, it->second));
+                            ++cache_hits;
+                        }
                     }
                 }
                 ++ref_c_j;
@@ -330,14 +332,50 @@ int main(int argc, char** argv) {
                 all_paths.insert(std::make_pair(global_key, path));
             }
         }
-        {
-            std::ofstream archive_file(archive_file_path);
-            cereal::PortableBinaryOutputArchive archive(archive_file);
-            archive(all_paths);
-        }
 
         prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
-        prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
+        // prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
+
+        prova::loga::tokenized_multi_alignment::region_map regions = malign.align(paths.begin(), paths.end(), [&all_paths, &references, &subcollection, &subalignment](std::size_t id /* id is the local id of the item in the cluster*/){
+            auto ref_it = references.begin();
+            std::advance(ref_it, id);
+            prova::loga::tokenized_alignment::matrix_type local_paths;
+
+            auto ref_i = ref_it;
+            std::size_t ref_c_j = 0;
+            std::size_t local_cache_hits = 0;
+            for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
+                if(ref_i != ref_j){
+                    auto global_key = std::make_pair(*ref_i, *ref_j);
+                    auto it = all_paths.find(global_key);
+                    if(it != all_paths.cend()) {
+                        auto local_key = std::make_pair(id, ref_c_j);
+                        local_paths.insert(std::make_pair(local_key, it->second));
+                        ++local_cache_hits;
+                    }
+                }
+                ++ref_c_j;
+            }
+
+            std::cout << std::format("Cache hits {}/{}", local_cache_hits, references.size()-1) << std::endl;
+            prova::loga::tokenized_alignment::memo_type memo;
+            auto pivot = subcollection.begin();
+            std::advance(pivot, id);
+            subalignment.bubble_all_pairwise_ref(local_paths, pivot, 1);
+
+            for(const auto& [key, path]: local_paths) {
+                auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
+                if(!all_paths.contains(global_key)) {
+                    all_paths.insert(std::make_pair(global_key, path));
+                }
+            }
+
+            auto max_elem = std::ranges::max_element(local_paths, [](const auto& pair_l, const auto& pair_r){
+                return pair_l.second.size() < pair_r.second.size();
+            });
+            return max_elem->second;
+        });
+
         // regions = malign.fixture_word_boundary(regions);
         // malign.print_regions_string(regions, std::cout) << std::endl;
         const auto& base_zones = regions.at(0);
@@ -380,6 +418,12 @@ int main(int argc, char** argv) {
             parsed p(id, c, std::move(zones));
             parsed_log.emplace(std::make_pair(id, p));
         }
+    }
+
+    {
+        std::ofstream archive_file(archive_file_path);
+        cereal::PortableBinaryOutputArchive archive(archive_file);
+        archive(all_paths);
     }
     return 0;
 }
