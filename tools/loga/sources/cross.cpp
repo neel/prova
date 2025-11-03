@@ -94,6 +94,7 @@ int main(int argc, char** argv) {
 
         type _type                = type::none;
         std::size_t _id           = 0;
+        std::size_t _counter      = 1;
         prova::loga::index _index = prova::loga::index({0, 0});
         std::size_t _length       = 0;
 
@@ -160,6 +161,9 @@ int main(int argc, char** argv) {
                 graph[v]._length = segment.length();
 
                 vertex_strings.insert(std::make_pair(v, segment.view(collection)));
+            } else {
+                vertex_type v = segment_vertices[segstr];
+                graph[v]._counter++;
             }
             siblings.push_back(segment_vertices.at(segstr));
             // auto res_e_l = boost::add_edge(content_vertices.at(key.first), segment_vertices.at(segstr), graph);
@@ -211,6 +215,12 @@ int main(int argc, char** argv) {
         }
     }
 
+    prova::loga::collection segment_collection;
+    for(const auto& [v, str]: vertex_strings) {
+        if(v != S && v != T)
+            segment_collection.add(str);
+    }
+
     auto vertex_type_to_str = [](vertex_props::type t) -> std::string_view {
         switch (t) {
             case vertex_props::type::segment: return "segment";
@@ -248,6 +258,11 @@ int main(int argc, char** argv) {
             return graph[v]._length;
         }
     );
+    auto vertex_counter_map = boost::make_function_property_map<vertex_type, std::size_t>(
+        [&](const vertex_type& v) -> std::size_t {
+            return graph[v]._counter;
+        }
+    );
 
     auto vertex_label_map = boost::make_function_property_map<vertex_type, std::string>(
         [&](const vertex_type& v) -> std::string {
@@ -269,12 +284,13 @@ int main(int argc, char** argv) {
 
     // Bind to dynamic properties (use distinct names to avoid collisions)
     boost::dynamic_properties properties;
-    properties.property("type",   vertex_type_map);   // vertex string
-    properties.property("id",     vertex_id_map);     // vertex numeric
-    properties.property("length", vertex_len_map);    // vertex numeric
-    properties.property("type",   edge_type_map);     // edge string
-    properties.property("weight", edge_count_map);   // edge string
-    properties.property("label", vertex_label_map);   // edge string
+    properties.property("type",   vertex_type_map);     // vertex string
+    properties.property("id",     vertex_id_map);       // vertex numeric
+    properties.property("length", vertex_len_map);      // vertex numeric
+    properties.property("type",   edge_type_map);       // edge string
+    properties.property("weight", edge_count_map);      // edge string
+    properties.property("label",  vertex_label_map);    // edge string
+    properties.property("count",  vertex_counter_map);  // edge string
 
     // Write GraphML
     std::ofstream graphml(graphml_file_path);

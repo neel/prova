@@ -29,6 +29,380 @@ public:
     std::size_t cluster() const { return _cluster; }
 };
 
+struct pattern_sequence {
+    struct segment {
+        prova::loga::tokenized _tokens;
+        prova::loga::zone      _tag;
+
+        explicit segment(const prova::loga::zone& tag): _tag(tag), _tokens(prova::loga::tokenized::nothing()) {}
+        segment(const prova::loga::zone& tag, const std::string& str): _tag(tag),  _tokens(str) {}
+
+        segment& operator=(const std::string& str) {
+            _tokens = prova::loga::tokenized(str);
+            return *this;
+        }
+
+        const prova::loga::zone& tag() const noexcept { return _tag; }
+        const prova::loga::tokenized& tokens() const noexcept { return _tokens; }
+
+        std::size_t hash() const { return std::hash<std::string>{}(_tokens.raw()); }
+    };
+
+    std::vector<segment> _segments;
+
+    void add(segment&& s) { _segments.push_back(std::move(s)); }
+
+    auto begin() noexcept { return _segments.begin(); }
+    auto end() noexcept { return _segments.end(); }
+
+    auto begin() const noexcept { return _segments.begin(); }
+    auto end() const noexcept { return _segments.end(); }
+
+    const segment& at(std::size_t i) const { return _segments.at(i); }
+
+    std::size_t size() const noexcept { return _segments.size(); }
+};
+
+
+// void shadow_graph(const std::vector<pattern_sequence>& pseqs, std::size_t total_segments, const std::string& phase2_graphml_file_path) {
+//     struct segment_vertex{
+//         std::size_t _cluster;
+//         std::size_t _segment;
+//         std::string _type;
+//         std::size_t _count   = 1;
+
+//         segment_vertex(): _cluster(0), _segment(0) {}
+//         segment_vertex(std::size_t cluster, std::size_t segment): _cluster(cluster), _segment(segment) {}
+//     };
+
+//     struct segment_edge{
+//         std::string _type;
+//         double _sim = 0;
+//         std::size_t _count = 1;
+//     };
+
+//     using directed_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
+//     directed_graph_type graph;
+//     using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
+//     using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
+
+//     std::vector<vertex_type> V(total_segments);
+//     std::map<std::string, vertex_type> vertex_map;
+//     std::size_t count_c = 0;
+//     for(const auto& pseq: pseqs) {
+//         vertex_type initial = boost::add_vertex(graph);
+//         graph[initial]._type = "initial";
+//         graph[initial]._cluster = count_c;
+//         graph[initial]._segment = 0;
+
+//         std::size_t count_s = 0;
+//         vertex_type last;
+//         for(auto it = pseq.begin(); it != pseq.end(); ++it) {
+//             // std::cout << seq.tag() << seq.tokens().raw();
+//             // create vertex
+//             const std::string& segment_str = pseqs.at(count_c).at(count_s).tokens().raw();
+//             vertex_type u; // generic vertex for a segment
+//             auto vmap_it = vertex_map.find(segment_str);
+//             if(vmap_it == vertex_map.end()) {
+//                 u = boost::add_vertex(graph);
+//                 graph[u]._type = "generic";
+//                 graph[u]._cluster = count_c;
+//                 graph[u]._segment = count_s;
+//                 vertex_map.insert(std::make_pair(segment_str, u));
+//             } else {
+//                 u = vmap_it->second;
+//                 graph[u]._count++;
+//             }
+
+//             vertex_type v = boost::add_vertex(graph); // specialized vertex for this sequence
+//             graph[v]._type = "special";
+//             {
+//                 edge_type is_a_e;
+//                 bool specialization_v_inserted;
+//                 std::tie(is_a_e, specialization_v_inserted) = boost::add_edge(u, v, graph);
+//                 assert(specialization_v_inserted);
+//                 graph[is_a_e]._type = "is-a";
+//                 std::tie(is_a_e, specialization_v_inserted) = boost::add_edge(v, u, graph);
+//                 assert(specialization_v_inserted);
+//                 graph[is_a_e]._type = "is-a";
+//             }
+
+//             graph[v]._cluster = count_c;
+//             graph[v]._segment = count_s;
+
+//             if(it != pseq.begin()) {
+//                 // create edge
+//                 // must be the previously added vertex
+//                 auto [e, exists] = boost::edge(last, v, graph);
+//                 if(!exists) {
+//                     bool inserted;
+//                     std::tie(e, inserted) = boost::add_edge(last, v, graph);
+//                     assert(inserted);
+//                     graph[e]._type = "chain";
+//                     graph[e]._sim   = 1;
+//                 } else {
+//                     graph[e]._count++;
+//                 }
+//             } else {
+//                 auto [e, exists] = boost::edge(initial, v, graph);
+//                 if(!exists) {
+//                     bool inserted;
+//                     std::tie(e, inserted) = boost::add_edge(initial, v, graph);
+//                     assert(inserted);
+//                     graph[e]._type = "chain";
+//                     graph[e]._sim   = 1;
+//                 } else {
+//                     graph[e]._count++;
+//                 }
+//             }
+
+//             last = v;
+//             V.push_back(v);
+
+//             ++count_s;
+//         }
+
+//         auto [e, exists] = boost::edge(last, initial, graph);
+//         if(!exists) {
+//             bool inserted;
+//             std::tie(e, inserted) = boost::add_edge(last, initial, graph);
+//             assert(inserted);
+//             graph[e]._type = "chain";
+//             graph[e]._sim   = 1;
+//         } else {
+//             graph[e]._count++;
+//         }
+//         // std::cout << std::endl;
+//         ++count_c;
+//     }
+
+//     // for(auto i = V.cbegin(); i != V.cend(); ++i) {
+//     //     for(auto j = V.cbegin(); j != V.cend(); ++j) {
+//     //         if(i != j) {
+//     //             auto u = graph[*i];
+//     //             auto v = graph[*j];
+
+//     //             const auto& l_seg = pseqs.at(u._cluster).at(u._segment);
+//     //             const auto& r_seg = pseqs.at(v._cluster).at(v._segment);
+
+//     //             const std::string& l_seg_str = l_seg.tokens().raw();
+//     //             const std::string& r_seg_str = r_seg.tokens().raw();
+
+//     //             auto [_, exists] = boost::edge(*i, *j, graph);
+//     //             if(!exists){
+//     //                 std::size_t max_similarity = std::max(l_seg_str.size(), r_seg_str.size());
+
+//     //                 auto [e, inserted] = boost::add_edge(*i, *j, graph);
+//     //                 double similarity = prova::loga::lcs(l_seg_str.cbegin(), l_seg_str.cend(), r_seg_str.cbegin(), r_seg_str.cend());
+//     //                 if(similarity > 0) {
+//     //                     graph[e]._chain = false;
+//     //                     graph[e]._sim = similarity/max_similarity;
+//     //                 }
+//     //             }
+//     //         }
+//     //     }
+//     // }
+
+//     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> std::string {
+//             std::size_t c = graph[v]._cluster;
+//             if(graph[v]._type == "initial") return std::format("<{}>", c);
+
+//             std::size_t s = graph[v]._segment;
+
+//             const auto& seq = pseqs.at(c);
+//             const auto& seg = seq.at(s);
+
+//             const std::string& label = seg.tokens().raw();
+//             return (label == " ") ? "<SPACE>" : label;
+//         }
+//     );
+
+//     auto edge_weight_map = boost::make_function_property_map<edge_type>(
+//         [&](const edge_type& e) -> double {
+//             return graph[e]._count;
+//         }
+//     );
+
+//     auto vertex_weight_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> double {
+//             return graph[v]._count;
+//         }
+//     );
+
+//     auto vertex_type_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> std::string {
+//             return graph[v]._type;
+//         }
+//     );
+
+//     auto edge_type_map = boost::make_function_property_map<edge_type>(
+//         [&](const edge_type& e) -> std::string {
+//             return graph[e]._type;
+//         }
+//     );
+
+//     boost::dynamic_properties properties;
+//     properties.property("label",  vertex_label_map);
+//     properties.property("weight", edge_weight_map);
+//     properties.property("weight", vertex_weight_map);
+//     properties.property("type", edge_type_map);
+//     properties.property("type", vertex_type_map);
+
+//     std::ofstream stream(phase2_graphml_file_path);
+//     boost::write_graphml(stream, graph, properties, true);
+
+//     // If Initial initial vertex c_j is reachable from initial vertex c_i using the same path as c_i -> c_i cycle then {c_{i}, c_{j}} are same and should be merged.
+// }
+
+// void generic_graph(const std::vector<pattern_sequence>& pseqs, std::size_t total_segments, const std::string& phase2_graphml_file_path) {
+//     struct segment_vertex{
+//         std::string _str;
+//         std::string _type;
+//         std::size_t _count   = 1;
+
+//         segment_vertex() {}
+//         segment_vertex(const std::string& type): _type(type) {}
+//         segment_vertex(const std::string& type, const std::string& str): _type(type), _str(str) {}
+//     };
+
+//     struct segment_edge{
+//         std::string _type;
+//         std::size_t _count = 1;
+
+//         segment_edge() {}
+//         segment_edge(const std::string& type): _type(type) {}
+//     };
+
+//     using directed_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
+//     directed_graph_type graph;
+//     using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
+//     using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
+
+//     std::vector<vertex_type> V(total_segments);
+//     std::map<std::string, vertex_type> vertex_map;
+//     std::size_t count_c = 0;
+//     for(const auto& pseq: pseqs) {
+//         vertex_type initial = boost::add_vertex(graph);
+//         graph[initial]._type = "initial";
+//         graph[initial]._str = std::format("<{}>", count_c);
+
+//         std::size_t count_s = 0;
+//         vertex_type last;
+//         for(auto it = pseq.begin(); it != pseq.end(); ++it) {
+//             const std::string& segment_str = pseqs.at(count_c).at(count_s).tokens().raw();
+//             vertex_type u; // generic vertex for a segment
+//             auto vmap_it = vertex_map.find(segment_str);
+//             if(vmap_it == vertex_map.end()) {
+//                 u = boost::add_vertex(graph);
+//                 graph[u]._type = "generic";
+//                 graph[u]._str = segment_str;
+//                 vertex_map.insert(std::make_pair(segment_str, u));
+//             } else {
+//                 u = vmap_it->second;
+//                 graph[u]._count++;
+//             }
+
+//             vertex_type l = (it == pseq.begin()) ? initial : last;
+//             auto [e, exists] = boost::edge(l, u, graph);
+//             if(!exists) {
+//                 bool inserted;
+//                 std::tie(e, inserted) = boost::add_edge(l, u, graph);
+//                 assert(inserted);
+//                 graph[e]._type = "chain";
+//             } else {
+//                 graph[e]._count++;
+//             }
+
+//             last = u;
+//             V.push_back(u);
+
+//             ++count_s;
+//         }
+
+//         auto [e, exists] = boost::edge(last, initial, graph);
+//         if(!exists) {
+//             bool inserted;
+//             std::tie(e, inserted) = boost::add_edge(last, initial, graph);
+//             assert(inserted);
+//             graph[e]._type = "chain";
+//         } else {
+//             graph[e]._count++;
+//         }
+//         ++count_c;
+//     }
+
+//     // for(auto i = V.cbegin(); i != V.cend(); ++i) {
+//     //     for(auto j = V.cbegin(); j != V.cend(); ++j) {
+//     //         if(i != j) {
+//     //             auto u = graph[*i];
+//     //             auto v = graph[*j];
+
+//     //             const auto& l_seg = pseqs.at(u._cluster).at(u._segment);
+//     //             const auto& r_seg = pseqs.at(v._cluster).at(v._segment);
+
+//     //             const std::string& l_seg_str = l_seg.tokens().raw();
+//     //             const std::string& r_seg_str = r_seg.tokens().raw();
+
+//     //             auto [_, exists] = boost::edge(*i, *j, graph);
+//     //             if(!exists){
+//     //                 std::size_t max_similarity = std::max(l_seg_str.size(), r_seg_str.size());
+
+//     //                 auto [e, inserted] = boost::add_edge(*i, *j, graph);
+//     //                 double similarity = prova::loga::lcs(l_seg_str.cbegin(), l_seg_str.cend(), r_seg_str.cbegin(), r_seg_str.cend());
+//     //                 if(similarity > 0) {
+//     //                     graph[e]._chain = false;
+//     //                     graph[e]._sim = similarity/max_similarity;
+//     //                 }
+//     //             }
+//     //         }
+//     //     }
+//     // }
+
+//     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> std::string {
+//             const std::string& label = graph[v]._str;
+//             return (label == " ") ? "<SPACE>" : label;
+//         }
+//     );
+
+//     auto edge_weight_map = boost::make_function_property_map<edge_type>(
+//         [&](const edge_type& e) -> double {
+//             return graph[e]._count;
+//         }
+//     );
+
+//     auto vertex_weight_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> double {
+//             return graph[v]._count;
+//         }
+//     );
+
+//     auto vertex_type_map = boost::make_function_property_map<vertex_type>(
+//         [&](const vertex_type& v) -> std::string {
+//             return graph[v]._type;
+//         }
+//     );
+
+//     auto edge_type_map = boost::make_function_property_map<edge_type>(
+//         [&](const edge_type& e) -> std::string {
+//             return graph[e]._type;
+//         }
+//     );
+
+//     boost::dynamic_properties properties;
+//     properties.property("label",  vertex_label_map);
+//     properties.property("weight", edge_weight_map);
+//     properties.property("weight", vertex_weight_map);
+//     properties.property("type", edge_type_map);
+//     properties.property("type", vertex_type_map);
+
+//     std::ofstream stream(phase2_graphml_file_path);
+//     boost::write_graphml(stream, graph, properties, true);
+
+//     // If Initial initial vertex c_j is reachable from initial vertex c_i using the same path as c_i -> c_i cycle then {c_{i}, c_{j}} are same and should be merged.
+// }
+
 int main(int argc, char** argv) {
     boost::program_options::variables_map vm;
     try{
@@ -65,6 +439,8 @@ int main(int argc, char** argv) {
     std::string archive_file_path = std::format("{}.1g.paths",    log_path);
     std::string dist_file_path    = std::format("{}.lev.dmat",    log_path);
     std::string graphml_file_path = std::format("{}.1nn.graphml", log_path);
+    std::string phase2_graphml_file_path = std::format("{}.p2.graphml", log_path);
+    std::string phase1_res_file_path = std::format("{}.p1.res", log_path);
 
     std::ifstream log(log_path);
     collection.parse(log);
@@ -149,9 +525,9 @@ int main(int argc, char** argv) {
         "Calcium", "Carbon", "Chlorine", "Copper", "Fluorine", "Gold", "Helium", "Hydrogen", "Iron", "Lithium",
         "Magnesium", "Neon", "Nitrogen", "Oxygen", "Phosphorus", "Potassium", "Silicon", "Silver", "Sodium", "Sulfur"
     };
+    const std::size_t label_names_max_size = std::ranges::max_element(label_names, [](const std::string& l, const std::string& r){return l.size() < r.size();})->size();
 
-
-    std::map<std::size_t, parsed> parsed_log;
+    std::map<std::size_t, parsed> parsed_log, patterns;
     prova::loga::tokenized_group group(collection, labels);
     std::cout << "Clusters: " << group.labels() << std::endl;
     for(std::size_t c = 0; /*c != group.labels()*/; ++c) {
@@ -414,10 +790,13 @@ int main(int argc, char** argv) {
             std::cout << std::endl;
         }
 
-        for(auto& [id, zones]: regions) {
-            parsed p(id, c, std::move(zones));
-            parsed_log.emplace(std::make_pair(id, p));
-        }
+        auto pattern_zones = base_zones;
+        parsed cluster_pattern(references.at(0), c, std::move(pattern_zones));
+        patterns.insert(std::make_pair(c, cluster_pattern));
+        // for(auto& [id, zones]: regions) {
+        //     parsed p(id, c, std::move(zones));
+        //     parsed_log.emplace(std::make_pair(id, p));
+        // }
     }
 
     {
@@ -425,5 +804,98 @@ int main(int argc, char** argv) {
         cereal::PortableBinaryOutputArchive archive(archive_file);
         archive(all_paths);
     }
+
+    std::cout << "----------------------------" << std::endl;
+    std::cout << "Summary: " << std::format("{} clusters", group.labels()) << std::endl;
+    std::cout << "----------------------------" << std::endl;
+
+    std::ofstream phase1_res(phase1_res_file_path);
+    std::size_t total_segments = 0;
+    std::vector<pattern_sequence> pseqs;
+    for(const auto& [c, p]: patterns) {
+        std::string cluster_name = (c < std::numeric_limits<std::size_t>::max()) ? ((c < label_names.size()) ? label_names.at(c) : std::format("C{}", c)) : " Failed ";
+        const auto& base_zones = p.intervals();
+        std::size_t placeholder_count = 0;
+        std::cout << std::setw(label_names_max_size) << cluster_name << " " << prova::loga::colors::bright_yellow << "●" << prova::loga::colors::reset << " " << std::resetiosflags(std::ios::showbase);
+        pattern_sequence pseq;
+        for(const auto& z: base_zones) {
+            prova::loga::zone tag = *z.second.cbegin(); // set has only one item
+            std::size_t offset = z.first.lower();
+            std::size_t len = z.first.upper()-z.first.lower();
+            std::string substr = collection.at(p.id()).subset(offset, len).view();
+            pattern_sequence::segment seg(tag);
+            if(tag == prova::loga::zone::constant){
+                std::cout << substr;
+                phase1_res << substr;
+                seg = substr;
+            } else {
+                const auto& color = prova::loga::colors::palette.at(placeholder_count % prova::loga::colors::palette.size());
+                std::cout << color << std::format("${}", placeholder_count) << prova::loga::colors::reset;
+                ++placeholder_count;
+                seg = "$";
+                phase1_res << "$";
+            }
+            ++total_segments;
+            pseq.add(std::move(seg));
+        }
+        std::cout << std::endl;
+        phase1_res << std::endl;
+        pseqs.emplace_back(std::move(pseq));
+    }
+
+    // Build a hypergraph considering each of these patterns as a vertex
+    // There will be multiple edges between a pair of vertices
+    // each edge will designate relation between two segments and associated attributes
+    // the objective is to find out generialized segments of one pattern that dominates other's
+
+    // shadow_graph(pseqs, total_segments, phase2_graphml_file_path);
+    // generic_graph(pseqs, total_segments, phase2_graphml_file_path);
+
+    // std::multimap<std::size_t, std::size_t> path_hashes;
+    // std::set<std::size_t> uniqs;
+    // std::size_t candidate = 0;
+    // for(const auto& pseq: pseqs) {
+    //     std::size_t path_hash = 0;
+    //     for(auto it = pseq.begin(); it != pseq.end(); ++it) {
+    //         boost::hash_combine(path_hash, it->hash());
+    //     }
+    //     path_hashes.insert(std::make_pair(path_hash, candidate));
+    //     uniqs.insert(path_hash);
+    //     ++candidate;
+    // }
+
+    // std::size_t last_hash = std::numeric_limits<std::size_t>::max();
+
+    // std::cout << "----------------------------" << std::endl;
+    // std::cout << "Concise Summary L1: " << std::format("{}", uniqs.size()) << std::endl;
+    // std::cout << "----------------------------" << std::endl;
+
+    // for (const auto& [path_hash, candidate] : path_hashes) {
+    //     if (path_hash == last_hash)
+    //         continue; // skip duplicates with same key
+    //     last_hash = path_hash;
+
+    //     // Representative pattern
+    //     const pattern_sequence& pseq = pseqs.at(candidate);
+
+    //     // Print pattern contents again (same style as above)
+    //     std::cout << std::setw(16)
+    //               << std::format("{:x}", path_hash) << " "
+    //               << prova::loga::colors::bright_yellow << "●"
+    //               << prova::loga::colors::reset << " ";
+
+    //     std::size_t placeholder_count = 0;
+    //     for (const auto& seg : pseq) {
+    //         if (seg.tag() == prova::loga::zone::constant) {
+    //             std::cout << seg.tokens().raw();
+    //         } else {
+    //             const auto& color = prova::loga::colors::palette.at(placeholder_count % prova::loga::colors::palette.size());
+    //             std::cout << color << std::format("${}", placeholder_count) << prova::loga::colors::reset;
+    //             ++placeholder_count;
+    //         }
+    //     }
+    //     std::cout << std::endl;
+    // }
+
     return 0;
 }

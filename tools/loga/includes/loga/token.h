@@ -340,6 +340,8 @@ struct tokenized{
     using const_iterator = typename token_list::const_iterator;
     using structure_type = std::vector<token::coordinate>;
 
+    static tokenized nothing() { return tokenized(""); }
+
     friend inline bool operator<(const tokenized& l, const tokenized& r){
         return l._str < r._str;
     }
