@@ -6,6 +6,7 @@
 #include <boost/icl/split_interval_map.hpp>
 #include <boost/icl/separate_interval_set.hpp>
 #include <loga/colors.h>
+#include <loga/alignment.h>
 #include <boost/range/combine.hpp>
 #include <boost/functional/hash.hpp>
 
@@ -17,14 +18,14 @@ struct token{
         using const_iterator  = collection_type::const_iterator;
         using value_type      = collection_type::value_type;
 
-        coordinate(std::size_t k, std::size_t count = 1): _coords(4, 0) {
-            assert(k < 4);
+        coordinate(std::size_t k, std::size_t count = 1): _coords(5, 0) {
+            // assert(k < 4);
             _coords[k] = count;
         }
 
         auto begin() const { return _coords.begin(); }
         auto end()   const { return _coords.end(); }
-        auto size()  const { return 4; }
+        auto size()  const { return 5; }
         auto at(std::size_t i) const { return _coords.at(i); }
         void scale(std::size_t n) {
             std::transform(_coords.begin(), _coords.end(), _coords.begin(), [n](std::size_t& v){
@@ -42,7 +43,7 @@ struct token{
     using interval_type = boost::icl::discrete_interval<boundary_type>;
 
     enum class category{
-        none, alpha, digits, symbol, space
+        none, alpha, digits, symbol, space, place
     };
 
     token() = default;
@@ -75,6 +76,9 @@ struct index_pair_hasher{
 
 template <typename T, std::enable_if_t<std::is_same_v<T, prova::loga::token::coordinate>, bool> = true>
 double sim_score(const T& l_coordinate, const T& r_coordinate) {
+    if(l_coordinate.at(4) || r_coordinate.at(4))
+        return true;
+
     double d = 1.0f;
     for(const auto& z: boost::combine(l_coordinate, r_coordinate)){
         std::size_t l_scale = z.template get<0>();
@@ -229,7 +233,10 @@ inline std::ostream& operator<<(std::ostream& stream, const token::category& cat
         stream << "@";
     } else if(cat == token::category::space) {
         stream << "S";
+    } else if(cat == token::category::place) {
+        stream << "$";
     }
+
     return stream;
 }
 
@@ -358,6 +365,8 @@ struct tokenized{
                 stream << loga::colors::green;
             } else if(cat == token::category::space) {
                 stream << loga::colors::cyan;
+            } else if(cat == token::category::place) {
+                stream << loga::colors::yellow;
             }
 
             if(cat != token::category::space)

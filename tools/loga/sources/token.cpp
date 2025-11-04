@@ -97,11 +97,13 @@ prova::loga::token::coordinate prova::loga::token::vector(token::category cat) {
     if (cat == category::digits) return coordinate(1);
     if (cat == category::symbol) return coordinate(2);
     if (cat == category::space)  return coordinate(3);
+    if (cat == category::place)  return coordinate(4);
     assert(cat != category::none);
     return coordinate(4);
 }
 
 prova::loga::token::category prova::loga::token::classify(uint8_t ch) {
+    if (ch == '$') return category::place;
     if (std::isalpha(ch)) return category::alpha;
     if (std::isdigit(ch)) return category::digits;
     if (std::ispunct(ch)) return category::symbol;

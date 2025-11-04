@@ -31,6 +31,7 @@ public:
     void build();
     std::ostream& print(std::ostream& stream, const collection &collection);
     path shortest_path();
+    const segment& largest_segment() const;
 public:
     using iterator = segment_collection_type::iterator;
     using const_iterator = segment_collection_type::const_iterator;

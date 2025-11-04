@@ -184,6 +184,13 @@ std::ostream& prova::loga::graph::print(std::ostream& stream, const prova::loga:
     return stream;
 }
 
+const prova::loga::segment &prova::loga::graph::largest_segment() const {
+    auto it = std::max_element(_segments.cbegin(), _segments.cend(), [](const segment& l, const segment& r){
+        return l.length() < r.length();
+    });
+    return *it;
+}
+
 prova::loga::path prova::loga::graph::shortest_path(){
     std::size_t vertex_count = boost::num_vertices(_graph);
 

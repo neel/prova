@@ -100,7 +100,8 @@ prova::loga::graph prova::loga::alignment::bubble_all(std::size_t threshold, std
             std::lock_guard lock(mutex);
             std::cout << std::format("\rJobs {}/{}", jobs_completed++, total_jobs) << std::flush;
         };
-        boost::asio::post(pool, lambda);
+        // boost::asio::post(pool, lambda);
+        lambda();
     }
 
     pool.join();
