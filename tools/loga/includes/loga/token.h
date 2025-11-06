@@ -378,7 +378,7 @@ struct tokenized{
         return stream;
     }
 
-    tokenized(const tokenized&) = delete;
+    tokenized(const tokenized&);
     tokenized(tokenized&& other);
     tokenized(const std::string& str);
 

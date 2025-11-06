@@ -37,6 +37,12 @@ bool prova::loga::operator==(const wrapped &lw, const wrapped &rw) {
     // return lw.view() == rw.view();
 }
 
+prova::loga::tokenized::tokenized(const tokenized& other): _str(other._str), _characteristics(other._characteristics){
+    std::transform(other._tokens.cbegin(), other._tokens.cend(), std::back_inserter(_tokens), [this](const wrapped& w){
+        return wrapped{_str, w._token};
+    });
+}
+
 prova::loga::tokenized::tokenized(tokenized &&other): _str(std::move(other._str)), _characteristics(std::move(other._characteristics)) {
     std::transform(other._tokens.cbegin(), other._tokens.cend(), std::back_inserter(_tokens), [this](const wrapped& w){
         return wrapped{_str, w._token};

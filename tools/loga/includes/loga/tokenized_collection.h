@@ -26,6 +26,7 @@ public:
     const value_type& operator[](std::size_t index) const;
 public:
     void add(const std::string& str);
+    void add(const value_type& tkz);
     void remove(std::size_t i);
     void parse(std::istream& stream);
     std::size_t unique(const index& idx) const;
