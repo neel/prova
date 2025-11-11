@@ -20,6 +20,7 @@ public:
         std::size_t id;
         std::size_t ref_pos;
         std::size_t base_pos;
+        std::size_t len;
         
         bool operator<(const matched_val& other) const;
         bool operator==(const matched_val& other) const;
@@ -75,6 +76,8 @@ public:
                     matched.id = id;
                     matched.base_pos = start_pos;
                     matched.ref_pos = start.at(1);
+                    matched.len = s.length();
+                    assert(_collection.at(id).count() >= matched.ref_pos + matched.len);
                     val.insert(matched);
                     intervals.add(std::make_pair(interval, val));
                 }
@@ -106,13 +109,23 @@ public:
                     std::set<zone> zones;
                     zones.insert(zone::constant);
                     regions[_base_index].add(std::make_pair(region_type::right_open(iv.first.lower(), iv.first.lower() +len), zones));
-                    for(const matched_val& v: iv.second) {
-                        std::size_t delta = iv.first.lower() - v.base_pos;
-                        std::size_t ref_start = v.ref_pos+delta;
-                        std::size_t ref_end   = delta+v.ref_pos+len;
+                    for(const matched_val& concensus_ref: iv.second) {
+                        // original [a, b) -> after split interval -> [u, v) where u >= a and v <= b; \delta = (a-u)
+                        const std::size_t u = iv.first.lower();
+                        const std::size_t v = iv.first.upper();
+                        const std::size_t a = concensus_ref.base_pos;
+                        const std::size_t b = concensus_ref.base_pos + concensus_ref.len;
+                        const std::size_t p = concensus_ref.ref_pos;
+                        const std::size_t q = concensus_ref.ref_pos + concensus_ref.len;
+
+                        std::size_t delta_l   = u - a;       // \delta_{l} = (u-a)
+                        std::size_t delta_r   = b - v;       // \delta_{r} = (b-v)
+                        std::size_t ref_start = p + delta_l; // ref [p, q) -> apply the same split -> [p+\delta_l, q-\delta_r)
+                        std::size_t ref_end   = q - delta_r;
+                        assert(_collection.at(concensus_ref.id).count() >= ref_end);
                         std::set<zone> zones;
                         zones.insert(zone::constant);
-                        regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
+                        regions[concensus_ref.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
                     }
                 } else if(tries < 1) {
                     std::size_t offset = iv.first.lower();
@@ -160,7 +173,7 @@ public:
                 std::vector<region_type> placeholders;
                 for(const auto& z: candidate.second) {
                     if(z.first.lower() > last) {
-                        placeholders.push_back(region_type::right_open(last, z.first.upper()));
+                        placeholders.push_back(region_type::right_open(last, z.first.lower()));
                     }
                     last = z.first.upper();
                 }
@@ -173,6 +186,13 @@ public:
                 zones.insert(zone::placeholder);
                 for(const auto& p: placeholders) {
                     candidate.second.add(std::make_pair(p, zones));
+                }
+
+                for(const auto& z: candidate.second) {
+                    std::size_t nzones = z.second.size();
+                    if(nzones == 2) {
+                        std::cout << "Issue" << std::endl;
+                    }
                 }
             }
         } while(!replacements.empty());

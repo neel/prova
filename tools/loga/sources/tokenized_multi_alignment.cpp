@@ -7,95 +7,113 @@
 
 prova::loga::tokenized_multi_alignment::region_map prova::loga::tokenized_multi_alignment::align() const {
     interval_map intervals;
+    region_map regions;
+    std::set<std::size_t> excluded;
 
     assert(_filter.contains(_base_index));
-    
-    // { construct intervals mapping [s, e) -> {t, s, r}
-    //      by considering all paths starting from the base item to all reference items allowed by the filter
-    //      where (s, e) are the offsets of the start and end position of the base string corresponding to a matched string segment
-    //      t is the index of the reference string and r is the start position in the reference string that align with the matched segment
-    for(const auto& [key, path]: _matrix) {
-        if(key.first != _base_index) continue;
-        if(!_filter.contains(key.second)) continue;
-        // std::cout << std::format("({},{})", key.first, key.second) << "| ";
-        // std::cout << "Key: " << std::format("({},{})", key.first, key.second) << " " << path.size() << std::endl;
-        for(const auto& s: path){
-            prova::loga::index start = s.start();
-            std::size_t start_pos = start.at(0);
-            std::size_t end_pos   = start_pos + s.length();
-            interval_type::type interval = interval_type::right_open(start_pos, end_pos);
-            interval_val val;
-            matched_val matched;
-            matched.id = key.second;
-            matched.base_pos = start_pos;
-            matched.ref_pos = start.at(1);
-            val.insert(matched);
-            intervals.add(std::make_pair(interval, val)); //
-            // std::cout << std::format("[{}, {})", start_pos, end_pos) << "-" << s.start();
-            // std::cout << s << "~~~";
-        }
-        // std::cout << std::endl;
-    }
-    // }
-    // postcondition: intervals only contains references allowed by the filter
-    region_map regions;
-    
-    // { construct regions and empty regions map mapping t -> interval_set
-    //      where interval_set is an association of [s, e) -> {constant, placeholder}
-    //      and s, e are offsets in the reference string
-    for(std::size_t i = 0; i != _collection.count(); ++i) {
-        if(!_filter.contains(i)) continue;
-        regions.insert(std::make_pair(i, interval_set{}));
-    }
-    // }
-    // postcondition: all keys in the regions refers to an index pointing to an item allowed by the filter
-    // postcondition: all values in the regions are empty interval_set
 
-    // const prova::loga::tokenized& base_ref = _collection.at(_base_index);
-    std::vector<std::size_t> accidentally_aligned_wrong_position;
-    for(const auto& iv: intervals) {
-        std::size_t num_references = iv.second.size();
-        if(num_references == _filter.size()-1) {
-            std::size_t len = iv.first.upper() - iv.first.lower();
-            std::set<zone> zones;
-            zones.insert(zone::constant);
-            regions[_base_index].add(std::make_pair(region_type::right_open(iv.first.lower(), iv.first.lower() +len), zones));
-            for(const matched_val& v: iv.second) {
-                std::size_t delta = iv.first.lower() - v.base_pos;
-                std::size_t ref_start = v.ref_pos+delta;
-                std::size_t ref_end   = delta+v.ref_pos+len;
+    while(true) {
+        intervals.clear();
+        regions.clear();
+    
+        // { construct intervals mapping [s, e) -> {t, s, r}
+        //      by considering all paths starting from the base item to all reference items allowed by the filter
+        //      where (s, e) are the offsets of the start and end position of the base string corresponding to a matched string segment
+        //      t is the index of the reference string and r is the start position in the reference string that align with the matched segment
+        for(const auto& [key, path]: _matrix) {
+            if(key.first != _base_index) continue;
+            if(!_filter.contains(key.second)) continue;
+            if(excluded.contains(key.second)) continue;
+            // std::cout << std::format("({},{})", key.first, key.second) << "| ";
+            // std::cout << "Key: " << std::format("({},{})", key.first, key.second) << " " << path.size() << std::endl;
+            for(const auto& s: path){
+                prova::loga::index start = s.start();
+                std::size_t start_pos = start.at(0);
+                std::size_t end_pos   = start_pos + s.length();
+                interval_type::type interval = interval_type::right_open(start_pos, end_pos);
+                interval_val val;
+                matched_val matched;
+                matched.id = key.second;
+                matched.base_pos = start_pos;
+                matched.ref_pos = start.at(1);
+                val.insert(matched);
+                intervals.add(std::make_pair(interval, val)); //
+                // std::cout << std::format("[{}, {})", start_pos, end_pos) << "-" << s.start();
+                // std::cout << s << "~~~";
+            }
+            // std::cout << std::endl;
+        }
+        // }
+        // postcondition: intervals only contains references allowed by the filter
+
+        // { construct regions and empty regions map mapping t -> interval_set
+        //      where interval_set is an association of [s, e) -> {constant, placeholder}
+        //      and s, e are offsets in the reference string
+        for(std::size_t i = 0; i != _collection.count(); ++i) {
+            if(!_filter.contains(i)) continue;
+            regions.insert(std::make_pair(i, interval_set{}));
+        }
+        // }
+        // postcondition: all keys in the regions refers to an index pointing to an item allowed by the filter
+        // postcondition: all values in the regions are empty interval_set
+
+        // const prova::loga::tokenized& base_ref = _collection.at(_base_index);
+        std::set<std::size_t> accidentals;
+        for(const auto& iv: intervals) {
+            std::size_t num_references = iv.second.size();
+            std::size_t max_possible = (_filter.size()-1) - excluded.size();
+            if(num_references == max_possible) {
+                std::size_t len = iv.first.upper() - iv.first.lower();
                 std::set<zone> zones;
                 zones.insert(zone::constant);
-                regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
-            }
-        } else {
-            std::size_t offset = iv.first.lower();
-            std::size_t len = iv.first.upper() - iv.first.lower();
-            std::string substr = _collection.at(0).subset(offset, len).view();
-            std::cout << "not voted: " << substr << " " << "votes: " << num_references << std::endl;
-            std::set<std::size_t> accidentals;
-            if(num_references > (4*_filter.size())/5) {
-                std::size_t max = _collection.count()+1;
-                std::vector<std::size_t> responded_refs(_collection.count(), max);
-                responded_refs[_base_index] = _base_index;
+                regions[_base_index].add(std::make_pair(region_type::right_open(iv.first.lower(), iv.first.lower() +len), zones));
                 for(const matched_val& v: iv.second) {
-                    responded_refs[v.id] = v.id;
+                    std::size_t delta = iv.first.lower() - v.base_pos;
+                    std::size_t ref_start = v.ref_pos+delta;
+                    std::size_t ref_end   = delta+v.ref_pos+len;
+                    std::set<zone> zones;
+                    zones.insert(zone::constant);
+                    regions[v.id].add(std::make_pair(region_type::right_open(ref_start, ref_end), zones));
                 }
-                for(std::size_t i = 0; i < _collection.count(); ++i) {
-                    if(responded_refs.at(i) != i) {
-                        accidentals.insert(i);
+            } else {
+                std::size_t offset = iv.first.lower();
+                std::size_t len = iv.first.upper() - iv.first.lower();
+                std::string substr = _collection.at(0).subset(offset, len).view();
+                std::size_t threshold = std::floor(0.9 * max_possible);
+                std::cout << "not voted: " << substr << " " << "votes: " << num_references << " threshold " << threshold << std::endl;
+                if(num_references > threshold) {
+                    std::size_t max = _collection.count()+1;
+                    std::vector<std::size_t> responded_refs(_collection.count(), max);
+                    responded_refs[_base_index] = _base_index;
+                    for(const matched_val& v: iv.second) {
+                        responded_refs[v.id] = v.id;
                     }
-                }
-            }
 
-            if(accidentals.size() > 0) {
-                std::cout << "accidentals ";
-                std::copy(accidentals.begin(), accidentals.end(), std::ostream_iterator<std::size_t>(std::cout, " "));
-                std::cout << std::endl;
+                    for(std::size_t i = 0; i < _collection.count(); ++i) {
+                        if(responded_refs.at(i) == max) {
+                            accidentals.insert(i);
+                        }
+                    }
+                    std::cout << "unaligned ";
+                    std::copy(accidentals.begin(), accidentals.end(), std::ostream_iterator<std::size_t>(std::cout, " "));
+                    std::cout << std::endl;
+                }
             }
         }
-    }
-    
+
+        if(accidentals.size() > 0) {
+            std::cout << "excluding accidentals ";
+            std::copy(accidentals.begin(), accidentals.end(), std::ostream_iterator<std::size_t>(std::cout, " "));
+            std::cout << std::endl;
+            for(std::size_t id: accidentals) {
+                regions.erase(id);
+                excluded.insert(id);
+            }
+        } else {
+            break;
+        }
+    };
+
     for(auto& candidate: regions) {
         // std::cout << candidate.first << " {" << candidate.second.size() << "}" << std::endl;
         std::size_t last = 0;
@@ -376,6 +394,7 @@ std::ostream& prova::loga::tokenized_multi_alignment::print_interval_set(const i
         prova::loga::zone tag = *z.second.cbegin(); // set has only one item
         std::size_t offset = z.first.lower();
         std::size_t len = z.first.upper()-z.first.lower();
+        assert(ref.count() >= offset + len);
         std::string substr = ref.subset(offset, len).view();
         // std::transform(substr.cbegin(), substr.cend(), substr.begin(), [](const char& c){
         //     return c == ' ' ? '~' : c;

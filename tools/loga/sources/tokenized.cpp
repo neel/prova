@@ -65,6 +65,12 @@ struct pattern_sequence {
 
     const segment& at(std::size_t i) const { return _segments.at(i); }
 
+    std::size_t nconstants() const noexcept {
+        return std::accumulate(_segments.cbegin(), _segments.cend(), 0, [](std::size_t res, const segment& s){
+            return s.tag() == prova::loga::zone::constant;
+        });
+    }
+
     std::size_t size() const noexcept { return _segments.size(); }
 };
 
@@ -96,6 +102,7 @@ struct constant_component_graph{
             V[i] = u;
         }
 
+
         for(std::size_t i = 0; i != pseqs.size(); ++i) {
             vertex_type u = V.at(i);
             std::multimap<std::size_t, vertex_type, std::greater<std::size_t>> best_alternative_candidates;
@@ -108,9 +115,18 @@ struct constant_component_graph{
 
                     // find the most noticable pairs between ipseq and jpseq
                     std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_best_match; // find the highest scoring segment(s) in ipseq
+
                     for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
                         if(it->tag() == prova::loga::zone::placeholder) continue;
                         std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_matches; // find the best matching segment for the ipseq segment in jpseq
+                        std::mutex mutex;
+                        boost::asio::thread_pool pool(std::thread::hardware_concurrency());
+                        std::atomic_uint32_t jobs_completed = 0;
+                        std::size_t total_jobs = 0;
+                        for(auto it = jpseq.begin(); it != jpseq.end(); ++it) {
+                            if(it->tag() == prova::loga::zone::constant) ++total_jobs;
+                        }
+
                         for(auto jt = jpseq.begin(); jt != jpseq.end(); ++jt) {
                             if(jt->tag() == prova::loga::zone::placeholder) continue;
                             // since ipseq and jpseq are from different patterns we don't need to exclude (it != jt) always holds
@@ -118,23 +134,33 @@ struct constant_component_graph{
                             const std::string& istr = it->tokens().raw();
                             const std::string& jstr = jt->tokens().raw();
 
-                            prova::loga::collection pair_collection;
-                            pair_collection.add(istr);
-                            pair_collection.add(jstr);
+                            auto lambda = [&mutex, istr, jstr, jt, &segment_matches, &jobs_completed, total_jobs](){
+                                prova::loga::collection pair_collection;
+                                pair_collection.add(istr);
+                                pair_collection.add(jstr);
 
-                            prova::loga::alignment alignment(pair_collection);
-                            prova::loga::graph graph = alignment.bubble_all(1);
-                            if(graph.size()) {
-                                const prova::loga::segment& largest = graph.largest_segment();
-                                segment_matches.insert(std::make_pair(largest.length(), jt));
-                            }
+                                prova::loga::alignment alignment(pair_collection);
+                                prova::loga::graph graph = alignment.bubble_all_nomt(1);
+                                if(graph.size()) {
+                                    const prova::loga::segment& largest = graph.largest_segment();
+                                    std::lock_guard lock(mutex);
+                                    segment_matches.insert(std::make_pair(largest.length(), jt));
+                                    std::cout << std::format("\rJobs {}/{}", jobs_completed++, total_jobs) << std::flush;
+                                }
+                            };
+                            boost::asio::post(pool, lambda);
                         }
+
+                        pool.join();
+                        std::cout << std::endl;
 
                         if(!segment_matches.empty()) {
                             auto begin = segment_matches.begin();
                             segment_best_match.insert(std::make_pair(begin->first, it));
                         }
                     }
+
+
 
                     // quadratic connections
                     auto matches_i = segment_best_match.cbegin();
@@ -148,6 +174,7 @@ struct constant_component_graph{
                     }
                 }
             }
+
             // connect to top K other alternative candidates
             std::size_t limit = K;
             auto it = best_alternative_candidates.cbegin();
@@ -166,6 +193,7 @@ struct constant_component_graph{
                 it = range.second;
             }
         }
+
 
         std::map<vertex_type, std::size_t> vertex_max_weight;
         for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
@@ -238,200 +266,337 @@ struct constant_component_graph{
     }
 };
 
-// void shadow_graph(const std::vector<pattern_sequence>& pseqs, std::size_t total_segments, const std::string& phase2_graphml_file_path) {
-//     struct segment_vertex{
-//         std::size_t _cluster;
-//         std::size_t _segment;
-//         std::string _type;
-//         std::size_t _count   = 1;
+// void partial_discovery(const std::vector<pattern_sequence>& pseqs) {
+//     for(std::size_t i = 0; i != pseqs.size(); ++i) {
+//         const auto& ipseq = pseqs.at(i);
+//         std::size_t inconstants = ipseq.nconstants();
+//         for(std::size_t j = 0; j != pseqs.size(); ++j) {
+//             for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
+//                 const auto& jpseq = pseqs.at(j);
+//                 std::size_t jnconstants = jpseq.nconstants();
 
-//         segment_vertex(): _cluster(0), _segment(0) {}
-//         segment_vertex(std::size_t cluster, std::size_t segment): _cluster(cluster), _segment(segment) {}
-//     };
+//                 arma::imat dmat;
+//                 dmat.set_size(inconstants, jnconstants);
 
-//     struct segment_edge{
-//         std::string _type;
-//         double _sim = 0;
-//         std::size_t _count = 1;
-//     };
+//                 std::size_t u = 0;
+//                 for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
+//                     if(it->tag() == prova::loga::zone::placeholder) continue;
+//                     std::size_t v = 0;
+//                     for(auto jt = jpseq.begin(); jt != jpseq.end(); ++jt) {
+//                         if(jt->tag() == prova::loga::zone::placeholder) continue;
 
-//     using directed_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
-//     directed_graph_type graph;
-//     using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
-//     using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
-
-//     std::vector<vertex_type> V(total_segments);
-//     std::map<std::string, vertex_type> vertex_map;
-//     std::size_t count_c = 0;
-//     for(const auto& pseq: pseqs) {
-//         vertex_type initial = boost::add_vertex(graph);
-//         graph[initial]._type = "initial";
-//         graph[initial]._cluster = count_c;
-//         graph[initial]._segment = 0;
-
-//         std::size_t count_s = 0;
-//         vertex_type last;
-//         for(auto it = pseq.begin(); it != pseq.end(); ++it) {
-//             // std::cout << seq.tag() << seq.tokens().raw();
-//             // create vertex
-//             vertex_type v = boost::add_vertex(graph); // specialized vertex for this sequence
-//             graph[v]._type = "special";
-//             graph[v]._cluster = count_c;
-//             graph[v]._segment = count_s;
-//             V.push_back(v);
-
-//             if(it != pseq.begin()) {
-//                 // create edge
-//                 // must be the previously added vertex
-//                 auto [e, exists] = boost::edge(last, v, graph);
-//                 if(!exists) {
-//                     bool inserted;
-//                     std::tie(e, inserted) = boost::add_edge(last, v, graph);
-//                     assert(inserted);
-//                     graph[e]._type = "chain";
-//                     graph[e]._sim   = 1;
-//                 } else {
-//                     graph[e]._count++;
-//                 }
-//             } else {
-//                 auto [e, exists] = boost::edge(initial, v, graph);
-//                 if(!exists) {
-//                     bool inserted;
-//                     std::tie(e, inserted) = boost::add_edge(initial, v, graph);
-//                     assert(inserted);
-//                     graph[e]._type = "chain";
-//                     graph[e]._sim   = 1;
-//                 } else {
-//                     graph[e]._count++;
-//                 }
-//             }
-
-//             last = v;
-//             V.push_back(v);
-
-//             ++count_s;
-//         }
-
-//         auto [e, exists] = boost::edge(last, initial, graph);
-//         if(!exists) {
-//             bool inserted;
-//             std::tie(e, inserted) = boost::add_edge(last, initial, graph);
-//             assert(inserted);
-//             graph[e]._type = "chain";
-//             graph[e]._sim   = 1;
-//         } else {
-//             graph[e]._count++;
-//         }
-//         // std::cout << std::endl;
-//         ++count_c;
-//     }
-
-//     for(auto i = V.cbegin(); i != V.cend(); ++i) {
-//         auto u = graph[*i];
-//         const auto& l_seg = pseqs.at(u._cluster).at(u._segment);
-
-//         std::multimap<std::size_t, vertex_type, std::greater<std::size_t>> lcs_matches;
-//         for(auto j = V.cbegin(); j != V.cend(); ++j) {
-//             if(i != j) {
-//                 auto v = graph[*j];
-
-//                 const auto& r_seg = pseqs.at(v._cluster).at(v._segment);
-
-//                 const std::string& l_seg_str = l_seg.tokens().raw();
-//                 const std::string& r_seg_str = r_seg.tokens().raw();
-
-//                 std::size_t similarity = prova::loga::lcs(l_seg_str.cbegin(), l_seg_str.cend(), r_seg_str.cbegin(), r_seg_str.cend());
-//                 if(similarity > 0 && (lcs_matches.empty() || lcs_matches.cbegin()->first <= similarity)){
-//                     lcs_matches.insert(std::make_pair(similarity, *j));
-//                 }
-//             }
-//         }
-
-//         if(!lcs_matches.empty()) {
-//             std:: multimap<std::size_t, vertex_type, std::less<std::size_t>> lengthwise_map; // prefer smallest segment with highest lcs
-//             std::size_t nmatches = lcs_matches.cbegin()->first;
-//             {
-//                 auto range = lcs_matches.equal_range(nmatches);
-//                 for (auto jt = range.first; jt != range.second; ++jt) {
-//                     vertex_type v = jt->second;
-//                     auto props = graph[v];
-//                     const auto& seg = pseqs.at(props._cluster).at(props._segment);
-//                     std::size_t seg_len = seg.tokens().raw().size();
-
-//                     lengthwise_map.insert(std::make_pair(seg_len, v));
-//                 }
-//             } {
-//                 std::size_t nsize = lengthwise_map.cbegin()->first;
-//                 auto range = lengthwise_map.equal_range(nmatches);
-//                 for (auto jt = range.first; jt != range.second; ++jt) {
-//                     vertex_type v = jt->second;
-//                     std::size_t l_len = l_seg.tokens().raw().size();
-
-//                     auto [_, iv_exists] = boost::edge(*i, v, graph);
-//                     if(!exists){
-//                         auto [e, inserted] = boost::add_edge(*i, v, graph);
-
+//                         auto lcs = prova::loga::lcs(it->tokens().begin(), it->tokens().end(), jt->tokens().begin(), jt->tokens().end());
+//                         dmat(i, j) = std::size_t(lcs);
+//                         dmat(j, i) = std::size_t(lcs);
 //                     }
 //                 }
 //             }
-
 //         }
-
 //     }
-
-//     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
-//         [&](const vertex_type& v) -> std::string {
-//             std::size_t c = graph[v]._cluster;
-//             if(graph[v]._type == "initial") return std::format("<{}>", c);
-//             // if(graph[v]._type == "special") return std::format("+", c);
-
-//             std::size_t s = graph[v]._segment;
-
-//             const auto& seq = pseqs.at(c);
-//             const auto& seg = seq.at(s);
-
-//             const std::string& label = seg.tokens().raw();
-//             return (label == " ") ? "<SPACE>" : label;
-//         }
-//     );
-
-//     auto edge_weight_map = boost::make_function_property_map<edge_type>(
-//         [&](const edge_type& e) -> double {
-//             return graph[e]._count;
-//         }
-//     );
-
-//     auto vertex_weight_map = boost::make_function_property_map<vertex_type>(
-//         [&](const vertex_type& v) -> double {
-//             return graph[v]._count;
-//         }
-//     );
-
-//     auto vertex_type_map = boost::make_function_property_map<vertex_type>(
-//         [&](const vertex_type& v) -> std::string {
-//             return graph[v]._type;
-//         }
-//     );
-
-//     auto edge_type_map = boost::make_function_property_map<edge_type>(
-//         [&](const edge_type& e) -> std::string {
-//             return graph[e]._type;
-//         }
-//     );
-
-//     boost::dynamic_properties properties;
-//     properties.property("label",  vertex_label_map);
-//     properties.property("weight", edge_weight_map);
-//     properties.property("weight", vertex_weight_map);
-//     properties.property("type", edge_type_map);
-//     properties.property("type", vertex_type_map);
-
-//     std::ofstream stream(phase2_graphml_file_path);
-//     boost::write_graphml(stream, graph, properties, true);
-
-//     // If Initial initial vertex c_j is reachable from initial vertex c_i using the same path as c_i -> c_i cycle then {c_{i}, c_{j}} are same and should be merged.
 // }
 
+struct nfa_analysis{
+    struct segment_vertex{
+        std::size_t _id;
+        std::string _str;
+        bool _start  = false;
+        bool _finish = false;
+    };
+
+    struct segment_edge{
+        enum type{
+            constant, placeholder, epsilon
+        };
+        type _type;
+        std::string _str;
+        std::size_t _id;
+    };
+
+    using directed_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
+    using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
+    using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
+
+    /**
+     * @brief thompson_graph
+     * @param pseq
+     * @pre pseq contains a sequence of segments each having a zone (either constant or placeholder)
+     * @pre two consecutive segments would always have different zones
+     * @post generates a linear graph corresponding to the pattern depicted by pseq
+     * @return
+     */
+    static std::pair<vertex_type, vertex_type> thompson_graph(directed_graph_type& graph, const pattern_sequence& pseq, std::size_t id) {
+        vertex_type start = boost::add_vertex(graph);
+        vertex_type last = start;
+        graph[last]._start = true;
+        graph[last]._id = id;
+        std::size_t placeholders = 0;
+        for(const pattern_sequence::segment& s: pseq) {
+            prova::loga::zone zone = s.tag(); // either constant or placeholder
+            if(zone == prova::loga::zone::constant) {
+                for(const prova::loga::wrapped& t: s.tokens()) {
+                    vertex_type v = boost::add_vertex(graph);
+                    graph[v]._str = t.view();
+                    graph[v]._id = id;
+
+                    auto [e, inserted] = boost::add_edge(last, v, graph);
+                    graph[e]._type = (placeholders > 0) ? segment_edge::placeholder : segment_edge::constant;
+                    graph[e]._str  = graph[v]._str;
+                    graph[e]._id   = id;
+
+                    last = v;
+                    placeholders = 0;
+                }
+            } else {
+                // placeholders are not typed such as \d+ or \w+ it is always consume all unless reaches a literal
+                // so, no hope between two placeholder tokens is necessary
+                // rather merge all the contigous placeholders into one hop described by a single edge btween two literals
+                for(const prova::loga::wrapped& t: s.tokens())
+                    ++placeholders;
+            }
+        }
+
+        vertex_type finish = boost::add_vertex(graph);
+        graph[finish]._finish = true;
+        graph[finish]._id = id;
+        auto [e, inserted] = boost::add_edge(last, finish, graph);
+        graph[e]._type = (placeholders > 0) ? segment_edge::placeholder : segment_edge::epsilon;
+        graph[e]._id   = id;
+        return {start, finish};
+    }
+
+    /**
+     * @brief partial_generialize finds if the pattern_graph generializes pseq partially or not
+     * @param pattern_graph
+     * @param pseq
+     * @pre pseq contains a sequence of segments each having a zone (either constant or placeholder)
+     * @pre two consecutive segments would always have different zones
+     * @return
+     */
+    static vertex_type directional_partial_generialize(const directed_graph_type& pattern_graph, const pattern_sequence& pseq, vertex_type start) {
+        vertex_type last = start;
+        std::size_t length = 0;
+
+        auto sbegin = pseq.begin();
+        auto send   = pseq.end();
+        auto sit    = sbegin;
+
+        std::size_t tconsumed = 0;
+
+        for(;;) {
+            // advance lookahead
+            auto [ei, ei_end] = boost::out_edges(last, pattern_graph);
+            if(ei == ei_end) {
+                return last;
+            }
+            edge_type e;
+            bool edge_found = false;
+            for(auto [ei, ei_end] = boost::out_edges(last, pattern_graph); ei != ei_end; ++ei) {
+                const segment_edge& ep = pattern_graph[*ei];
+                if(ep._id == pattern_graph[start]._id){
+                    e = *ei;
+                    edge_found = true;
+                    break;
+                }
+            }
+            assert(edge_found);
+
+            vertex_type v = boost::target(e, pattern_graph);
+            const segment_edge&   ep = pattern_graph[e];
+            const segment_vertex& vp = pattern_graph[v];
+
+            if (vp._finish) {
+                if (ep._type == segment_edge::epsilon) {
+                    return v;
+                } else if (ep._type == segment_edge::placeholder) {
+                    if(sit != send){
+                        std::size_t leftover = sit->tokens().count() - tconsumed;
+                        if(leftover > 0) {
+                            return v;
+                        }
+
+                        while(++sit != send) {
+                            // check for next segments
+                            if(sit->tokens().count() > 0){
+                                return v;
+                            }
+                        }
+
+                        return last;
+                    } else {
+                        return last;
+                    }
+                } else {
+                    assert(ep._type != segment_edge::constant);
+                }
+            }
+
+            bool placeholder_hop = ep._type == segment_edge::placeholder;
+            const std::string& lookahead = vp._str;
+
+            bool advance_lookahead = false;
+            while(sit != send) {
+                const pattern_sequence::segment& s = *sit;
+                prova::loga::zone zone = s.tag();
+                const prova::loga::tokenized& tokens = s.tokens();
+
+                // if placeholder_hop then
+                //      if zone is constant
+                //          a subset of the tokens in the segment will align to the placeholder unless a token matches with the lookahead
+                //          loop t into segment.tokens
+                //              if t == lookahead
+                //                  advance lookahead
+                //              else
+                //                  since this is a placeholder_hop check the next token because the unmatched token could be eaten by a the placeholder
+                //      else
+                //          the tokens in the placeholder zone doesn't have a text to match against the lookahead
+                //          So, we have to skip all tokens in the current segment
+                //          The lookahead is still the same
+                //          next segment's zone is expected to be constant (because pseq is [c][p][c][p]...)
+                // else
+                //      we know exactly what we are expecting (the lookahead)
+                //      if the first token does not match with lookahead
+                //          thats the end of simulation
+                //      else
+                //          we need to advance the lookahead vertex as well as the token
+
+                auto tbegin = tokens.begin();
+                auto tend   = tokens.end();
+                auto tit    = tbegin;
+                // resume tit iteration
+                if(tconsumed < tokens.count()) {
+                    std::advance(tit, tconsumed);
+                } else {
+                    ++sit;
+                    tconsumed = 0;
+                    continue;
+                }
+
+                if(placeholder_hop) {
+                    if(zone == prova::loga::zone::constant) {
+                        bool matched = false;
+                        for(;tit != tend; ++tit) {
+                            bool lokahead_matched = (lookahead == tit->view());
+                            if(lokahead_matched) {
+                                last = v;
+                                tconsumed++;
+                                matched = true;
+                                break;
+                            } else {
+                                tconsumed++;
+                                // hope until we reach tend
+                            }
+                        }
+                        // given that the next segment will be placeholder zone
+                        // if loop continues till here (without breaking) then this is the furthest we can reach
+                        if(!matched){
+                            assert(tit == tend);
+                            // next segment is placeholder zone
+                            if (++sit == send)  return last;
+                            // next next segment would be constant zone again
+                            tconsumed = 0;
+                            if (++sit == send) return last;
+                            advance_lookahead = false;
+                            continue;
+                        } else {
+                            advance_lookahead = true;
+                            // sit is not advanced
+                            // we need a new lookahead
+                            // tconsumed will be used for [resume tit iteration] block to choose whether to advance segment or not
+                            // break the segment loop to first reach [advance lookahead] block due to advance_lookahead being true and then [resume tit iteration]
+                            break;
+                        }
+                    } else {
+                        advance_lookahead = false;
+                        for(;tit != tend; ++tit) {
+                            tconsumed++;
+                        }
+                        // no need to to sit++ because tconsumed reaches count which will lead to sit++ upon continue
+                        continue; // next segment is constant
+                    }
+                } else {
+                    if(zone == prova::loga::zone::constant) {
+                        bool matched = false;
+                        for(;tit != tend; ++tit) {
+                            bool lokahead_matched = (lookahead == tit->view());
+                            if(lokahead_matched) {
+                                last = v;
+                                tconsumed++;
+                                matched = true;
+                                break;
+                            } else {
+                                // not a placeholder_hop
+                                // lookahead could not be matched
+                                break;
+                            }
+                        }
+                        // given that the next segment will be placeholder zone
+                        // if loop continues till here (without breaking) then this is the furthest we can reach
+                        if(!matched) return last;
+                        else {
+                            advance_lookahead = true;
+                            break; // break the segment loop because we have to change the lookahead now
+                        }
+                    } else {
+                        // tit->view() doesn't work here because we are in a placeholder segment
+                        // If the placeholder segment of the pseq generializes the constant segment of the linear graph
+                        // then that would be detected while going through the next segment
+                        advance_lookahead = false;
+                        for(;tit != tend; ++tit) {
+                            tconsumed++;
+                        }
+                        continue; // next segment is constant
+                    }
+                }
+            }
+            if(!advance_lookahead) return last;
+        }
+
+        return last;
+    }
+
+    static vertex_type greedy_travarse(const directed_graph_type& pattern_graph, const prova::loga::tokenized& tokens) {
+        vertex_type start{};
+        bool found_start = false;
+        for(auto [vi, vi_end] = boost::vertices(pattern_graph); vi != vi_end; ++vi) {
+            if(pattern_graph[*vi]._start) { start = *vi; found_start = true; break; }
+        }
+        assert(found_start);
+
+        vertex_type last = start;
+        std::size_t length = 0;
+        for(const prova::loga::wrapped& t: tokens) {
+            std::size_t consumed = 0;
+            for(auto [ei, ei_end] = boost::out_edges(last, pattern_graph); ei != ei_end; ++ei) {
+                vertex_type v = boost::target(*ei, pattern_graph);
+                const segment_edge& ep = pattern_graph[*ei];
+                const segment_vertex& vp = pattern_graph[v];
+
+                if(ep._type == segment_edge::constant){
+                    if(vp._str == t.view()) {
+                        last = v;
+                        ++consumed;
+                        continue;
+                    }
+                } else if(ep._type == segment_edge::placeholder) {
+                    // placeholders are used as wildcards
+                    // we can consume one or more tkens here
+                    // if consuming one token leads us to the next state then stop after consuming one
+                    // otherwise keep consuming until the lookahead state is reached
+                    ++consumed;
+                    if(vp._str == t.view()){
+                        last = v;
+                    }
+                    continue;
+                }
+            }
+            ++length;
+            if(!consumed) break;
+        }
+        return last;
+    }
+
+
+};
 
 constexpr const std::array<std::string, 209> label_names = {
     // Fruits (40) - Alphabetical
@@ -760,7 +925,7 @@ int main(int argc, char** argv) {
             // std::cout << lof << std::endl;
             std::vector<std::size_t> excluded;
             for (arma::uword i = 0; i < count; ++i) {
-                if(lof(i) >= 1.1f){
+                if(lof(i) >= 1.2f){
                     excluded.push_back(i);
                 }
                 confidence.push_back(lof(i));
@@ -810,47 +975,47 @@ int main(int argc, char** argv) {
         }
 
         prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
-        // prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
+        prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
 
-        prova::loga::tokenized_multi_alignment::region_map regions = malign.align(paths.begin(), paths.end(), [&all_paths, &references, &subcollection, &subalignment](std::size_t id /* id is the local id of the item in the cluster*/){
-            auto ref_it = references.begin();
-            std::advance(ref_it, id);
-            prova::loga::tokenized_alignment::matrix_type local_paths;
+        // prova::loga::tokenized_multi_alignment::region_map regions = malign.align(paths.begin(), paths.end(), [&all_paths, &references, &subcollection, &subalignment](std::size_t id /* id is the local id of the item in the cluster*/){
+        //     auto ref_it = references.begin();
+        //     std::advance(ref_it, id);
+        //     prova::loga::tokenized_alignment::matrix_type local_paths;
 
-            auto ref_i = ref_it;
-            std::size_t ref_c_j = 0;
-            std::size_t local_cache_hits = 0;
-            for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
-                if(ref_i != ref_j){
-                    auto global_key = std::make_pair(*ref_i, *ref_j);
-                    auto it = all_paths.find(global_key);
-                    if(it != all_paths.cend()) {
-                        auto local_key = std::make_pair(id, ref_c_j);
-                        local_paths.insert(std::make_pair(local_key, it->second));
-                        ++local_cache_hits;
-                    }
-                }
-                ++ref_c_j;
-            }
+        //     auto ref_i = ref_it;
+        //     std::size_t ref_c_j = 0;
+        //     std::size_t local_cache_hits = 0;
+        //     for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
+        //         if(ref_i != ref_j){
+        //             auto global_key = std::make_pair(*ref_i, *ref_j);
+        //             auto it = all_paths.find(global_key);
+        //             if(it != all_paths.cend()) {
+        //                 auto local_key = std::make_pair(id, ref_c_j);
+        //                 local_paths.insert(std::make_pair(local_key, it->second));
+        //                 ++local_cache_hits;
+        //             }
+        //         }
+        //         ++ref_c_j;
+        //     }
 
-            std::cout << std::format("Cache hits {}/{}", local_cache_hits, references.size()-1) << std::endl;
-            prova::loga::tokenized_alignment::memo_type memo;
-            auto pivot = subcollection.begin();
-            std::advance(pivot, id);
-            subalignment.bubble_all_pairwise_ref(local_paths, pivot, 1);
+        //     std::cout << std::format("Cache hits {}/{}", local_cache_hits, references.size()-1) << std::endl;
+        //     prova::loga::tokenized_alignment::memo_type memo;
+        //     auto pivot = subcollection.begin();
+        //     std::advance(pivot, id);
+        //     subalignment.bubble_all_pairwise_ref(local_paths, pivot, 1);
 
-            for(const auto& [key, path]: local_paths) {
-                auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
-                if(!all_paths.contains(global_key)) {
-                    all_paths.insert(std::make_pair(global_key, path));
-                }
-            }
+        //     for(const auto& [key, path]: local_paths) {
+        //         auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
+        //         if(!all_paths.contains(global_key)) {
+        //             all_paths.insert(std::make_pair(global_key, path));
+        //         }
+        //     }
 
-            auto max_elem = std::ranges::max_element(local_paths, [](const auto& pair_l, const auto& pair_r){
-                return pair_l.second.size() < pair_r.second.size();
-            });
-            return max_elem->second;
-        });
+        //     auto max_elem = std::ranges::max_element(local_paths, [](const auto& pair_l, const auto& pair_r){
+        //         return pair_l.second.size() < pair_r.second.size();
+        //     });
+        //     return max_elem->second;
+        // });
 
         // regions = malign.fixture_word_boundary(regions);
         // malign.print_regions_string(regions, std::cout) << std::endl;
@@ -943,13 +1108,25 @@ int main(int argc, char** argv) {
         pseqs.emplace_back(std::move(pseq));
     }
 
+    nfa_analysis::directed_graph_type graph;
+    std::vector<nfa_analysis::vertex_type> starts, finishes;
+    for(std::size_t i = 0; i < pseqs.size(); ++i) {
+        auto [start, finish] = nfa_analysis::thompson_graph(graph, pseqs.at(i), i);
+        starts.push_back(start);
+        finishes.push_back(finish);
+    }
+    const pattern_sequence& pseq_ref  = pseqs.at(7);
+    auto v = nfa_analysis::directional_partial_generialize(graph, pseq_ref, starts.at(1));
+    auto vp = graph[v];
+    return 0;
+
     if(phase_2) {
         return 0;
     }
 
     arma::imat cluster_distances;
     cluster_distances.set_size(pseqs.size(), pseqs.size());
-    auto cluster_graph = constant_component_graph::apply(pseqs, cluster_distances);
+    auto cluster_graph = constant_component_graph::apply(pseqs, cluster_distances, 10);
     std::ofstream stream(phase2_graphml_file_path);
     constant_component_graph::graphml(stream, cluster_graph);
     std::multimap<int, std::size_t> components_map;

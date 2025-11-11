@@ -55,6 +55,8 @@ public:
      */
     graph bubble_all(std::size_t threshold = 1, std::size_t threads = 0);
 
+    graph bubble_all_nomt(std::size_t threshold = 1);
+
     /**
      * @brief bubble accross a matrix starting from the given index through the diagonal line
      * @param u

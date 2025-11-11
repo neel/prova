@@ -100,8 +100,7 @@ prova::loga::graph prova::loga::alignment::bubble_all(std::size_t threshold, std
             std::lock_guard lock(mutex);
             std::cout << std::format("\rJobs {}/{}", jobs_completed++, total_jobs) << std::flush;
         };
-        // boost::asio::post(pool, lambda);
-        lambda();
+        boost::asio::post(pool, lambda);
     }
 
     pool.join();
@@ -123,6 +122,42 @@ prova::loga::graph prova::loga::alignment::bubble_all(std::size_t threshold, std
 
     return prova::loga::graph{std::move(segments), std::move(start), std::move(finish)};
 }
+
+prova::loga::graph prova::loga::alignment::bubble_all_nomt(std::size_t threshold) {
+    assert(threshold > 0);
+    std::size_t N = _collection.count();
+    std::vector<std::size_t> L;
+    L.reserve(N);
+    std::transform(_collection.begin(), _collection.end(), std::back_inserter(L), [](const std::string& str){
+        return str.size()-1;
+    });
+
+    for(std::size_t j = 0; j < N; ++j) {
+        auto lambda = [threshold, this, N, j, &L](){
+            enumerate_mixed_radix(L, j, [threshold, this](std::vector<std::size_t> x){
+                bubble(index{std::move(x)}, threshold, 0);
+            });
+        };
+        lambda();
+    }
+
+    segment_collection_type segments;
+    for(const auto& [idx, length]: _memo) {
+        segments.emplace_back(segment{0, idx, length});
+    }
+
+    segment start{0, index{_collection.count()}, 0};
+
+    std::vector<std::size_t> last_indices;
+    std::transform(_collection.begin(), _collection.end(), std::back_inserter(last_indices), [](const std::string& str){
+        return str.size();
+    });
+
+    segment finish{0, index{std::move(last_indices)}, 0};
+
+    return prova::loga::graph{std::move(segments), std::move(start), std::move(finish)};
+}
+
 
 void prova::loga::alignment::bubble_all_pairwise(prova::loga::alignment::matrix_type& mat, std::size_t threshold, std::size_t threads){
     assert(threshold > 0);
