@@ -18,6 +18,13 @@ std::string_view prova::loga::wrapped::view() const {
     return std::string_view(begin, end);
 }
 
+// prova::loga::wrapped& prova::loga::wrapped::operator=(const prova::loga::wrapped& other){
+//     _str   = other._str;
+//     _token = other._token;
+//     _hash  = other._hash;
+//     return *this;
+// }
+
 std::size_t prova::loga::wrapped::length() const { return _token.length(); }
 
 prova::loga::token::category prova::loga::wrapped::category() const {return _token.cat(); }

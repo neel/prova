@@ -248,6 +248,8 @@ struct wrapped{
     wrapped(const std::string& str, const token& token);
     wrapped(const wrapped& other);
 
+    // wrapped& operator=(const wrapped& other);
+
     std::string_view view() const;
 
     friend inline bool operator<(const wrapped& l, const wrapped& r) {

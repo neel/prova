@@ -18,6 +18,7 @@
 #include <boost/asio.hpp>
 #include <loga/graph.h>
 #include <boost/graph/connected_components.hpp>
+#include <boost/graph/graphviz.hpp>
 
 class parsed{
     std::size_t _id;
@@ -266,36 +267,7 @@ struct constant_component_graph{
     }
 };
 
-// void partial_discovery(const std::vector<pattern_sequence>& pseqs) {
-//     for(std::size_t i = 0; i != pseqs.size(); ++i) {
-//         const auto& ipseq = pseqs.at(i);
-//         std::size_t inconstants = ipseq.nconstants();
-//         for(std::size_t j = 0; j != pseqs.size(); ++j) {
-//             for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
-//                 const auto& jpseq = pseqs.at(j);
-//                 std::size_t jnconstants = jpseq.nconstants();
-
-//                 arma::imat dmat;
-//                 dmat.set_size(inconstants, jnconstants);
-
-//                 std::size_t u = 0;
-//                 for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
-//                     if(it->tag() == prova::loga::zone::placeholder) continue;
-//                     std::size_t v = 0;
-//                     for(auto jt = jpseq.begin(); jt != jpseq.end(); ++jt) {
-//                         if(jt->tag() == prova::loga::zone::placeholder) continue;
-
-//                         auto lcs = prova::loga::lcs(it->tokens().begin(), it->tokens().end(), jt->tokens().begin(), jt->tokens().end());
-//                         dmat(i, j) = std::size_t(lcs);
-//                         dmat(j, i) = std::size_t(lcs);
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
-
-struct nfa_analysis{
+struct automata{
     struct segment_vertex{
         std::size_t _id;
         std::string _str;
@@ -310,11 +282,206 @@ struct nfa_analysis{
         type _type;
         std::string _str;
         std::size_t _id;
+        std::vector<prova::loga::wrapped> _captured;
     };
 
-    using directed_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
-    using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
-    using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
+    using thompson_digraph_type = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
+    using vertex_type           = boost::graph_traits<thompson_digraph_type>::vertex_descriptor;
+    using edge_type             = boost::graph_traits<thompson_digraph_type>::edge_descriptor;
+    using terminal_pair_type    = std::pair<vertex_type, vertex_type>;
+    using sequence_container    = std::vector<pattern_sequence>;
+    using terminals_map         = std::map<std::size_t, terminal_pair_type>;
+
+    thompson_digraph_type  _graph;
+    sequence_container     _pseqs;
+    terminals_map          _terminals;
+
+    struct generialization_result{
+        using segment_iterator = pattern_sequence::const_iterator;
+
+        vertex_type      last_v;
+        segment_iterator last_it;
+        std::size_t      tokens;
+
+        generialization_result(vertex_type v, segment_iterator it): last_v(v), last_it(it), tokens(0) {} // implies that the last_it segment was not visited because number of tokens visited in last_it is 0
+        generialization_result(vertex_type v, segment_iterator it, std::size_t n): last_v(v), last_it(it), tokens(n) {}
+        generialization_result(const generialization_result&) = default;
+        generialization_result& operator=(const generialization_result&) = default;
+    };
+
+    template <typename Iterator>
+    automata(Iterator begin, Iterator end): _pseqs(begin, end) {
+        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
+            _terminals.insert(std::make_pair(
+                i,
+                std::make_pair(
+                    boost::graph_traits<thompson_digraph_type>::null_vertex(),
+                    boost::graph_traits<thompson_digraph_type>::null_vertex()
+                )
+            ));
+        }
+    }
+
+    void build() {
+        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
+            const pattern_sequence& pseq = _pseqs.at(i);
+            terminal_pair_type terminals = automata::thompson_graph(_graph, pseq, i);
+            _terminals[i] = terminals;
+        }
+    }
+
+    void generialize(arma::imat& coverage_mat, arma::imat& capture_mat) {
+        coverage_mat.set_size(_pseqs.size(), _pseqs.size());
+        capture_mat.set_size(_pseqs.size(), _pseqs.size());
+
+        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
+            const pattern_sequence& pseq_base = _pseqs.at(i);
+            for(std::size_t j = 0; j < _pseqs.size(); ++j) {
+                if(i == j) continue;
+                const pattern_sequence& pseq_ref = _pseqs.at(j);
+                generialization_result result = automata::directional_partial_generialize(_graph, pseq_ref, _terminals.at(i).first, j);
+                std::size_t coverage = 0, capture = 0;
+                for(auto sit = pseq_ref.begin(); sit != pseq_ref.end(); ++sit) {
+                    if(sit != result.last_it) {
+                        if(sit->tag() == prova::loga::zone::placeholder) {
+                            capture++;
+                        } else {
+                            std::size_t ntokens = 0;
+                            for(auto tit = sit->tokens().begin(); tit != sit->tokens().end(); ++tit) {
+                                if(ntokens >= result.tokens){
+                                    break;
+                                }
+
+                                coverage += tit->length();
+                                ++ntokens;
+                            }
+                        }
+                    }
+                }
+                // (i, j) -> {coverage, capture}
+                coverage_mat(i, j) = coverage;
+                capture_mat(i, j)  = capture;
+            }
+        }
+    }
+
+    std::ostream& graphml(std::ostream& stream){
+        auto vertex_label_map = boost::make_function_property_map<vertex_type>(
+            [&](const vertex_type& v) -> std::string {
+                return std::format("{}", _graph[v]._id);
+            }
+        );
+
+        auto edge_label_map = boost::make_function_property_map<edge_type>(
+            [&](const edge_type& e) -> std::string {
+                if(_graph[e]._type == segment_edge::placeholder) return "$";
+                if(_graph[e]._type == segment_edge::epsilon)     return "ε";
+                return _graph[e]._str;
+            }
+        );
+
+        auto edge_group_map = boost::make_function_property_map<edge_type>(
+            [&](const edge_type& e) -> std::size_t {
+                return _graph[e]._id;
+            }
+        );
+
+        boost::dynamic_properties properties;
+        properties.property("label", vertex_label_map);
+        properties.property("label", edge_label_map);
+        properties.property("type",  edge_group_map);
+
+        boost::write_graphml(stream, _graph, properties, true);
+
+        return stream;
+    }
+
+    std::ostream& graphviz(std::ostream& stream){
+        struct color_palette {
+            static const std::vector<std::string>& colors() {
+                static const std::vector<std::string> COLORS = {
+                    "red","blue","green","orange","purple","brown","cyan","magenta","gold",
+                    "darkgreen","darkorange","deepskyblue","limegreen","chocolate","indigo",
+                    "darkgoldenrod","dodgerblue","coral","orchid","olivedrab","steelblue",
+                    "rosybrown","slateblue","teal","peru","cadetblue","mediumseagreen",
+                    "lightsalmon","darkkhaki","mediumorchid","mediumslateblue","firebrick",
+                    "deeppink","navy","forestgreen","darkturquoise","maroon","darkolivegreen",
+                    "midnightblue","saddlebrown","darkred","darkmagenta","darkblue"
+                };
+                return COLORS;
+            }
+            static std::string for_id(std::size_t id){
+                const auto& c = colors();
+                return c[id % c.size()];
+            }
+        };
+
+        struct vertex_writer {
+            const thompson_digraph_type* g;
+            void operator()(std::ostream& out, const vertex_type& v) const {
+                const auto& gv = (*g)[v];
+                const std::string color = color_palette::for_id(gv._id);
+                out << "[label=\""   << gv._id
+                    << "\", shape=\"box\""          // rectangular node
+                    << ", color=\""  << color       // border color
+                    << "\", penwidth=2"             // make border visible
+                    << ", fontname=\"Helvetica\"]";
+            }
+        };
+        struct edge_writer {
+            const thompson_digraph_type* g;
+            void operator()(std::ostream& out, const edge_type& e) const {
+                const auto& ge = (*g)[e];
+                vertex_type u = boost::source(e, *g);
+                const auto& up = (*g)[u];
+
+                std::string lab;
+                if (ge._type == segment_edge::placeholder){
+                    if(ge._id == up._id) {
+                        lab = "$";
+                    } else {
+                        std::string captured;
+                        for(const auto& w: ge._captured) {
+                            captured.append(w.view());
+                        }
+                        lab = captured;
+                    }
+                }
+                else if (ge._type == segment_edge::epsilon) lab = "ε";
+                else lab = ge._str;
+
+                std::string style;
+                switch (ge._type) {
+                    case segment_edge::placeholder: style = "dashed"; break;
+                    case segment_edge::epsilon:     style = "dotted"; break;
+                    default:                        style = "solid";  break;
+                }
+
+                out << "[label=\"" << (lab == " " ? std::string("□") : lab)
+                    << "\", color=\"" << color_palette::for_id(ge._id)
+                    << "\", style=\"" << style
+                    << "\", penwidth=2]";
+            }
+        };
+        struct graph_writer {
+            void operator()(std::ostream& out) const {
+                out << "graph [splines=true, overlap=false];\n"
+                    << "node  [shape=circle, fontname=\"Helvetica\"];\n"
+                    << "edge  [fontname=\"Helvetica\"];\n";
+            }
+        };
+        // --------------------------------------------------------------------
+
+        boost::write_graphviz(
+            stream,
+            _graph,
+            vertex_writer{&_graph},
+            edge_writer{&_graph},
+            graph_writer{}         // *** CHANGED: provide graph-writer here ***
+        );
+        return stream;
+    }
+
 
     /**
      * @brief thompson_graph
@@ -324,7 +491,7 @@ struct nfa_analysis{
      * @post generates a linear graph corresponding to the pattern depicted by pseq
      * @return
      */
-    static std::pair<vertex_type, vertex_type> thompson_graph(directed_graph_type& graph, const pattern_sequence& pseq, std::size_t id) {
+    static std::pair<vertex_type, vertex_type> thompson_graph(thompson_digraph_type& graph, const pattern_sequence& pseq, std::size_t id) {
         vertex_type start = boost::add_vertex(graph);
         vertex_type last = start;
         graph[last]._start = true;
@@ -350,6 +517,7 @@ struct nfa_analysis{
                 // placeholders are not typed such as \d+ or \w+ it is always consume all unless reaches a literal
                 // so, no hope between two placeholder tokens is necessary
                 // rather merge all the contigous placeholders into one hop described by a single edge btween two literals
+                ++placeholders;
                 for(const prova::loga::wrapped& t: s.tokens())
                     ++placeholders;
             }
@@ -372,21 +540,24 @@ struct nfa_analysis{
      * @pre two consecutive segments would always have different zones
      * @return
      */
-    static vertex_type directional_partial_generialize(const directed_graph_type& pattern_graph, const pattern_sequence& pseq, vertex_type start) {
+    static generialization_result directional_partial_generialize(thompson_digraph_type& pattern_graph, const pattern_sequence& pseq, vertex_type start, std::size_t ref_id) {
+        assert(pseq.size() > 0);
         vertex_type last = start;
         std::size_t length = 0;
 
         auto sbegin = pseq.begin();
         auto send   = pseq.end();
         auto sit    = sbegin;
+        auto presit = sit; // garunteed to be valid always
 
         std::size_t tconsumed = 0;
-
+        std::vector<prova::loga::wrapped> token_buffer;
         for(;;) {
             // advance lookahead
             auto [ei, ei_end] = boost::out_edges(last, pattern_graph);
-            if(ei == ei_end) {
-                return last;
+            if(ei == ei_end) {                                                  // exit: [base exhausted] no edge to follow
+                // return last;
+                return generialization_result{last, sit, tconsumed};
             }
             edge_type e;
             bool edge_found = false;
@@ -406,24 +577,56 @@ struct nfa_analysis{
 
             if (vp._finish) {
                 if (ep._type == segment_edge::epsilon) {
-                    return v;
+                    {
+                        auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+                        assert(nins);
+                        pattern_graph[ne]._type = segment_edge::epsilon;
+                        pattern_graph[ne]._id   = ref_id;
+                    }
+                    // return v;
+                    return generialization_result{v, sit, tconsumed};           // exit: [constant ending in base]
                 } else if (ep._type == segment_edge::placeholder) {
                     if(sit != send){
-                        std::size_t leftover = sit->tokens().count() - tconsumed;
-                        if(leftover > 0) {
-                            return v;
+                        // if tconsumed > 0 then
+                        // take the tokens that have been captured already
+                        // token_buffer is cleared in thend of segment loop
+                        auto rest_current_begin = sit->tokens().begin();
+                        auto rest_current_end   = sit->tokens().end();
+                        std::advance(rest_current_begin, tconsumed);
+                        for(auto tmp_it = rest_current_begin; tmp_it != rest_current_end; ++tmp_it) {
+                            token_buffer.push_back(*tmp_it);
                         }
-
-                        while(++sit != send) {
-                            // check for next segments
-                            if(sit->tokens().count() > 0){
-                                return v;
+                        auto tmp_sit = sit;
+                        auto tmp_sit_last = tmp_sit;
+                        while(++tmp_sit != send) {
+                            auto rest_next_begin = tmp_sit->tokens().begin();
+                            auto rest_next_end   = tmp_sit->tokens().end();
+                            for(auto tmp_it = rest_next_begin; tmp_it != rest_next_end; ++tmp_it) {
+                                token_buffer.push_back(*tmp_it);
                             }
+                            tmp_sit_last = tmp_sit;
                         }
 
-                        return last;
+                        if(token_buffer.size() > 0) {
+                            {
+                                auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+                                assert(nins);
+                                pattern_graph[ne]._type = segment_edge::placeholder;
+                                pattern_graph[ne]._id   = ref_id;
+                                for(auto& token: token_buffer) {
+                                    pattern_graph[ne]._captured.emplace_back(token);
+                                }
+                                token_buffer.clear();
+                            }
+                            // return v;
+                            return generialization_result{v, tmp_sit_last, tmp_sit_last->tokens().count()};     // exit: [placeholder ending in base satisfied by ref]
+                        }
+
+                        // return last;
+                        return generialization_result{last, sit, tconsumed};                                    // exit: [placeholder ending in base but ref semi-exhausted]
                     } else {
-                        return last;
+                        // return last;
+                        return generialization_result{last, sit, tconsumed};                                    // exit: [placeholder ending in base but ref exhausted]
                     }
                 } else {
                     assert(ep._type != segment_edge::constant);
@@ -434,7 +637,7 @@ struct nfa_analysis{
             const std::string& lookahead = vp._str;
 
             bool advance_lookahead = false;
-            while(sit != send) {
+            while(sit != send) {    // segment loop
                 const pattern_sequence::segment& s = *sit;
                 prova::loga::zone zone = s.tag();
                 const prova::loga::tokenized& tokens = s.tokens();
@@ -466,6 +669,7 @@ struct nfa_analysis{
                 if(tconsumed < tokens.count()) {
                     std::advance(tit, tconsumed);
                 } else {
+                    presit = sit;
                     ++sit;
                     tconsumed = 0;
                     continue;
@@ -477,11 +681,22 @@ struct nfa_analysis{
                         for(;tit != tend; ++tit) {
                             bool lokahead_matched = (lookahead == tit->view());
                             if(lokahead_matched) {
+                                {
+                                    auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+                                    assert(nins);
+                                    pattern_graph[ne]._type = ep._type;
+                                    pattern_graph[ne]._id   = ref_id;
+                                    for(auto& token: token_buffer) {
+                                        pattern_graph[ne]._captured.emplace_back(token);
+                                    }
+                                    token_buffer.clear();
+                                }
                                 last = v;
                                 tconsumed++;
                                 matched = true;
                                 break;
                             } else {
+                                token_buffer.push_back(*tit);
                                 tconsumed++;
                                 // hope until we reach tend
                             }
@@ -490,11 +705,19 @@ struct nfa_analysis{
                         // if loop continues till here (without breaking) then this is the furthest we can reach
                         if(!matched){
                             assert(tit == tend);
-                            // next segment is placeholder zone
-                            if (++sit == send)  return last;
+                            // next segment is placeholder zone, next next is constant zone again
+                            // if advancing sit twice failes then last iterator that we could visit is presit
+                            presit = sit;
+                            if (++sit == send) {
+                                // return last;
+                                return generialization_result{last, presit, presit->tokens().count()};          // exit: [base placeholder + ref exhausted while looking for lookahead]
+                            }
                             // next next segment would be constant zone again
                             tconsumed = 0;
-                            if (++sit == send) return last;
+                            if (++sit == send) {
+                                // return last;
+                                return generialization_result{last, presit, presit->tokens().count()};          // exit: [base placeholder + ref exhausted while looking for lookahead]
+                            }
                             advance_lookahead = false;
                             continue;
                         } else {
@@ -519,6 +742,12 @@ struct nfa_analysis{
                         for(;tit != tend; ++tit) {
                             bool lokahead_matched = (lookahead == tit->view());
                             if(lokahead_matched) {
+                                {
+                                    auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+                                    assert(nins);
+                                    pattern_graph[ne]._type = ep._type;
+                                    pattern_graph[ne]._id   = ref_id;
+                                }
                                 last = v;
                                 tconsumed++;
                                 matched = true;
@@ -531,8 +760,10 @@ struct nfa_analysis{
                         }
                         // given that the next segment will be placeholder zone
                         // if loop continues till here (without breaking) then this is the furthest we can reach
-                        if(!matched) return last;
-                        else {
+                        if(!matched) {
+                            // return last;
+                            return generialization_result{last, sit, tconsumed};                         // exit: [base constant + ref unmatched]
+                        } else {
                             advance_lookahead = true;
                             break; // break the segment loop because we have to change the lookahead now
                         }
@@ -548,53 +779,17 @@ struct nfa_analysis{
                     }
                 }
             }
-            if(!advance_lookahead) return last;
-        }
-
-        return last;
-    }
-
-    static vertex_type greedy_travarse(const directed_graph_type& pattern_graph, const prova::loga::tokenized& tokens) {
-        vertex_type start{};
-        bool found_start = false;
-        for(auto [vi, vi_end] = boost::vertices(pattern_graph); vi != vi_end; ++vi) {
-            if(pattern_graph[*vi]._start) { start = *vi; found_start = true; break; }
-        }
-        assert(found_start);
-
-        vertex_type last = start;
-        std::size_t length = 0;
-        for(const prova::loga::wrapped& t: tokens) {
-            std::size_t consumed = 0;
-            for(auto [ei, ei_end] = boost::out_edges(last, pattern_graph); ei != ei_end; ++ei) {
-                vertex_type v = boost::target(*ei, pattern_graph);
-                const segment_edge& ep = pattern_graph[*ei];
-                const segment_vertex& vp = pattern_graph[v];
-
-                if(ep._type == segment_edge::constant){
-                    if(vp._str == t.view()) {
-                        last = v;
-                        ++consumed;
-                        continue;
-                    }
-                } else if(ep._type == segment_edge::placeholder) {
-                    // placeholders are used as wildcards
-                    // we can consume one or more tkens here
-                    // if consuming one token leads us to the next state then stop after consuming one
-                    // otherwise keep consuming until the lookahead state is reached
-                    ++consumed;
-                    if(vp._str == t.view()){
-                        last = v;
-                    }
-                    continue;
-                }
+            if(!advance_lookahead){
+                // return last;
+                return generialization_result{last, presit, presit->tokens().count()};                            // exit: [base constant + ref unmatched]
+                // presit must be valid since sit is valid so dereferencing must be okay
             }
-            ++length;
-            if(!consumed) break;
+            token_buffer.clear(); // clear because we are now changing the lookahead
         }
-        return last;
-    }
 
+        // return last;
+        return generialization_result{last, presit, presit->tokens().count()};
+    }
 
 };
 
@@ -717,6 +912,7 @@ int main(int argc, char** argv) {
     std::string dist_file_path    = std::format("{}.lev.dmat",    log_path);
     std::string graphml_file_path = std::format("{}.1nn.graphml", log_path);
     std::string labels_file_path  = std::format("{}.labels",     log_path);
+    std::string automata_dot_file_path = std::format("{}.automata.dot", log_path);
     std::string components_file_path  = std::format("{}.components",     log_path);
     std::string phase2_graphml_file_path = std::format("{}.components.graphml", log_path);
 
@@ -1108,16 +1304,24 @@ int main(int argc, char** argv) {
         pseqs.emplace_back(std::move(pseq));
     }
 
-    nfa_analysis::directed_graph_type graph;
-    std::vector<nfa_analysis::vertex_type> starts, finishes;
-    for(std::size_t i = 0; i < pseqs.size(); ++i) {
-        auto [start, finish] = nfa_analysis::thompson_graph(graph, pseqs.at(i), i);
-        starts.push_back(start);
-        finishes.push_back(finish);
-    }
-    const pattern_sequence& pseq_ref  = pseqs.at(7);
-    auto v = nfa_analysis::directional_partial_generialize(graph, pseq_ref, starts.at(1));
-    auto vp = graph[v];
+    // automata::thompson_digraph_type graph;
+    // std::vector<automata::vertex_type> starts, finishes;
+    // for(std::size_t i = 0; i < pseqs.size(); ++i) {
+    //     auto [start, finish] = automata::thompson_graph(graph, pseqs.at(i), i);
+    //     starts.push_back(start);
+    //     finishes.push_back(finish);
+    // }
+    // const pattern_sequence& pseq_ref  = pseqs.at(7);
+    // auto v = automata::directional_partial_generialize(graph, pseq_ref, starts.at(1), 7);
+    // auto vp = graph[v.last_v];
+
+    automata a(pseqs.cbegin(), pseqs.cend());
+    a.build();
+    arma::imat coverage, capture;
+    a.generialize(coverage, capture);
+    std::ofstream astream(automata_dot_file_path);
+    a.graphviz(astream);
+
     return 0;
 
     if(phase_2) {
