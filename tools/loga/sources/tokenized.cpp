@@ -624,24 +624,32 @@ struct automata{
                         // if tconsumed > 0 then
                         // take the tokens that have been captured already
                         // token_buffer is cleared in thend of segment loop
-                        auto rest_current_begin = sit->tokens().begin();
-                        auto rest_current_end   = sit->tokens().end();
-                        std::advance(rest_current_begin, tconsumed);
-                        for(auto tmp_it = rest_current_begin; tmp_it != rest_current_end; ++tmp_it) {
-                            token_buffer.push_back(*tmp_it);
+                        std::size_t placeholders_consumed = (sit->tag() == prova::loga::zone::placeholder);
+                        if(sit->tag() == prova::loga::zone::placeholder) {
+                            auto rest_current_begin = sit->tokens().begin();
+                            auto rest_current_end   = sit->tokens().end();
+                            std::advance(rest_current_begin, tconsumed);
+                            for(auto tmp_it = rest_current_begin; tmp_it != rest_current_end; ++tmp_it) {
+                                token_buffer.push_back(*tmp_it);
+                            }
                         }
+
                         auto tmp_sit = sit;
                         auto tmp_sit_last = tmp_sit;
                         while(++tmp_sit != send) {
-                            auto rest_next_begin = tmp_sit->tokens().begin();
-                            auto rest_next_end   = tmp_sit->tokens().end();
-                            for(auto tmp_it = rest_next_begin; tmp_it != rest_next_end; ++tmp_it) {
-                                token_buffer.push_back(*tmp_it);
+                            if(tmp_sit->tag() == prova::loga::zone::placeholder) {
+                                ++placeholders_consumed;
+                            } else {
+                                auto rest_next_begin = tmp_sit->tokens().begin();
+                                auto rest_next_end   = tmp_sit->tokens().end();
+                                for(auto tmp_it = rest_next_begin; tmp_it != rest_next_end; ++tmp_it) {
+                                    token_buffer.push_back(*tmp_it);
+                                }
+                                tmp_sit_last = tmp_sit;
                             }
-                            tmp_sit_last = tmp_sit;
                         }
 
-                        if(token_buffer.size() > 0) {
+                        if(token_buffer.size() > 0 || placeholders_consumed > 0) {
                             {
                                 auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
                                 assert(nins);
