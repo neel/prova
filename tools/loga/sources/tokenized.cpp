@@ -285,7 +285,7 @@ struct automata{
         std::vector<prova::loga::wrapped> _captured;
     };
 
-    using thompson_digraph_type = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, segment_vertex, segment_edge>;
+    using thompson_digraph_type = boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, segment_vertex, segment_edge>;
     using vertex_type           = boost::graph_traits<thompson_digraph_type>::vertex_descriptor;
     using edge_type             = boost::graph_traits<thompson_digraph_type>::edge_descriptor;
     using terminal_pair_type    = std::pair<vertex_type, vertex_type>;
@@ -330,7 +330,7 @@ struct automata{
         }
     }
 
-    void generialize(arma::imat& coverage_mat, arma::imat& capture_mat) {
+    void generialize(arma::imat& coverage_mat, arma::imat& capture_mat, bool reroute_terminals = true) {
         coverage_mat.set_size(_pseqs.size(), _pseqs.size());
         capture_mat.set_size(_pseqs.size(), _pseqs.size());
 
@@ -358,9 +358,37 @@ struct automata{
                         }
                     }
                 }
-                // (i, j) -> {coverage, capture}
-                coverage_mat(i, j) = coverage;
-                capture_mat(i, j)  = capture;
+                if(reroute_terminals) {
+                    if(result.last_v == _terminals.at(i).second) {
+                        // reached finish point
+                        // find the edge connecting to the finish vertex with id j
+                        edge_type e;
+                        bool edge_found = false;
+                        for(auto [ei, ei_end] = boost::in_edges(result.last_v, _graph); ei != ei_end; ++ei) {
+                            const segment_edge& ep = _graph[*ei];
+                            if(ep._id == j){
+                                e = *ei;
+                                edge_found = true;
+                                break;
+                            }
+                        }
+                        assert(edge_found);
+                        auto [ne, neins] = boost::add_edge(boost::source(e, _graph), _terminals.at(j).second, _graph);
+                        assert(neins);
+                        _graph[ne]._id   = _graph[e]._id;
+                        _graph[ne]._type = _graph[e]._type;
+                        _graph[ne]._str  = _graph[e]._str;
+                        for(const auto& w: _graph[e]._captured) {
+                            _graph[ne]._captured.push_back(w);
+                        }
+                        // auto ep = std::move(_graph[e]);
+                        // boost::remove_edge(e, _graph);
+                        // _graph[ne] = std::move(ep);
+                    }
+                    // (i, j) -> {coverage, capture}
+                    coverage_mat(i, j) = coverage;
+                    capture_mat(i, j)  = capture;
+                }
             }
         }
     }
@@ -421,7 +449,13 @@ struct automata{
             void operator()(std::ostream& out, const vertex_type& v) const {
                 const auto& gv = (*g)[v];
                 const std::string color = color_palette::for_id(gv._id);
-                out << "[label=\""   << gv._id
+                std::string label = std::format("{}/{}", gv._id, (gv._str == " " ? std::string("□") : gv._str));
+                if(gv._start) {
+                    label = std::format("^{}", gv._id);
+                } else if(gv._finish) {
+                    label = std::format("{}$", gv._id);
+                }
+                out << "[label=\""   << label
                     << "\", shape=\"box\""          // rectangular node
                     << ", color=\""  << color       // border color
                     << "\", penwidth=2"             // make border visible
@@ -1318,7 +1352,7 @@ int main(int argc, char** argv) {
     automata a(pseqs.cbegin(), pseqs.cend());
     a.build();
     arma::imat coverage, capture;
-    a.generialize(coverage, capture);
+    a.generialize(coverage, capture, true);
     std::ofstream astream(automata_dot_file_path);
     a.graphviz(astream);
 
