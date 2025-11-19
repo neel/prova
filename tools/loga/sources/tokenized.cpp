@@ -733,7 +733,11 @@ struct automata{
                 std::tie(x_sit, x_tidx) = next_ref(x_sit, x_tidx);
             }
 
-            e.edge._type = (ref_zone == prova::loga::zone::placeholder) ? segment_edge::placeholder : segment_edge::constant;
+            e.edge._type = (ref_zone == prova::loga::zone::placeholder)
+                                ? segment_edge::placeholder
+                                : (base_hop == segment_edge::epsilon)
+                                    ? segment_edge::epsilon
+                                    : segment_edge::constant;
 #if 0
             {
                 // for debug purpose only
@@ -840,6 +844,11 @@ struct automata{
                         break;
                     }
                 }
+            }
+        }
+        if(sit == send) {
+            if(pattern_graph[last_v]._finish){
+                advance_state();
             }
         }
         generialization_result res{l_v, l_sit, l_tidx, std::make_pair(base_progress, ref_progress)};
@@ -1999,9 +2008,9 @@ int main(int argc, char** argv) {
     // std::cout << std::endl;
     // a.directional_partial_generialize(a._graph, pseqs.at(9), a._terminals.at(1).first, 9);
 
-    auto test_1 = a.merge(1);
-    print_pattern(std::cout, test_1);
-    std::cout << std::endl;
+    // auto test_1 = a.merge(1);
+    // print_pattern(std::cout, test_1);
+    // std::cout << std::endl;
 
     for (auto it = components_vertex_map.cbegin(); it != components_vertex_map.cend(); ) {
         int component_id = it->first;
