@@ -46,6 +46,8 @@ set(SOURCES
   sources/tokenized_distance.cpp
   sources/tokenized_multi_alignment.cpp
   sources/knn_cluster.cpp
+  sources/community.cpp
+  sources/automata.cpp
 )
 
 set(INCLUDES
@@ -72,6 +74,9 @@ set(INCLUDES
   includes/loga/tokenized_multi_alignment.h
   includes/loga/colors.h
   includes/loga/knn_cluster.h
+  includes/loga/community.h
+  includes/loga/automata.h
+  includes/loga/pattern_sequence.h
 )
 
 add_library(prova-loga SHARED ${SOURCES} ${INCLUDES})

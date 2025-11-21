@@ -21,6 +21,9 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/copy.hpp>
 #include <boost/algorithm/string/join.hpp>
+#include <loga/community.h>
+#include <loga/automata.h>
+#include <loga/pattern_sequence.h>
 
 class parsed{
     std::size_t _id;
@@ -34,1323 +37,197 @@ public:
     std::size_t cluster() const { return _cluster; }
 };
 
-struct pattern_sequence {
-    struct segment {
-        prova::loga::tokenized _tokens;
-        prova::loga::zone      _tag;
+// struct constant_component_graph{
+//     struct segment_vertex{
+//         std::size_t _cluster;
+
+//         segment_vertex() {}
+//     };
+
+//     struct segment_edge{
+//         std::size_t _matches;
+
+//         segment_edge() {}
+//     };
+//     using undirected_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::undirectedS, segment_vertex, segment_edge>;
+//     using vertex_type = boost::graph_traits<undirected_graph_type>::vertex_descriptor;
+//     using edge_type   = boost::graph_traits<undirected_graph_type>::edge_descriptor;
+
+//     static undirected_graph_type apply(const std::vector<pattern_sequence>& pseqs, arma::imat& dmat, std::size_t K = 1) {
+//         undirected_graph_type G;
+
+//         std::vector<vertex_type> V(pseqs.size());
+//         for(std::size_t i = 0; i != pseqs.size(); ++i) {
+//             vertex_type u = boost::add_vertex(G);
+//             G[u]._cluster = i;
+//             V[i] = u;
+//         }
+
+
+//         for(std::size_t i = 0; i != pseqs.size(); ++i) {
+//             vertex_type u = V.at(i);
+//             std::multimap<std::size_t, vertex_type, std::greater<std::size_t>> best_alternative_candidates;
+//             for(std::size_t j = 0; j != pseqs.size(); ++j) {
+//                 if(j > i) {
+//                     vertex_type v = V.at(j);
+
+//                     const auto& ipseq = pseqs.at(i);
+//                     const auto& jpseq = pseqs.at(j);
+
+//                     // find the most noticable pairs between ipseq and jpseq
+//                     std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_best_match; // find the highest scoring segment(s) in ipseq
+
+//                     for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
+//                         if(it->tag() == prova::loga::zone::placeholder) continue;
+//                         std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_matches; // find the best matching segment for the ipseq segment in jpseq
+//                         std::mutex mutex;
+//                         boost::asio::thread_pool pool(std::thread::hardware_concurrency());
+//                         std::atomic_uint32_t jobs_completed = 0;
+//                         std::size_t total_jobs = 0;
+//                         for(auto it = jpseq.begin(); it != jpseq.end(); ++it) {
+//                             if(it->tag() == prova::loga::zone::constant) ++total_jobs;
+//                         }
+
+//                         for(auto jt = jpseq.begin(); jt != jpseq.end(); ++jt) {
+//                             if(jt->tag() == prova::loga::zone::placeholder) continue;
+//                             // since ipseq and jpseq are from different patterns we don't need to exclude (it != jt) always holds
+
+//                             const std::string& istr = it->tokens().raw();
+//                             const std::string& jstr = jt->tokens().raw();
+
+//                             auto lambda = [&mutex, istr, jstr, jt, &segment_matches, &jobs_completed, total_jobs](){
+//                                 prova::loga::collection pair_collection;
+//                                 pair_collection.add(istr);
+//                                 pair_collection.add(jstr);
+
+//                                 prova::loga::alignment alignment(pair_collection);
+//                                 prova::loga::graph graph = alignment.bubble_all_nomt(1);
+//                                 if(graph.size()) {
+//                                     const prova::loga::segment& largest = graph.largest_segment();
+//                                     std::lock_guard lock(mutex);
+//                                     segment_matches.insert(std::make_pair(largest.length(), jt));
+//                                     std::cout << std::format("\rJobs {}/{}", jobs_completed++, total_jobs) << std::flush;
+//                                 }
+//                             };
+//                             boost::asio::post(pool, lambda);
+//                         }
+
+//                         pool.join();
+//                         std::cout << std::endl;
+
+//                         if(!segment_matches.empty()) {
+//                             auto begin = segment_matches.begin();
+//                             segment_best_match.insert(std::make_pair(begin->first, it));
+//                         }
+//                     }
+
+
+
+//                     // quadratic connections
+//                     auto matches_i = segment_best_match.cbegin();
+//                     std::size_t score = segment_best_match.cbegin()->first;
+
+//                     dmat(i, j) = score;
+//                     dmat(j, i) = score;
+
+//                     if(score > 0) {
+//                         best_alternative_candidates.insert(std::make_pair(score, v));
+//                     }
+//                 }
+//             }
+
+//             // connect to top K other alternative candidates
+//             std::size_t limit = K;
+//             auto it = best_alternative_candidates.cbegin();
+//             while (limit > 0 && it != best_alternative_candidates.cend()) {
+//                 std::size_t score = it->first;
+//                 if (score == 0) break;
+
+//                 auto range = best_alternative_candidates.equal_range(score);
+//                 for (auto jt = range.first; jt != range.second && limit > 0; ++jt) {
+//                     auto [e, inserted] = boost::add_edge(u, jt->second, G);
+//                     if (inserted) {
+//                         G[e]._matches = score;
+//                         --limit;
+//                     }
+//                 }
+//                 it = range.second;
+//             }
+//         }
+
+
+//         std::map<vertex_type, std::size_t> vertex_max_weight;
+//         for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
+//             edge_type e = *e_it.first;
+//             vertex_type u = source(e, G);
+//             vertex_type v = target(e, G);
+//             std::size_t w = G[e]._matches;
+
+//             auto itu = vertex_max_weight.find(u);
+//             vertex_max_weight[u] = (itu == vertex_max_weight.end()) ? w : std::max(itu->second, w);
+
+//             auto itv = vertex_max_weight.find(v);
+//             vertex_max_weight[v] = (itv == vertex_max_weight.end()) ? w : std::max(itv->second, w);
+//         }
+
+//         std::vector<edge_type> to_remove;
+//         for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
+//             edge_type e = *e_it.first;
+//             vertex_type u = source(e, G);
+//             vertex_type v = target(e, G);
+//             std::size_t w = G[e]._matches;
+
+//             std::size_t mu = vertex_max_weight.at(u);
+//             std::size_t mv = vertex_max_weight.at(v);
+
+//             if(w < mu || w < mv) {
+//                 to_remove.push_back(e);
+//             }
+//         }
+
+//         for (edge_type e : to_remove) {
+//             remove_edge(e, G);
+//         }
+
+//         return G;
+//     }
+
+//     template <typename Stream>
+//     static Stream& graphml(Stream& stream, const undirected_graph_type& cluster_graph) {
+//         auto vertex_label_map = boost::make_function_property_map<constant_component_graph::vertex_type>(
+//             [&](const constant_component_graph::vertex_type& v) -> std::string {
+//                 return std::format("{}", cluster_graph[v]._cluster);
+//             }
+//         );
+
+//         auto edge_weight_map = boost::make_function_property_map<constant_component_graph::edge_type>(
+//             [&](const constant_component_graph::edge_type& e) -> std::size_t {
+//                 return cluster_graph[e]._matches;
+//             }
+//         );
+
+//         boost::dynamic_properties properties;
+//         properties.property("label",  vertex_label_map);
+//         properties.property("weight", edge_weight_map);
+
+//         boost::write_graphml(stream, cluster_graph, properties, true);
+
+//         return stream;
+//     }
+
+//     static std::size_t cluster(const undirected_graph_type& cluster_graph, std::multimap<int, std::size_t>& components_map) {
+//         std::vector<int> components(boost::num_vertices(cluster_graph));
+//         size_t num_components = boost::connected_components (cluster_graph, &components[0]);
+//         for(std::size_t i = 0; i < components.size(); ++i){
+//             constant_component_graph::vertex_type v = boost::vertex(i, cluster_graph);
+//             std::size_t cluster = cluster_graph[v]._cluster;
+//             components_map.insert(std::make_pair(components.at(i), cluster));
+//         }
+//         return num_components;
+//     }
+// };
 
-        explicit segment(const prova::loga::zone& tag): _tag(tag), _tokens(prova::loga::tokenized::nothing()) {}
-        segment(const prova::loga::zone& tag, const std::string& str): _tag(tag),  _tokens(str) {}
 
-        segment& operator=(const std::string& str) {
-            _tokens = prova::loga::tokenized(str);
-            return *this;
-        }
-
-        const prova::loga::zone& tag() const noexcept { return _tag; }
-        const prova::loga::tokenized& tokens() const noexcept { return _tokens; }
-
-        std::size_t hash() const { return std::hash<std::string>{}(_tokens.raw()); }
-    };
-
-    std::vector<segment> _segments;
-
-    using const_iterator = std::vector<segment>::const_iterator;
-    using iterator = std::vector<segment>::iterator;
-
-    void add(segment&& s) { _segments.push_back(std::move(s)); }
-
-    iterator begin() noexcept { return _segments.begin(); }
-    iterator end() noexcept { return _segments.end(); }
-
-    const_iterator begin() const noexcept { return _segments.begin(); }
-    const_iterator end() const noexcept { return _segments.end(); }
-
-    const segment& at(std::size_t i) const { return _segments.at(i); }
-
-    std::size_t nconstants() const noexcept {
-        return std::accumulate(_segments.cbegin(), _segments.cend(), 0, [](std::size_t res, const segment& s){
-            return s.tag() == prova::loga::zone::constant;
-        });
-    }
-
-    std::size_t size() const noexcept { return _segments.size(); }
-};
-
-struct constant_component_graph{
-
-    struct segment_vertex{
-        std::size_t _cluster;
-
-        segment_vertex() {}
-    };
-
-    struct segment_edge{
-        std::size_t _matches;
-
-        segment_edge() {}
-    };
-
-    using undirected_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::undirectedS, segment_vertex, segment_edge>;
-    using vertex_type = boost::graph_traits<undirected_graph_type>::vertex_descriptor;
-    using edge_type   = boost::graph_traits<undirected_graph_type>::edge_descriptor;
-
-    static undirected_graph_type apply(const std::vector<pattern_sequence>& pseqs, arma::imat& dmat, std::size_t K = 1) {
-        undirected_graph_type G;
-
-        std::vector<vertex_type> V(pseqs.size());
-        for(std::size_t i = 0; i != pseqs.size(); ++i) {
-            vertex_type u = boost::add_vertex(G);
-            G[u]._cluster = i;
-            V[i] = u;
-        }
-
-
-        for(std::size_t i = 0; i != pseqs.size(); ++i) {
-            vertex_type u = V.at(i);
-            std::multimap<std::size_t, vertex_type, std::greater<std::size_t>> best_alternative_candidates;
-            for(std::size_t j = 0; j != pseqs.size(); ++j) {
-                if(j > i) {
-                    vertex_type v = V.at(j);
-
-                    const auto& ipseq = pseqs.at(i);
-                    const auto& jpseq = pseqs.at(j);
-
-                    // find the most noticable pairs between ipseq and jpseq
-                    std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_best_match; // find the highest scoring segment(s) in ipseq
-
-                    for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
-                        if(it->tag() == prova::loga::zone::placeholder) continue;
-                        std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_matches; // find the best matching segment for the ipseq segment in jpseq
-                        std::mutex mutex;
-                        boost::asio::thread_pool pool(std::thread::hardware_concurrency());
-                        std::atomic_uint32_t jobs_completed = 0;
-                        std::size_t total_jobs = 0;
-                        for(auto it = jpseq.begin(); it != jpseq.end(); ++it) {
-                            if(it->tag() == prova::loga::zone::constant) ++total_jobs;
-                        }
-
-                        for(auto jt = jpseq.begin(); jt != jpseq.end(); ++jt) {
-                            if(jt->tag() == prova::loga::zone::placeholder) continue;
-                            // since ipseq and jpseq are from different patterns we don't need to exclude (it != jt) always holds
-
-                            const std::string& istr = it->tokens().raw();
-                            const std::string& jstr = jt->tokens().raw();
-
-                            auto lambda = [&mutex, istr, jstr, jt, &segment_matches, &jobs_completed, total_jobs](){
-                                prova::loga::collection pair_collection;
-                                pair_collection.add(istr);
-                                pair_collection.add(jstr);
-
-                                prova::loga::alignment alignment(pair_collection);
-                                prova::loga::graph graph = alignment.bubble_all_nomt(1);
-                                if(graph.size()) {
-                                    const prova::loga::segment& largest = graph.largest_segment();
-                                    std::lock_guard lock(mutex);
-                                    segment_matches.insert(std::make_pair(largest.length(), jt));
-                                    std::cout << std::format("\rJobs {}/{}", jobs_completed++, total_jobs) << std::flush;
-                                }
-                            };
-                            boost::asio::post(pool, lambda);
-                        }
-
-                        pool.join();
-                        std::cout << std::endl;
-
-                        if(!segment_matches.empty()) {
-                            auto begin = segment_matches.begin();
-                            segment_best_match.insert(std::make_pair(begin->first, it));
-                        }
-                    }
-
-
-
-                    // quadratic connections
-                    auto matches_i = segment_best_match.cbegin();
-                    std::size_t score = segment_best_match.cbegin()->first;
-
-                    dmat(i, j) = score;
-                    dmat(j, i) = score;
-
-                    if(score > 0) {
-                        best_alternative_candidates.insert(std::make_pair(score, v));
-                    }
-                }
-            }
-
-            // connect to top K other alternative candidates
-            std::size_t limit = K;
-            auto it = best_alternative_candidates.cbegin();
-            while (limit > 0 && it != best_alternative_candidates.cend()) {
-                std::size_t score = it->first;
-                if (score == 0) break;
-
-                auto range = best_alternative_candidates.equal_range(score);
-                for (auto jt = range.first; jt != range.second && limit > 0; ++jt) {
-                    auto [e, inserted] = boost::add_edge(u, jt->second, G);
-                    if (inserted) {
-                        G[e]._matches = score;
-                        --limit;
-                    }
-                }
-                it = range.second;
-            }
-        }
-
-
-        std::map<vertex_type, std::size_t> vertex_max_weight;
-        for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
-            edge_type e = *e_it.first;
-            vertex_type u = source(e, G);
-            vertex_type v = target(e, G);
-            std::size_t w = G[e]._matches;
-
-            auto itu = vertex_max_weight.find(u);
-            vertex_max_weight[u] = (itu == vertex_max_weight.end()) ? w : std::max(itu->second, w);
-
-            auto itv = vertex_max_weight.find(v);
-            vertex_max_weight[v] = (itv == vertex_max_weight.end()) ? w : std::max(itv->second, w);
-        }
-
-        std::vector<edge_type> to_remove;
-        for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
-            edge_type e = *e_it.first;
-            vertex_type u = source(e, G);
-            vertex_type v = target(e, G);
-            std::size_t w = G[e]._matches;
-
-            std::size_t mu = vertex_max_weight.at(u);
-            std::size_t mv = vertex_max_weight.at(v);
-
-            if(w < mu || w < mv) {
-                to_remove.push_back(e);
-            }
-        }
-
-        for (edge_type e : to_remove) {
-            remove_edge(e, G);
-        }
-
-        return G;
-    }
-
-    template <typename Stream>
-    static Stream& graphml(Stream& stream, const undirected_graph_type& cluster_graph) {
-        auto vertex_label_map = boost::make_function_property_map<constant_component_graph::vertex_type>(
-            [&](const constant_component_graph::vertex_type& v) -> std::string {
-                return std::format("{}", cluster_graph[v]._cluster);
-            }
-        );
-
-        auto edge_weight_map = boost::make_function_property_map<constant_component_graph::edge_type>(
-            [&](const constant_component_graph::edge_type& e) -> std::size_t {
-                return cluster_graph[e]._matches;
-            }
-        );
-
-        boost::dynamic_properties properties;
-        properties.property("label",  vertex_label_map);
-        properties.property("weight", edge_weight_map);
-
-        boost::write_graphml(stream, cluster_graph, properties, true);
-
-        return stream;
-    }
-
-    static std::size_t cluster(const undirected_graph_type& cluster_graph, std::multimap<int, std::size_t>& components_map) {
-        std::vector<int> components(boost::num_vertices(cluster_graph));
-        size_t num_components = boost::connected_components (cluster_graph, &components[0]);
-        for(std::size_t i = 0; i < components.size(); ++i){
-            constant_component_graph::vertex_type v = boost::vertex(i, cluster_graph);
-            std::size_t cluster = cluster_graph[v]._cluster;
-            components_map.insert(std::make_pair(components.at(i), cluster));
-        }
-        return num_components;
-    }
-};
-
-struct automata{
-    struct segment_vertex{
-        std::size_t _id;
-        std::string _str;
-        bool _start  = false;
-        bool _finish = false;
-    };
-
-    struct segment_edge{
-        enum type{
-            constant, placeholder, epsilon
-        };
-        type _type;
-        std::string _str;
-        std::size_t _id;
-        std::vector<prova::loga::wrapped> _captured;
-    };
-
-    using thompson_digraph_type = boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, segment_vertex, segment_edge>;
-    using vertex_type           = boost::graph_traits<thompson_digraph_type>::vertex_descriptor;
-    using edge_type             = boost::graph_traits<thompson_digraph_type>::edge_descriptor;
-    using terminal_pair_type    = std::pair<vertex_type, vertex_type>;
-    using sequence_container    = std::vector<pattern_sequence>;
-    using terminals_map         = std::map<std::size_t, terminal_pair_type>;
-
-    thompson_digraph_type  _graph;
-    sequence_container     _pseqs;
-    terminals_map          _terminals;
-
-    struct generialization_result{
-        using segment_iterator = pattern_sequence::const_iterator;
-        using progress_pair    = std::pair<std::size_t, std::size_t>;
-
-        struct edge_intent{
-            vertex_type  source;
-            vertex_type  target;
-            segment_edge edge;
-        };
-
-        using edges_container = std::vector<edge_intent>;
-
-        vertex_type      last_v;
-        segment_iterator last_it;
-        std::size_t      tokens;
-        std::size_t      base_progress;
-        std::size_t      ref_progress;
-        edges_container  etrace;
-
-        generialization_result(vertex_type v, segment_iterator it, progress_pair progress): last_v(v), last_it(it), tokens(0), base_progress(progress.first), ref_progress(progress.second) {} // implies that the last_it segment was not visited because number of tokens visited in last_it is 0
-        generialization_result(vertex_type v, segment_iterator it, std::size_t n, progress_pair progress): last_v(v), last_it(it), tokens(n), base_progress(progress.first), ref_progress(progress.second) {}
-        generialization_result(const generialization_result&) = default;
-        generialization_result& operator=(const generialization_result&) = default;
-    };
-
-    template <typename Iterator>
-    automata(Iterator begin, Iterator end): _pseqs(begin, end) {
-        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
-            _terminals.insert(std::make_pair(
-                i,
-                std::make_pair(
-                    boost::graph_traits<thompson_digraph_type>::null_vertex(),
-                    boost::graph_traits<thompson_digraph_type>::null_vertex()
-                )
-            ));
-        }
-    }
-
-    void build() {
-        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
-            const pattern_sequence& pseq = _pseqs.at(i);
-            terminal_pair_type terminals = automata::thompson_graph(_graph, pseq, i);
-            _terminals[i] = terminals;
-        }
-    }
-
-    template <typename ValueT>
-    void generialize(arma::Mat<ValueT>& coverage_mat, arma::Mat<ValueT>& capture_mat, bool reroute_terminals = true) {
-        coverage_mat.set_size(_pseqs.size(), _pseqs.size());
-        capture_mat.set_size(_pseqs.size(), _pseqs.size());
-        coverage_mat.fill(0);
-        capture_mat.fill(0);
-
-        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
-            const pattern_sequence& pseq_base = _pseqs.at(i);
-            for(std::size_t j = 0; j < _pseqs.size(); ++j) {
-                if(i == j) continue;
-                const pattern_sequence& pseq_ref = _pseqs.at(j);
-                generialization_result result = automata::directional_partial_generialize(_graph, pseq_ref, _terminals.at(i).first, j);
-                std::size_t coverage = 0, capture = 0;
-                for(auto sit = pseq_ref.begin(); sit != pseq_ref.end(); ++sit) {
-                    if(sit != result.last_it) {
-                        if(sit->tag() == prova::loga::zone::placeholder) {
-                            capture++;
-                        } else {
-                            std::size_t ntokens = 0;
-                            for(auto tit = sit->tokens().begin(); tit != sit->tokens().end(); ++tit) {
-                                if(ntokens >= result.tokens){
-                                    break;
-                                }
-                                ++ntokens;
-                            }
-                        }
-                    }
-                }
-                // (i, j) -> {coverage, capture}
-                capture_mat(i, j)  = capture;
-
-                if(reroute_terminals) {
-                    if(result.last_v == _terminals.at(i).second) {
-                        // reached finish point
-                        // find the edge connecting to the finish vertex with id j
-                        edge_type e;
-                        bool edge_found = false;
-                        for(auto [ei, ei_end] = boost::in_edges(result.last_v, _graph); ei != ei_end; ++ei) {
-                            const segment_edge& ep = _graph[*ei];
-                            if(ep._id == j){
-                                e = *ei;
-                                edge_found = true;
-                                break;
-                            }
-                        }
-                        assert(edge_found);
-                        auto [ne, neins] = boost::add_edge(boost::source(e, _graph), _terminals.at(j).second, _graph);
-                        assert(neins);
-                        _graph[ne]._id   = _graph[e]._id;
-                        _graph[ne]._type = _graph[e]._type;
-                        _graph[ne]._str  = _graph[e]._str;
-                        for(const auto& w: _graph[e]._captured) {
-                            _graph[ne]._captured.push_back(w);
-                        }
-                        // auto ep = std::move(_graph[e]);
-                        // boost::remove_edge(e, _graph);
-                        // _graph[ne] = std::move(ep);
-                    }
-                }
-            }
-        }
-        for(std::size_t i = 0; i < _pseqs.size(); ++i) {
-            vertex_type finish = _terminals.at(i).second;
-            std::set<std::size_t> coverage;
-            for(auto [ei, ei_end] = boost::in_edges(finish, _graph); ei != ei_end; ++ei) {
-                const segment_edge& ep = _graph[*ei];
-                if(ep._id != i)
-                    coverage.insert(ep._id);
-            }
-            for(std::size_t c: coverage) {
-                coverage_mat(c, i) = 1;
-            }
-        }
-    }
-
-    std::ostream& graphml(std::ostream& stream){
-        auto vertex_label_map = boost::make_function_property_map<vertex_type>(
-            [&](const vertex_type& v) -> std::string {
-                return std::format("{}", _graph[v]._id);
-            }
-        );
-
-        auto edge_label_map = boost::make_function_property_map<edge_type>(
-            [&](const edge_type& e) -> std::string {
-                if(_graph[e]._type == segment_edge::placeholder) return "$";
-                if(_graph[e]._type == segment_edge::epsilon)     return "ε";
-                return _graph[e]._str;
-            }
-        );
-
-        auto edge_group_map = boost::make_function_property_map<edge_type>(
-            [&](const edge_type& e) -> std::size_t {
-                return _graph[e]._id;
-            }
-        );
-
-        boost::dynamic_properties properties;
-        properties.property("label", vertex_label_map);
-        properties.property("label", edge_label_map);
-        properties.property("type",  edge_group_map);
-
-        boost::write_graphml(stream, _graph, properties, true);
-
-        return stream;
-    }
-
-    std::ostream& graphviz(std::ostream& stream){
-        struct color_palette {
-            static const std::vector<std::string>& colors() {
-                static const std::vector<std::string> COLORS = {
-                    "red","blue","green","orange","purple","brown","cyan","magenta","gold",
-                    "darkgreen","darkorange","deepskyblue","limegreen","chocolate","indigo",
-                    "darkgoldenrod","dodgerblue","coral","orchid","olivedrab","steelblue",
-                    "rosybrown","slateblue","teal","peru","cadetblue","mediumseagreen",
-                    "lightsalmon","darkkhaki","mediumorchid","mediumslateblue","firebrick",
-                    "deeppink","navy","forestgreen","darkturquoise","maroon","darkolivegreen",
-                    "midnightblue","saddlebrown","darkred","darkmagenta","darkblue"
-                };
-                return COLORS;
-            }
-            static std::string for_id(std::size_t id){
-                const auto& c = colors();
-                return c[id % c.size()];
-            }
-        };
-
-        struct vertex_writer {
-            const thompson_digraph_type* g;
-            void operator()(std::ostream& out, const vertex_type& v) const {
-                const auto& gv = (*g)[v];
-                const std::string color = color_palette::for_id(gv._id);
-                std::string label = std::format("{}/{}", gv._id, (gv._str == " " ? std::string("□") : gv._str));
-                if(gv._start) {
-                    label = std::format("^{}", gv._id);
-                } else if(gv._finish) {
-                    label = std::format("{}$", gv._id);
-                }
-                out << "[label=\""   << label
-                    << "\", shape=\"box\""          // rectangular node
-                    << ", color=\""  << color       // border color
-                    << "\", penwidth=2"             // make border visible
-                    << ", fontname=\"Helvetica\"]";
-            }
-        };
-        struct edge_writer {
-            const thompson_digraph_type* g;
-            void operator()(std::ostream& out, const edge_type& e) const {
-                const auto& ge = (*g)[e];
-                vertex_type u = boost::source(e, *g);
-                const auto& up = (*g)[u];
-
-                std::string lab;
-                if (ge._type == segment_edge::placeholder){
-                    if(ge._id == up._id) {
-                        lab = "$";
-                    } else {
-                        std::string captured;
-                        for(const auto& w: ge._captured) {
-                            captured.append(w.view());
-                        }
-                        lab = captured;
-                    }
-                }
-                else if (ge._type == segment_edge::epsilon) lab = "ε";
-                else lab = ge._str;
-
-                std::string style;
-                switch (ge._type) {
-                    case segment_edge::placeholder: style = "dashed"; break;
-                    case segment_edge::epsilon:     style = "dotted"; break;
-                    default:                        style = "solid";  break;
-                }
-
-                out << "[label=\"" << (lab == " " ? std::string("□") : lab)
-                    << "\", color=\"" << color_palette::for_id(ge._id)
-                    << "\", style=\"" << style
-                    << "\", penwidth=2]";
-            }
-        };
-        struct graph_writer {
-            void operator()(std::ostream& out) const {
-                out << "graph [splines=true, overlap=false];\n"
-                    << "node  [shape=circle, fontname=\"Helvetica\"];\n"
-                    << "edge  [fontname=\"Helvetica\"];\n";
-            }
-        };
-        // --------------------------------------------------------------------
-
-        boost::write_graphviz(
-            stream,
-            _graph,
-            vertex_writer{&_graph},
-            edge_writer{&_graph},
-            graph_writer{}         // *** CHANGED: provide graph-writer here ***
-        );
-        return stream;
-    }
-
-
-    /**
-     * @brief thompson_graph
-     * @param pseq
-     * @pre pseq contains a sequence of segments each having a zone (either constant or placeholder)
-     * @pre two consecutive segments would always have different zones
-     * @post generates a linear graph corresponding to the pattern depicted by pseq
-     * @return
-     */
-    static std::pair<vertex_type, vertex_type> thompson_graph(thompson_digraph_type& graph, const pattern_sequence& pseq, std::size_t id) {
-        vertex_type start = boost::add_vertex(graph);
-        vertex_type last = start;
-        graph[last]._start = true;
-        graph[last]._id = id;
-        std::size_t placeholders = 0;
-        for(const pattern_sequence::segment& s: pseq) {
-            prova::loga::zone zone = s.tag(); // either constant or placeholder
-            if(zone == prova::loga::zone::constant) {
-                for(const prova::loga::wrapped& t: s.tokens()) {
-                    vertex_type v = boost::add_vertex(graph);
-                    graph[v]._str = t.view();
-                    graph[v]._id = id;
-
-                    auto [e, inserted] = boost::add_edge(last, v, graph);
-                    graph[e]._type = (placeholders > 0) ? segment_edge::placeholder : segment_edge::constant;
-                    graph[e]._str  = graph[v]._str;
-                    graph[e]._id   = id;
-
-                    last = v;
-                    placeholders = 0;
-                }
-            } else {
-                // placeholders are not typed such as \d+ or \w+ it is always consume all unless reaches a literal
-                // so, no hope between two placeholder tokens is necessary
-                // rather merge all the contigous placeholders into one hop described by a single edge btween two literals
-                ++placeholders; // zero token placeholder is also valid
-                for(const prova::loga::wrapped& t: s.tokens())
-                    ++placeholders;
-            }
-        }
-
-        vertex_type finish = boost::add_vertex(graph);
-        graph[finish]._finish = true;
-        graph[finish]._id = id;
-        auto [e, inserted] = boost::add_edge(last, finish, graph);
-        graph[e]._type = (placeholders > 0) ? segment_edge::placeholder : segment_edge::epsilon;
-        graph[e]._id   = id;
-        return {start, finish};
-    }
-
-    static generialization_result directional_partial_generialize(thompson_digraph_type& pattern_graph, const pattern_sequence& pseq, vertex_type start, std::size_t ref_id) {
-        assert(pseq.size() > 0);
-
-        auto sbegin = pseq.begin();
-        auto send   = pseq.end();
-
-        generialization_result result = formalized_directional_partial_generialize(pattern_graph, sbegin, send, start, ref_id);
-        apply_trace(pattern_graph, result);
-        return result;
-    }
-
-    template <typename Iterator>
-    static generialization_result formalized_directional_partial_generialize(const thompson_digraph_type& pattern_graph, Iterator begin, Iterator end, vertex_type start, std::size_t ref_id) {
-        std::size_t base_id = pattern_graph[start]._id;
-
-        auto match = [&pattern_graph](vertex_type lv, Iterator segit, std::size_t tidx) -> bool {
-            if(segit->tag() == prova::loga::zone::placeholder) return false;
-            if(tidx >= segit->tokens().count())                return false;
-
-            assert(segit->tag() == prova::loga::zone::constant);
-            assert(tidx < segit->tokens().count());
-
-            const auto& token = segit->tokens().at(tidx);
-            const segment_vertex& vp = pattern_graph[lv];
-
-            return token.view() == vp._str;
-        };
-
-        auto find_match = [&pattern_graph, &match](vertex_type lv, Iterator segit, std::size_t tidx) -> std::pair<bool, std::size_t> {
-            bool m = match(lv, segit, tidx++);
-            while(!m) {
-                if(tidx < segit->tokens().count())
-                    m = match(lv, segit, tidx++);
-                else break;
-            }
-            return std::make_pair(m, tidx -1);                                            // under all circumstances tidx was incremented
-        };
-
-        /**
-         * Doesn't updated shared variables only returns
-         */
-        auto next_base = [&pattern_graph, base_id](vertex_type lv) -> std::pair<edge_type, vertex_type> {
-            bool edge_found = false;
-            edge_type e;
-            for(auto [ei, ei_end] = boost::out_edges(lv, pattern_graph); ei != ei_end; ++ei) {
-                const segment_edge& ep = pattern_graph[*ei];
-                if(ep._id == base_id){
-                    e = *ei;
-                    edge_found = true;
-                    break;
-                }
-            }
-            assert(edge_found);
-            return {e, boost::target(e, pattern_graph)};
-        };
-
-        /**
-         * Doesn't updated shared variables only returns
-         */
-        auto next_ref = [](Iterator segit, std::size_t tidx) -> std::pair<Iterator, std::size_t> {
-            if(tidx +1 >= segit->tokens().count()) {
-                return {++segit, 0};
-            } else {
-                return {segit, ++tidx};
-            }
-        };
-
-        edge_type   last_e;
-        vertex_type last_v = start;
-        auto sit    = begin;
-        auto send   = end;
-        std::size_t tindex = 0;
-
-        auto l_sit  = sit;                                                              // last matched reference segment
-        auto l_v    = start;
-        auto l_tidx = tindex;                                                           // last matched token index in the ;_sit reference segment
-
-        std::size_t base_progress = 0;
-        std::size_t ref_progress  = 0;
-        std::vector<generialization_result::edge_intent> edges;
-
-        auto advance_state = [&]() -> bool {
-            // l_v to last_v read in base
-            // l_sit:l_tidx to sit:tindex tokens read in reference
-#if 0
-            std::vector<std::string> debug_base_str;
-#endif
-            segment_edge::type base_hop = segment_edge::epsilon;
-            std::size_t base_count = 0;
-            {
-                auto x_v = l_v;
-                auto x_e = last_e;
-                base_hop = pattern_graph[x_e]._type;
-                while(x_v != last_v){
-                    ++base_count;
-                    const segment_edge& x_ep = pattern_graph[x_e];
-                    if(x_ep._type == segment_edge::placeholder) { // placeholder has high precedence over other types
-                        if(base_hop != segment_edge::placeholder)
-                            base_hop = segment_edge::placeholder;
-                    }
-#if 0
-                    debug_base_str.push_back(pattern_graph[x_v]._str);
-#endif
-                    std::tie(x_e, x_v) = next_base(x_v);
-                }
-#if 0
-                debug_base_str.push_back(pattern_graph[x_v]._str);
-#endif
-            }
-            base_progress += base_count;
-
-            prova::loga::zone ref_zone = prova::loga::zone::constant;
-            generialization_result::edge_intent e;
-            e.source     = l_v;
-            e.target     = last_v;
-            e.edge._id   = ref_id;
-            auto x_sit   = l_sit;
-            auto x_tidx  = l_tidx;
-
-            if(sit > l_sit || tindex > l_tidx) {
-                std::tie(x_sit, x_tidx) = next_ref(x_sit, x_tidx);
-            }
-
-            while(x_sit != send && (x_sit < sit || (x_sit == sit && x_tidx <= tindex))) {
-                ++ref_progress;
-                auto zone = x_sit->tag();
-                if(zone == prova::loga::zone::constant) {
-                    auto w = x_sit->tokens().at(x_tidx);
-                    e.edge._captured.emplace_back(w);
-                } else {
-                    e.edge._str = "$";
-                }
-
-                if(zone == prova::loga::zone::placeholder) { // placeholder has high precedence over other types
-                    if(ref_zone != prova::loga::zone::placeholder)
-                        ref_zone = prova::loga::zone::placeholder;
-                }
-                std::tie(x_sit, x_tidx) = next_ref(x_sit, x_tidx);
-            }
-
-            e.edge._type = (ref_zone == prova::loga::zone::placeholder)
-                                ? segment_edge::placeholder
-                                : (base_hop == segment_edge::epsilon)
-                                    ? segment_edge::epsilon
-                                    : segment_edge::constant;
-#if 0
-            {
-                // for debug purpose only
-                std::cout << (base_hop == segment_edge::placeholder ? "p" : "c");
-                std::cout << "/" << boost::join(debug_base_str, "/") << "/";
-                std::cout << " <> ";
-                std::cout << e.edge._str;
-                std::vector<std::string> buffer;
-                for(const auto& w: e.edge._captured) {
-                    buffer.emplace_back(w.view());
-                }
-                std::cout << "|" << boost::join(buffer, "|") << "|";
-                std::cout << std::endl;
-            }
-#endif
-            edges.emplace_back(std::move(e));
-
-            l_v    = last_v;
-            l_sit  = sit;
-            l_tidx = tindex;
-
-            bool res = false;
-            if(!pattern_graph[last_v]._finish){
-                std::tie(last_e, last_v) = next_base(last_v);
-                res = true;
-            }
-            if(sit != send) {
-                std::tie(sit, tindex)    = next_ref(sit, tindex);
-                res = res & true;
-            }
-            return res;
-        };
-
-        std::tie(last_e, last_v) = next_base(last_v);
-        while(sit != send) {
-            const segment_edge& lep = pattern_graph[last_e];
-            auto base_type = lep._type;
-            auto ref_type = sit->tag();
-            if(base_type == segment_edge::constant && ref_type == prova::loga::zone::constant) {
-                bool found = match(last_v, sit, tindex);
-                if(!found) break;
-                else advance_state();
-            } else {
-                bool aligned = false;
-                if(base_type == segment_edge::epsilon){
-                    if(pattern_graph[last_v]._finish){
-                        if(sit == send) {
-                            aligned = true;
-                        }
-                        break;
-                    }
-                    else break; // unexpected
-                }
-
-                assert(base_type == segment_edge::placeholder || ref_type == prova::loga::zone::placeholder);
-
-                if(ref_type == prova::loga::zone::placeholder){                         // if placeholder then there is no token in *sit
-                    ++sit;                                                              // skip the current segment
-                    tindex = 0;                                                         // move to the first token of the next segment
-                }
-
-                do{                                 // irrespective of base_type next vertex has an _str depicting a constant
-                    bool found = false;
-                    for(;sit != send;) {
-                        if(sit->tag() == prova::loga::zone::constant) {
-                            bool matched;
-                            std::tie(matched, tindex) = find_match(last_v, sit, tindex);
-                            if(matched) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        ++sit;                                                          // either no token found in sit segment or encountered a placeholder
-                        tindex = 0;                                                     // segment which cannot be matched due to lack of tokens in it
-                    }
-                    if(found) {
-                        aligned = true;
-                        break;
-                    } else {
-                        if(!pattern_graph[last_v]._finish) {
-                            std::tie(last_e, last_v) = next_base(last_v);               // if base_type is constant then either last_v or more vertices will be eaten by the reference placeholder
-                                                                                        // if base_type is placeholder then also next base vertex is a constant which will be eaten by the reference placeholder
-                            sit = l_sit;
-                            std::advance(sit, 1);
-                            tindex = 0;
-                        } else {
-                            // reached finish vertex of the base graph
-                            // base_type == segment_edge::placeholder || ref_type == prova::loga::zone::placeholder -> at least one is a placeholder
-                            // if sit == send
-                            //     send serves as the representative of finish vertex
-                            //     both ends at the same time therefore aligned
-                            // else
-                            //     not enough evidence to call them aligned
-                            if(sit == send) {
-                                aligned = true;
-                            }
-                        }
-                    }
-                }while(!pattern_graph[last_v]._finish);
-
-                if(!aligned) break;
-                else {
-                    if(!advance_state()){
-                        break;
-                    }
-                }
-            }
-        }
-        if(sit == send) {
-            if(pattern_graph[last_v]._finish){
-                advance_state();
-            }
-        }
-        generialization_result res{l_v, l_sit, l_tidx, std::make_pair(base_progress, ref_progress)};
-        res.etrace = std::move(edges);
-        return res;
-    }
-
-    /**
-     * @brief partial_generialize finds if the pattern_graph generializes pseq partially or not
-     * @param pattern_graph
-     * @param pseq
-     * @pre pseq contains a sequence of segments each having a zone (either constant or placeholder)
-     * @pre two consecutive segments would always have different zones
-     * @return
-     */
-    template <typename Iterator>
-    static generialization_result directional_partial_generialize(const thompson_digraph_type& pattern_graph, Iterator begin, Iterator end, vertex_type start, std::size_t ref_id) {
-        vertex_type last = start;
-        std::size_t length = 0;
-        auto sit    = begin;
-        auto send   = end;
-        auto presit = sit; // garunteed to be valid always
-
-        std::size_t debug_base_id = pattern_graph[last]._id;
-
-        std::size_t base_progress = 0;
-        std::size_t ref_progress  = 0;
-
-        std::vector<generialization_result::edge_intent> edges;
-
-        std::size_t tconsumed = 0;
-        std::vector<prova::loga::wrapped> token_buffer;
-        for(;;) {
-            // advance lookahead
-            auto [ei, ei_end] = boost::out_edges(last, pattern_graph);
-            if(ei == ei_end) {                                                  // exit: [base exhausted] no edge to follow
-                // return last;
-                generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};
-                res.etrace = std::move(edges);
-                return res;
-            }
-            edge_type e;
-            bool edge_found = false;
-            for(auto [ei, ei_end] = boost::out_edges(last, pattern_graph); ei != ei_end; ++ei) {
-                const segment_edge& ep = pattern_graph[*ei];
-                if(ep._id == pattern_graph[start]._id){
-                    e = *ei;
-                    edge_found = true;
-                    break;
-                }
-            }
-            assert(edge_found);
-            base_progress++;
-
-            vertex_type v = boost::target(e, pattern_graph);
-            const segment_edge&   ep = pattern_graph[e];
-            const segment_vertex& vp = pattern_graph[v];
-
-            if (vp._finish) {
-                if (ep._type == segment_edge::epsilon) {
-                    {
-                        // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                        // assert(nins);
-                        // pattern_graph[ne]._type = segment_edge::epsilon;
-                        // pattern_graph[ne]._id   = ref_id;
-                        generialization_result::edge_intent e;
-                        e.source     = last;
-                        e.target     = v;
-                        e.edge._id   = ref_id;
-                        e.edge._type = segment_edge::epsilon;
-                        edges.emplace_back(std::move(e));
-                    }
-                    // return v;
-                    generialization_result res{v, sit, tconsumed, std::make_pair(base_progress, ref_progress)};           // exit: [constant ending in base]
-                    res.etrace = std::move(edges);
-                    return res;
-                } else if (ep._type == segment_edge::placeholder) {
-                    if(sit != send){
-                        // if tconsumed > 0 then
-                        // take the tokens that have been captured already
-                        // token_buffer is cleared in thend of segment loop
-                        std::size_t placeholders_consumed = 0;
-                        if(sit->tag() == prova::loga::zone::placeholder) {
-                            ++placeholders_consumed;
-                        } else {
-                            auto rest_current_begin = sit->tokens().begin();
-                            auto rest_current_end   = sit->tokens().end();
-                            std::advance(rest_current_begin, tconsumed);
-                            for(auto tmp_it = rest_current_begin; tmp_it != rest_current_end; ++tmp_it) {
-                                token_buffer.push_back(*tmp_it);
-                            }
-                        }
-
-                        auto tmp_sit = sit;
-                        auto tmp_sit_last = tmp_sit;
-                        while(++tmp_sit != send) {
-                            if(tmp_sit->tag() == prova::loga::zone::placeholder) {
-                                ++placeholders_consumed;
-                            } else {
-                                auto rest_next_begin = tmp_sit->tokens().begin();
-                                auto rest_next_end   = tmp_sit->tokens().end();
-                                for(auto tmp_it = rest_next_begin; tmp_it != rest_next_end; ++tmp_it) {
-                                    token_buffer.push_back(*tmp_it);
-                                }
-                                tmp_sit_last = tmp_sit;
-                            }
-                        }
-
-                        if(token_buffer.size() > 0 || placeholders_consumed > 0) {
-                            {
-                                // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                                // assert(nins);
-                                // pattern_graph[ne]._type = segment_edge::placeholder;
-                                // pattern_graph[ne]._id   = ref_id;
-                                // for(auto& token: token_buffer) {
-                                //     pattern_graph[ne]._captured.emplace_back(token);
-                                // }
-                                generialization_result::edge_intent e;
-                                e.source     = last;
-                                e.target     = v;
-                                e.edge._id   = ref_id;
-                                e.edge._type = segment_edge::placeholder;
-                                for(auto& token: token_buffer) {
-                                    e.edge._captured.emplace_back(token);
-                                }
-                                token_buffer.clear();
-                                edges.emplace_back(std::move(e));
-                            }
-                            // return v;
-                            generialization_result res{v, tmp_sit_last, tmp_sit_last->tokens().count(), std::make_pair(base_progress, ref_progress)};     // exit: [placeholder ending in base satisfied by ref]
-                            res.etrace = std::move(edges);
-                            return res;
-                        }
-
-                        // return last;
-                        generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref semi-exhausted]
-                        res.etrace = std::move(edges);
-                        return res;
-                    } else {
-                        // return last;
-                        generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref exhausted]
-                        res.etrace = std::move(edges);
-                        return res;
-                    }
-                } else {
-                    assert(ep._type != segment_edge::constant);
-                }
-            }
-
-            bool placeholder_hop = ep._type == segment_edge::placeholder;
-            const std::string& lookahead = vp._str;
-
-            bool advance_lookahead = false;
-            while(sit != send) {    // segment loop
-                const pattern_sequence::segment& s = *sit;
-                prova::loga::zone zone = s.tag();
-                const prova::loga::tokenized& tokens = s.tokens();
-
-                // if placeholder_hop then
-                //      if zone is constant
-                //          a subset of the tokens in the segment will align to the placeholder unless a token matches with the lookahead
-                //          loop t into segment.tokens
-                //              if t == lookahead
-                //                  advance lookahead
-                //              else
-                //                  since this is a placeholder_hop check the next token because the unmatched token could be eaten by a the placeholder
-                //      else
-                //          the tokens in the placeholder zone doesn't have a text to match against the lookahead
-                //          So, we have to skip all tokens in the current segment
-                //          The lookahead is still the same
-                //          next segment's zone is expected to be constant (because pseq is [c][p][c][p]...)
-                // else
-                //      we know exactly what we are expecting (the lookahead)
-                //      if the first token does not match with lookahead
-                //          thats the end of simulation
-                //      else
-                //          we need to advance the lookahead vertex as well as the token
-
-                auto tbegin = tokens.begin();
-                auto tend   = tokens.end();
-                auto tit    = tbegin;
-                // resume tit iteration
-                if(tconsumed < tokens.count()) {
-                    std::advance(tit, tconsumed);
-                } else {
-                    presit = sit;
-                    ++sit;
-                    ++ref_progress;
-                    tconsumed = 0;
-                    continue;
-                }
-
-                if(placeholder_hop) {
-                    if(zone == prova::loga::zone::constant) {
-                        bool matched = false;
-                        for(;tit != tend; ++tit) {
-                            bool lokahead_matched = (lookahead == tit->view());
-                            if(lokahead_matched) {
-                                {
-                                    // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                                    // assert(nins);
-                                    // pattern_graph[ne]._type = ep._type;
-                                    // pattern_graph[ne]._id   = ref_id;
-                                    // for(auto& token: token_buffer) {
-                                    //     pattern_graph[ne]._captured.emplace_back(token);
-                                    // }
-                                    generialization_result::edge_intent e;
-                                    e.source     = last;
-                                    e.target     = v;
-                                    e.edge._id   = ref_id;
-                                    // e.edge._str   = lookahead; // not collected because we favour _captured in this case
-                                    e.edge._type = segment_edge::placeholder;
-                                    for(auto& token: token_buffer) {
-                                        e.edge._captured.emplace_back(token);
-                                    }
-                                    token_buffer.clear();
-                                    edges.emplace_back(std::move(e));
-                                }
-                                last = v;
-                                tconsumed++;
-                                matched = true;
-                                break;
-                            } else {
-                                token_buffer.push_back(*tit);
-                                tconsumed++;
-                                // hope until we reach tend
-                            }
-                        }
-                        // given that the next segment will be placeholder zone
-                        // if loop continues till here (without breaking) then this is the furthest we can reach
-                        if(!matched){
-                            assert(tit == tend);
-                            // next segment is placeholder zone, next next is constant zone again
-                            // if advancing sit twice failes then last iterator that we could visit is presit
-                            presit = sit;
-                            if (++sit == send) {
-                                // return last;
-                                generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};          // exit: [base placeholder + ref exhausted while looking for lookahead]
-                                res.etrace = std::move(edges);
-                                return res;
-                            }
-                            // next next segment would be constant zone again
-                            tconsumed = 0;
-                            if (++sit == send) {
-                                // return last;
-                                generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};          // exit: [base placeholder + ref exhausted while looking for lookahead]
-                                res.etrace = std::move(edges);
-                                return res;
-                            }
-                            advance_lookahead = false;
-                            continue;
-                        } else {
-                            advance_lookahead = true;
-                            // sit is not advanced
-                            // we need a new lookahead
-                            // tconsumed will be used for [resume tit iteration] block to choose whether to advance segment or not
-                            // break the segment loop to first reach [advance lookahead] block due to advance_lookahead being true and then [resume tit iteration]
-                            break;
-                        }
-                    } else {
-                        advance_lookahead = false;
-                        for(;tit != tend; ++tit) {
-                            tconsumed++;
-                        }
-                        // no need to to sit++ because tconsumed reaches count which will lead to sit++ upon continue
-                        continue; // next segment is constant
-                    }
-                } else {
-                    if(zone == prova::loga::zone::constant) {
-                        bool matched = false;
-                        for(;tit != tend; ++tit) {
-                            bool lokahead_matched = (lookahead == tit->view());
-                            if(lokahead_matched) {
-                                {
-                                    // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                                    // assert(nins);
-                                    // pattern_graph[ne]._type = ep._type;
-                                    // pattern_graph[ne]._id   = ref_id;
-                                    generialization_result::edge_intent e;
-                                    e.source     = last;
-                                    e.target     = v;
-                                    e.edge._id   = ref_id;
-                                    e.edge._type = ep._type;
-                                    // e.edge._str   = lookahead; // not collected because it is obvious
-                                    edges.emplace_back(std::move(e));
-                                }
-                                last = v;
-                                tconsumed++;
-                                matched = true;
-                                break;
-                            } else {
-                                // not a placeholder_hop
-                                // lookahead could not be matched
-                                break;
-                            }
-                        }
-                        // given that the next segment will be placeholder zone
-                        // if loop continues till here (without breaking) then this is the furthest we can reach
-                        if(!matched) {
-                            // return last;
-                            generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                         // exit: [base constant + ref unmatched]
-                            res.etrace = std::move(edges);
-                            return res;
-                        } else {
-                            advance_lookahead = true;
-                            break; // break the segment loop because we have to change the lookahead now
-                        }
-                    } else {
-                        // tit->view() doesn't work here because we are in a placeholder segment
-                        // If the placeholder segment of the pseq generializes the constant segment of the linear graph
-                        // then that would be detected while going through the next segment
-                        if(debug_base_id == 1 && ref_id == 9)
-                            std::cout << "2CP" << std::endl;
-                        last = v;
-                        advance_lookahead = true;
-                        for(;tit != tend; ++tit) {
-                            tconsumed++;
-                        }
-                        break; // next segment is constant
-                    }
-                }
-            }
-            if(!advance_lookahead){
-                // return last;
-                generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};                            // exit: [base constant + ref unmatched]
-                res.etrace = std::move(edges);
-                return res;
-                // presit must be valid since sit is valid so dereferencing must be okay
-            }
-            token_buffer.clear(); // clear because we are now changing the lookahead
-        }
-
-        // return last;
-        generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};
-        res.etrace = std::move(edges);
-        return res;
-    }
-
-    static std::size_t apply_trace(thompson_digraph_type& graph, const generialization_result& res){
-        std::size_t count = 0;
-        for (const auto& s : res.etrace) {
-            auto [ne, ok] = boost::add_edge(s.source, s.target, graph);
-            (void)ok;
-            assert(ok);
-
-            graph[ne]._type = s.edge._type;
-            graph[ne]._str  = s.edge._str;
-            graph[ne]._id   = s.edge._id;
-            for(auto& token: s.edge._captured) {
-                graph[ne]._captured.emplace_back(token);
-            }
-            ++count;
-        }
-        return count;
-    }
-
-    void directional_subset_generialize(thompson_digraph_type& pattern_graph, const pattern_sequence& pseq, std::size_t base_id, std::size_t ref_id) {
-        assert(pseq.size() > 0);
-
-        // [[incomplete]]
-
-        const vertex_type base_start  = _terminals.at(base_id).first;
-        const vertex_type base_finish = _terminals.at(base_id).second;
-
-        std::map<vertex_type, std::size_t> map_v_id;
-        std::map<std::size_t, vertex_type> map_id_v;
-        std::map<generialization_result::segment_iterator, std::size_t> map_ref_id;
-        std::map<std::size_t, generialization_result::segment_iterator> map_id_ref;
-
-        // TODO populate four maps;
-        {
-            vertex_type v = base_start;
-            std::size_t idx = 0;
-            for (;;) {
-                map_v_id.emplace(v, idx);
-                map_id_v.emplace(idx, v);
-
-                if (v == base_finish) break;
-
-                // Find the unique next edge along this base chain (_id == base_id)
-                edge_type next_e{};
-                bool      found = false;
-                for (auto [ei, ei_end] = boost::out_edges(v, pattern_graph); ei != ei_end; ++ei) {
-                    const segment_edge& ep = pattern_graph[*ei];
-                    if (ep._id == base_id) {
-                        next_e = *ei;
-                        found  = true;
-                        break;
-                    }
-                }
-                assert(found && "Base chain is expected to be linear for this id");
-
-                v = boost::target(next_e, pattern_graph);
-                ++idx;
-            }
-        }
-
-        // Reference sequence: assign a dense index to each segment iterator.
-        {
-            std::size_t idx = 0;
-            for (auto it = pseq.begin(); it != pseq.end(); ++it, ++idx) {
-                map_ref_id.emplace(it, idx);
-                map_id_ref.emplace(idx, it);
-            }
-        }
-
-        arma::imat memo;
-        memo.set_size(map_v_id.size(), map_ref_id.size());
-
-        vertex_type start = base_start;
-        auto sbegin = pseq.begin();
-        auto send   = pseq.end();
-
-        vertex_type finish  = _terminals.at(base_id).second;
-
-        std::size_t score = 0;
-        bool base_finished = false;
-        while(sbegin < send) {
-            generialization_result result = directional_partial_generialize(pattern_graph, sbegin, send, start, ref_id);
-            if(result.last_it == send){
-                if(result.last_v == finish) {
-                    base_finished = true;
-                }
-                ++score;
-                break;
-            }
-            memo(map_v_id.at(start), map_ref_id.at(sbegin)) = score;
-            sbegin = result.last_it;
-            ++sbegin;
-        }
-    }
-
-    pattern_sequence merge(std::size_t id, bool bidirectional = false) const {
-        vertex_type start  = _terminals.at(id).first;
-        vertex_type finish = _terminals.at(id).second;
-
-        pattern_sequence res;
-
-        vertex_type last = start;
-        do {
-            edge_type base_e;
-            std::vector<edge_type> ref_edges;
-
-            std::size_t base_edge_found = 0;
-            for(auto [ei, ei_end] = boost::out_edges(last, _graph); ei != ei_end; ++ei) {
-                const segment_edge& ep = _graph[*ei];
-                if(ep._id == id){
-                    base_e = *ei;
-                    base_edge_found++;
-                } else {
-                    ref_edges.push_back(*ei);
-                }
-            }
-            assert(base_edge_found == 1);
-            last = boost::target(base_e, _graph);
-
-            if(ref_edges.size() == 0){
-                break;
-            }
-
-            const segment_edge& base_edge_props = _graph[base_e];
-            if(base_edge_props._type == segment_edge::placeholder) {
-                // only if bidirectional is true
-                // if base edge is a placeholder and every other reference edge is constant
-                //   and the hash of these constants are same then
-                //   the base is actually not a placeholder
-                pattern_sequence::segment seg(prova::loga::zone::placeholder);
-                res.add(std::move(seg));
-            } else { // base edge is constant
-                // if base edge is a constant and at least one reference edge is placeholder
-                //    then the base is actually a placeholder
-                std::set<segment_edge::type>     ref_edge_types;
-                // std::map<std::size_t, edge_type> transition_tokens;
-                for(edge_type re: ref_edges) {
-                    const segment_edge& re_props = _graph[re];
-                    ref_edge_types.insert(re_props._type);
-                    // if(re_props._type == segment_edge::placeholder) continue;
-                    // if(re_props._type == segment_edge::epsilon)     continue;
-                    // std::size_t captured_tokens_hash = 0;
-                    // for(const prova::loga::wrapped& w: re_props._captured){
-                    //     boost::hash_combine(captured_tokens_hash, w.hash());
-                    // }
-                    // transition_tokens.insert(std::make_pair(captured_tokens_hash, re));
-                }
-
-                if(ref_edge_types.contains(segment_edge::placeholder)) {
-                    pattern_sequence::segment seg(prova::loga::zone::placeholder);
-                    res.add(std::move(seg));
-                } else {
-                    //
-                }
-            }
-
-            // last has already been updated
-            const auto& last_props = _graph[last];
-            pattern_sequence::segment seg(prova::loga::zone::constant, last_props._str);
-            res.add(std::move(seg));
-        } while(last != finish);
-
-        return res;
-    }
-};
 
 template <typename WeightT>
 struct knn_digraph{
@@ -1387,16 +264,17 @@ struct knn_digraph{
 
     const digraph_type& graph() const { return _graph; }
 
-    void update(const matrix_type& mat, std::size_t K, bool soft) {
-        assert(mat.n_rows == mat.n_cols);
-        std::size_t N = mat.n_rows;
+    void update(const matrix_type& coverage, const matrix_type& captures, std::size_t K, bool soft) {
+        assert(coverage.n_rows == coverage.n_cols);
+        assert(captures.n_rows == captures.n_cols);
+        std::size_t N = coverage.n_rows;
 
         for(std::size_t i = 0; i != N; ++i){
             std::vector<std::pair<std::size_t, WeightT>> weights;
             for(std::size_t j = 0; j != N; ++j){
                 if(i == j) continue;
 
-                auto w = mat(i, j);
+                auto w = coverage(i, j) * captures(i, j);
                 weights.push_back(std::make_pair(j, w));
             }
             std::sort(weights.begin(), weights.end(), [](const std::pair<std::size_t, WeightT>& l, const std::pair<std::size_t, WeightT>& r){
@@ -1451,6 +329,8 @@ struct knn_digraph{
     }
 
 };
+
+
 
 // constexpr const std::array<std::string, 209> label_names = {
 //     // Fruits (40) - Alphabetical
@@ -1605,7 +485,7 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
-    prova::loga::tokenized_distance::distance_matrix_type dmat = distance.matrix();
+    arma::mat dmat = distance.matrix();
     assert(dmat.n_rows == collection.count());
     assert(dmat.n_cols == collection.count());
 
@@ -1614,7 +494,7 @@ int main(int argc, char** argv) {
         std::ofstream graphml(graphml_file_path);
         prova::loga::print_graphml(bgl_graph, graphml);
     }
-    prova::loga::cluster::labels_type labels(collection.count());
+    arma::Row<std::size_t> labels(collection.count());
     if(std::filesystem::exists(labels_file_path)){
         std::ifstream labels_file(labels_file_path);
         if(!labels.load(labels_file)){
@@ -1635,7 +515,7 @@ int main(int argc, char** argv) {
 
     bool phase_2 = false;
     if(std::filesystem::exists(components_file_path)){
-        prova::loga::cluster::labels_type components(collection.count());
+        arma::Row<std::size_t> components(collection.count());
         std::ifstream components_file(components_file_path);
         if(!components.load(components_file)){
             std::cout << "failed to load components" << std::endl;
@@ -1833,49 +713,6 @@ int main(int argc, char** argv) {
 
         prova::loga::tokenized_multi_alignment malign(subcollection, paths, base);
         prova::loga::tokenized_multi_alignment::region_map regions = malign.align();
-
-        // prova::loga::tokenized_multi_alignment::region_map regions = malign.align(paths.begin(), paths.end(), [&all_paths, &references, &subcollection, &subalignment](std::size_t id /* id is the local id of the item in the cluster*/){
-        //     auto ref_it = references.begin();
-        //     std::advance(ref_it, id);
-        //     prova::loga::tokenized_alignment::matrix_type local_paths;
-
-        //     auto ref_i = ref_it;
-        //     std::size_t ref_c_j = 0;
-        //     std::size_t local_cache_hits = 0;
-        //     for(auto ref_j = references.cbegin(); ref_j != references.cend(); ++ref_j) {
-        //         if(ref_i != ref_j){
-        //             auto global_key = std::make_pair(*ref_i, *ref_j);
-        //             auto it = all_paths.find(global_key);
-        //             if(it != all_paths.cend()) {
-        //                 auto local_key = std::make_pair(id, ref_c_j);
-        //                 local_paths.insert(std::make_pair(local_key, it->second));
-        //                 ++local_cache_hits;
-        //             }
-        //         }
-        //         ++ref_c_j;
-        //     }
-
-        //     std::cout << std::format("Cache hits {}/{}", local_cache_hits, references.size()-1) << std::endl;
-        //     prova::loga::tokenized_alignment::memo_type memo;
-        //     auto pivot = subcollection.begin();
-        //     std::advance(pivot, id);
-        //     subalignment.bubble_all_pairwise_ref(local_paths, pivot, 1);
-
-        //     for(const auto& [key, path]: local_paths) {
-        //         auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
-        //         if(!all_paths.contains(global_key)) {
-        //             all_paths.insert(std::make_pair(global_key, path));
-        //         }
-        //     }
-
-        //     auto max_elem = std::ranges::max_element(local_paths, [](const auto& pair_l, const auto& pair_r){
-        //         return pair_l.second.size() < pair_r.second.size();
-        //     });
-        //     return max_elem->second;
-        // });
-
-        // regions = malign.fixture_word_boundary(regions);
-        // malign.print_regions_string(regions, std::cout) << std::endl;
         const auto& base_zones = regions.at(0);
         std::size_t placeholder_count = 0;
         std::cout << std::right << std::setw(5) << "     " << prova::loga::colors::bright_yellow << "●" << prova::loga::colors::reset << " " << std::resetiosflags(std::ios::showbase);
@@ -1965,36 +802,40 @@ int main(int argc, char** argv) {
         pseqs.emplace_back(std::move(pseq));
     }
 
-    automata::thompson_digraph_type graph;
-    std::vector<automata::vertex_type> starts, finishes;
-    for(std::size_t i = 0; i < pseqs.size(); ++i) {
-        auto [start, finish] = automata::thompson_graph(graph, pseqs.at(i), i);
-        starts.push_back(start);
-        finishes.push_back(finish);
-    }
-    const pattern_sequence& pseq_ref  = pseqs.at(7);
-    auto v = automata::directional_partial_generialize(graph, pseq_ref, starts.at(1), 7);
-    auto vp = graph[v.last_v];
+    // prova::loga::automata::thompson_digraph_type graph;
+    // std::vector<prova::loga::automata::vertex_type> starts, finishes;
+    // for(std::size_t i = 0; i < pseqs.size(); ++i) {
+    //     auto [start, finish] = prova::loga::automata::thompson_graph(graph, pseqs.at(i), i);
+    //     starts.push_back(start);
+    //     finishes.push_back(finish);
+    // }
+    // const pattern_sequence& pseq_ref  = pseqs.at(7);
+    // auto v = prova::loga::automata::directional_partial_generialize(graph, pseq_ref, starts.at(1), 7);
+    // auto vp = graph[v.last_v];
 
-    automata a(pseqs.cbegin(), pseqs.cend());
+    prova::loga::automata a(pseqs.cbegin(), pseqs.cend());
     a.build();
     arma::Mat<std::size_t> coverage, capture;
-    a.generialize(coverage, capture, true);
+    a.generialize(coverage, capture);
     std::ofstream astream(automata_dot_file_path);
     a.graphviz(astream);
     using knn_graph_type = knn_digraph<std::size_t>;
     knn_graph_type knn(pseqs.size());
-    knn.update(coverage, 10, false);
+    knn.update(coverage, capture, 1, false);
     {
         auto cluster_graph = knn.graph();
         std::ofstream graphml_knn(phase2_graphml_file_path);
         prova::loga::print_graphml(cluster_graph, graphml_knn);
     }
     std::vector<int> comp;
-    auto digraph = knn.graph();
-    std::map<knn_graph_type::vertex_type, int> vertex_components_map;
-    std::size_t num_components = knn.weekly_connected_components(vertex_components_map);
-    std::multimap<int, knn_graph_type::vertex_type> components_vertex_map;
+    knn_graph_type::digraph_type digraph = knn.graph();
+
+    std::map<knn_graph_type::vertex_type, std::size_t> vertex_components_map;
+    std::size_t num_components = prova::loga::detect_communities(digraph, prova::loga::community_detection_algorithm::leiden, vertex_components_map);
+
+    // std::map<knn_graph_type::vertex_type, int> vertex_components_map;
+    // std::size_t num_components = knn.weekly_connected_components(vertex_components_map);
+    std::multimap<std::size_t, knn_graph_type::vertex_type> components_vertex_map;
     for(const auto& [v, c]: vertex_components_map) {
         components_vertex_map.insert(std::make_pair(c, v));
     }
