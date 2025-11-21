@@ -2,7 +2,7 @@
 
 void prova::loga::automata::build() {
     for(std::size_t i = 0; i < _pseqs.size(); ++i) {
-        const pattern_sequence& pseq = _pseqs.at(i);
+        const prova::loga::pattern_sequence& pseq = _pseqs.at(i);
         terminal_pair_type terminals = automata::thompson_graph(_graph, pseq, i);
         _terminals[i] = terminals;
     }
@@ -131,13 +131,13 @@ std::ostream &prova::loga::automata::graphviz(std::ostream &stream){
     return stream;
 }
 
-std::pair<prova::loga::automata::vertex_type, prova::loga::automata::vertex_type> prova::loga::automata::thompson_graph(thompson_digraph_type &graph, const pattern_sequence &pseq, std::size_t id) {
+std::pair<prova::loga::automata::vertex_type, prova::loga::automata::vertex_type> prova::loga::automata::thompson_graph(thompson_digraph_type &graph, const prova::loga::pattern_sequence &pseq, std::size_t id) {
     vertex_type start = boost::add_vertex(graph);
     vertex_type last = start;
     graph[last]._start = true;
     graph[last]._id = id;
     std::size_t placeholders = 0;
-    for(const pattern_sequence::segment& s: pseq) {
+    for(const prova::loga::pattern_sequence::segment& s: pseq) {
         prova::loga::zone zone = s.tag(); // either constant or placeholder
         if(zone == prova::loga::zone::constant) {
             for(const prova::loga::wrapped& t: s.tokens()) {
@@ -172,7 +172,7 @@ std::pair<prova::loga::automata::vertex_type, prova::loga::automata::vertex_type
     return {start, finish};
 }
 
-prova::loga::automata::generialization_result prova::loga::automata::directional_partial_generialize(thompson_digraph_type &pattern_graph, const pattern_sequence &pseq, vertex_type start, std::size_t ref_id) {
+prova::loga::automata::generialization_result prova::loga::automata::directional_partial_generialize(thompson_digraph_type &pattern_graph, const prova::loga::pattern_sequence &pseq, vertex_type start, std::size_t ref_id) {
     assert(pseq.size() > 0);
 
     auto sbegin = pseq.begin();
@@ -201,7 +201,7 @@ std::size_t prova::loga::automata::apply_trace(thompson_digraph_type &graph, con
     return count;
 }
 
-void prova::loga::automata::directional_subset_generialize(thompson_digraph_type &pattern_graph, const pattern_sequence &pseq, std::size_t base_id, std::size_t ref_id) {
+void prova::loga::automata::directional_subset_generialize(thompson_digraph_type &pattern_graph, const prova::loga::pattern_sequence &pseq, std::size_t base_id, std::size_t ref_id) {
     assert(pseq.size() > 0);
 
     // [[incomplete]]
@@ -277,11 +277,11 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     }
 }
 
-pattern_sequence prova::loga::automata::merge(std::size_t id, bool bidirectional) const {
+prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, bool bidirectional) const {
     vertex_type start  = _terminals.at(id).first;
     vertex_type finish = _terminals.at(id).second;
 
-    pattern_sequence res;
+    prova::loga::pattern_sequence res;
 
     vertex_type last = start;
     do {
@@ -312,7 +312,7 @@ pattern_sequence prova::loga::automata::merge(std::size_t id, bool bidirectional
             // if base edge is a placeholder and every other reference edge is constant
             //   and the hash of these constants are same then
             //   the base is actually not a placeholder
-            pattern_sequence::segment seg(prova::loga::zone::placeholder);
+            prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
             res.add(std::move(seg));
         } else { // base edge is constant
             // if base edge is a constant and at least one reference edge is placeholder
@@ -333,7 +333,7 @@ pattern_sequence prova::loga::automata::merge(std::size_t id, bool bidirectional
 
             if(ref_edge_types.contains(segment_edge::placeholder)) {
                 is_ref_placeholder = true;
-                pattern_sequence::segment seg(prova::loga::zone::placeholder);
+                prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
                 res.add(std::move(seg));
             }
         }
@@ -341,7 +341,7 @@ pattern_sequence prova::loga::automata::merge(std::size_t id, bool bidirectional
         // last has already been updated
         if(!is_ref_placeholder) {
             const auto& last_props = _graph[last];
-            pattern_sequence::segment seg(prova::loga::zone::constant, last_props._str);
+            prova::loga::pattern_sequence::segment seg(prova::loga::zone::constant, last_props._str);
             res.add(std::move(seg));
         }
     } while(last != finish);

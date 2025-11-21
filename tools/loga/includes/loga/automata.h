@@ -37,7 +37,7 @@ struct automata{
     using vertex_type           = boost::graph_traits<thompson_digraph_type>::vertex_descriptor;
     using edge_type             = boost::graph_traits<thompson_digraph_type>::edge_descriptor;
     using terminal_pair_type    = std::pair<vertex_type, vertex_type>;
-    using sequence_container    = std::vector<pattern_sequence>;
+    using sequence_container    = std::vector<prova::loga::pattern_sequence>;
     using terminals_map         = std::map<std::size_t, terminal_pair_type>;
     
     thompson_digraph_type  _graph;
@@ -45,7 +45,7 @@ struct automata{
     terminals_map          _terminals;
     
     struct generialization_result{
-        using segment_iterator = pattern_sequence::const_iterator;
+        using segment_iterator = prova::loga::pattern_sequence::const_iterator;
         using progress_pair    = std::pair<std::size_t, std::size_t>;
         
         struct edge_intent{
@@ -92,14 +92,14 @@ struct automata{
         capture_mat.fill(0);
         
         for(std::size_t i = 0; i < _pseqs.size(); ++i) {
-            const pattern_sequence& pseq_base = _pseqs.at(i);
+            const prova::loga::pattern_sequence& pseq_base = _pseqs.at(i);
             auto base_start  = _terminals.at(i).first;
             auto base_finish = _terminals.at(i).second;
             
             for(std::size_t j = 0; j < _pseqs.size(); ++j) {
                 if(i == j) continue;
                 
-                const pattern_sequence& pseq_ref = _pseqs.at(j);
+                const prova::loga::pattern_sequence& pseq_ref = _pseqs.at(j);
                 auto ref_start  = _terminals.at(j).first;
                 auto ref_finish = _terminals.at(j).second;
                 
@@ -117,6 +117,11 @@ struct automata{
                 if(result.last_v == base_finish) {
                     // reached finish point
                     // find the edge connecting to the finish vertex with id j
+
+                    // { count long jumps
+
+                    // }
+
                     edge_type e;
                     bool edge_found = false;
                     for(auto [ei, ei_end] = boost::in_edges(result.last_v, _graph); ei != ei_end; ++ei) {
@@ -169,9 +174,9 @@ struct automata{
      * @post generates a linear graph corresponding to the pattern depicted by pseq
      * @return
      */
-    static std::pair<vertex_type, vertex_type> thompson_graph(thompson_digraph_type& graph, const pattern_sequence& pseq, std::size_t id);
+    static std::pair<vertex_type, vertex_type> thompson_graph(thompson_digraph_type& graph, const prova::loga::pattern_sequence& pseq, std::size_t id);
     
-    static generialization_result directional_partial_generialize(thompson_digraph_type& pattern_graph, const pattern_sequence& pseq, vertex_type start, std::size_t ref_id);
+    static generialization_result directional_partial_generialize(thompson_digraph_type& pattern_graph, const prova::loga::pattern_sequence& pseq, vertex_type start, std::size_t ref_id);
     
     template <typename Iterator>
     static generialization_result formalized_directional_partial_generialize(const thompson_digraph_type& pattern_graph, Iterator begin, Iterator end, vertex_type start, std::size_t ref_id) {
@@ -420,6 +425,7 @@ struct automata{
                 advance_state();
             }
         }
+
         generialization_result res{l_v, l_sit, l_tidx, std::make_pair(base_progress, ref_progress)};
         res.etrace = std::move(edges);
         return res;
@@ -572,7 +578,7 @@ struct automata{
             
             bool advance_lookahead = false;
             while(sit != send) {    // segment loop
-                const pattern_sequence::segment& s = *sit;
+                const prova::loga::pattern_sequence::segment& s = *sit;
                 prova::loga::zone zone = s.tag();
                 const prova::loga::tokenized& tokens = s.tokens();
                 
@@ -758,9 +764,9 @@ struct automata{
     
     static std::size_t apply_trace(thompson_digraph_type& graph, const generialization_result& res);
     
-    void directional_subset_generialize(thompson_digraph_type& pattern_graph, const pattern_sequence& pseq, std::size_t base_id, std::size_t ref_id);
+    void directional_subset_generialize(thompson_digraph_type& pattern_graph, const prova::loga::pattern_sequence& pseq, std::size_t base_id, std::size_t ref_id);
     
-    pattern_sequence merge(std::size_t id, bool bidirectional = false) const;
+    prova::loga::pattern_sequence merge(std::size_t id, bool bidirectional = false) const;
 };
 
 }

@@ -37,198 +37,6 @@ public:
     std::size_t cluster() const { return _cluster; }
 };
 
-// struct constant_component_graph{
-//     struct segment_vertex{
-//         std::size_t _cluster;
-
-//         segment_vertex() {}
-//     };
-
-//     struct segment_edge{
-//         std::size_t _matches;
-
-//         segment_edge() {}
-//     };
-//     using undirected_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::undirectedS, segment_vertex, segment_edge>;
-//     using vertex_type = boost::graph_traits<undirected_graph_type>::vertex_descriptor;
-//     using edge_type   = boost::graph_traits<undirected_graph_type>::edge_descriptor;
-
-//     static undirected_graph_type apply(const std::vector<pattern_sequence>& pseqs, arma::imat& dmat, std::size_t K = 1) {
-//         undirected_graph_type G;
-
-//         std::vector<vertex_type> V(pseqs.size());
-//         for(std::size_t i = 0; i != pseqs.size(); ++i) {
-//             vertex_type u = boost::add_vertex(G);
-//             G[u]._cluster = i;
-//             V[i] = u;
-//         }
-
-
-//         for(std::size_t i = 0; i != pseqs.size(); ++i) {
-//             vertex_type u = V.at(i);
-//             std::multimap<std::size_t, vertex_type, std::greater<std::size_t>> best_alternative_candidates;
-//             for(std::size_t j = 0; j != pseqs.size(); ++j) {
-//                 if(j > i) {
-//                     vertex_type v = V.at(j);
-
-//                     const auto& ipseq = pseqs.at(i);
-//                     const auto& jpseq = pseqs.at(j);
-
-//                     // find the most noticable pairs between ipseq and jpseq
-//                     std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_best_match; // find the highest scoring segment(s) in ipseq
-
-//                     for(auto it = ipseq.begin(); it != ipseq.end(); ++it) {
-//                         if(it->tag() == prova::loga::zone::placeholder) continue;
-//                         std::map<std::size_t, pattern_sequence::const_iterator, std::greater<std::size_t>> segment_matches; // find the best matching segment for the ipseq segment in jpseq
-//                         std::mutex mutex;
-//                         boost::asio::thread_pool pool(std::thread::hardware_concurrency());
-//                         std::atomic_uint32_t jobs_completed = 0;
-//                         std::size_t total_jobs = 0;
-//                         for(auto it = jpseq.begin(); it != jpseq.end(); ++it) {
-//                             if(it->tag() == prova::loga::zone::constant) ++total_jobs;
-//                         }
-
-//                         for(auto jt = jpseq.begin(); jt != jpseq.end(); ++jt) {
-//                             if(jt->tag() == prova::loga::zone::placeholder) continue;
-//                             // since ipseq and jpseq are from different patterns we don't need to exclude (it != jt) always holds
-
-//                             const std::string& istr = it->tokens().raw();
-//                             const std::string& jstr = jt->tokens().raw();
-
-//                             auto lambda = [&mutex, istr, jstr, jt, &segment_matches, &jobs_completed, total_jobs](){
-//                                 prova::loga::collection pair_collection;
-//                                 pair_collection.add(istr);
-//                                 pair_collection.add(jstr);
-
-//                                 prova::loga::alignment alignment(pair_collection);
-//                                 prova::loga::graph graph = alignment.bubble_all_nomt(1);
-//                                 if(graph.size()) {
-//                                     const prova::loga::segment& largest = graph.largest_segment();
-//                                     std::lock_guard lock(mutex);
-//                                     segment_matches.insert(std::make_pair(largest.length(), jt));
-//                                     std::cout << std::format("\rJobs {}/{}", jobs_completed++, total_jobs) << std::flush;
-//                                 }
-//                             };
-//                             boost::asio::post(pool, lambda);
-//                         }
-
-//                         pool.join();
-//                         std::cout << std::endl;
-
-//                         if(!segment_matches.empty()) {
-//                             auto begin = segment_matches.begin();
-//                             segment_best_match.insert(std::make_pair(begin->first, it));
-//                         }
-//                     }
-
-
-
-//                     // quadratic connections
-//                     auto matches_i = segment_best_match.cbegin();
-//                     std::size_t score = segment_best_match.cbegin()->first;
-
-//                     dmat(i, j) = score;
-//                     dmat(j, i) = score;
-
-//                     if(score > 0) {
-//                         best_alternative_candidates.insert(std::make_pair(score, v));
-//                     }
-//                 }
-//             }
-
-//             // connect to top K other alternative candidates
-//             std::size_t limit = K;
-//             auto it = best_alternative_candidates.cbegin();
-//             while (limit > 0 && it != best_alternative_candidates.cend()) {
-//                 std::size_t score = it->first;
-//                 if (score == 0) break;
-
-//                 auto range = best_alternative_candidates.equal_range(score);
-//                 for (auto jt = range.first; jt != range.second && limit > 0; ++jt) {
-//                     auto [e, inserted] = boost::add_edge(u, jt->second, G);
-//                     if (inserted) {
-//                         G[e]._matches = score;
-//                         --limit;
-//                     }
-//                 }
-//                 it = range.second;
-//             }
-//         }
-
-
-//         std::map<vertex_type, std::size_t> vertex_max_weight;
-//         for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
-//             edge_type e = *e_it.first;
-//             vertex_type u = source(e, G);
-//             vertex_type v = target(e, G);
-//             std::size_t w = G[e]._matches;
-
-//             auto itu = vertex_max_weight.find(u);
-//             vertex_max_weight[u] = (itu == vertex_max_weight.end()) ? w : std::max(itu->second, w);
-
-//             auto itv = vertex_max_weight.find(v);
-//             vertex_max_weight[v] = (itv == vertex_max_weight.end()) ? w : std::max(itv->second, w);
-//         }
-
-//         std::vector<edge_type> to_remove;
-//         for (auto e_it = edges(G); e_it.first != e_it.second; ++e_it.first) {
-//             edge_type e = *e_it.first;
-//             vertex_type u = source(e, G);
-//             vertex_type v = target(e, G);
-//             std::size_t w = G[e]._matches;
-
-//             std::size_t mu = vertex_max_weight.at(u);
-//             std::size_t mv = vertex_max_weight.at(v);
-
-//             if(w < mu || w < mv) {
-//                 to_remove.push_back(e);
-//             }
-//         }
-
-//         for (edge_type e : to_remove) {
-//             remove_edge(e, G);
-//         }
-
-//         return G;
-//     }
-
-//     template <typename Stream>
-//     static Stream& graphml(Stream& stream, const undirected_graph_type& cluster_graph) {
-//         auto vertex_label_map = boost::make_function_property_map<constant_component_graph::vertex_type>(
-//             [&](const constant_component_graph::vertex_type& v) -> std::string {
-//                 return std::format("{}", cluster_graph[v]._cluster);
-//             }
-//         );
-
-//         auto edge_weight_map = boost::make_function_property_map<constant_component_graph::edge_type>(
-//             [&](const constant_component_graph::edge_type& e) -> std::size_t {
-//                 return cluster_graph[e]._matches;
-//             }
-//         );
-
-//         boost::dynamic_properties properties;
-//         properties.property("label",  vertex_label_map);
-//         properties.property("weight", edge_weight_map);
-
-//         boost::write_graphml(stream, cluster_graph, properties, true);
-
-//         return stream;
-//     }
-
-//     static std::size_t cluster(const undirected_graph_type& cluster_graph, std::multimap<int, std::size_t>& components_map) {
-//         std::vector<int> components(boost::num_vertices(cluster_graph));
-//         size_t num_components = boost::connected_components (cluster_graph, &components[0]);
-//         for(std::size_t i = 0; i < components.size(); ++i){
-//             constant_component_graph::vertex_type v = boost::vertex(i, cluster_graph);
-//             std::size_t cluster = cluster_graph[v]._cluster;
-//             components_map.insert(std::make_pair(components.at(i), cluster));
-//         }
-//         return num_components;
-//     }
-// };
-
-
-
 template <typename WeightT>
 struct knn_digraph{
     using weight_type = std::conditional_t<std::is_integral_v<WeightT>, std::size_t, double>;
@@ -393,23 +201,6 @@ Stream& print_interval_set(Stream& stream, const prova::loga::tokenized_multi_al
         else {
             const auto& color = prova::loga::colors::palette.at(placeholder_count % prova::loga::colors::palette.size());
             std::cout << color << std::format("${}", placeholder_count) << prova::loga::colors::reset;
-            ++placeholder_count;
-        }
-    }
-    return stream;
-}
-
-template <typename Stream>
-Stream& print_pattern(Stream& stream, const pattern_sequence& pat){
-    std::size_t placeholder_count = 0;
-    for(const pattern_sequence::segment& segment: pat){
-        auto tag = segment.tag();
-        if(tag == prova::loga::zone::constant) {
-            auto substr = segment.tokens().raw();
-            stream << substr;
-        } else {
-            const auto& color = prova::loga::colors::palette.at(placeholder_count % prova::loga::colors::palette.size());
-            stream << color << std::format("${}", placeholder_count) << prova::loga::colors::reset;
             ++placeholder_count;
         }
     }
@@ -769,20 +560,20 @@ int main(int argc, char** argv) {
 
     // std::ofstream phase1_res(phase1_res_file_path);
     std::size_t total_segments = 0;
-    std::vector<pattern_sequence> pseqs;
+    std::vector<prova::loga::pattern_sequence> pseqs;
     for(const auto& [c, p]: patterns) {
         std::string cluster_name = (c < std::numeric_limits<std::size_t>::max()) ? ((c < label_names.size()) ? label_names.at(c) : std::format("C{}", c)) : " Failed ";
         const auto& base_zones = p.intervals();
         std::size_t placeholder_count = 0;
         std::cout << std::setw(label_names_max_size) << cluster_name << " " << prova::loga::colors::bright_yellow << "●" << prova::loga::colors::reset << " " << std::resetiosflags(std::ios::showbase);
-        pattern_sequence pseq;
+        prova::loga::pattern_sequence pseq;
         for(const auto& z: base_zones) {
             prova::loga::zone tag = *z.second.cbegin(); // set has only one item
             std::size_t offset = z.first.lower();
             std::size_t len = z.first.upper()-z.first.lower();
             std::string substr = collection.at(p.id()).subset(offset, len).view();
 
-            pattern_sequence::segment seg(tag);
+            prova::loga::pattern_sequence::segment seg(tag);
             if(tag == prova::loga::zone::constant){
                 std::cout << substr;
                 // phase1_res << substr;
@@ -890,7 +681,7 @@ int main(int argc, char** argv) {
         std::size_t first_i = verts.at(0);
         auto first_v = boost::vertex(first_i, digraph);
         std::size_t first_c = digraph[first_v].id;
-        pattern_sequence merged = a.merge(first_c);
+        prova::loga::pattern_sequence merged = a.merge(first_c);
         std::cout << "    " << std::setw(4) << ": ";
         print_pattern(std::cout, merged);
         std::cout << std::endl;
@@ -899,7 +690,7 @@ int main(int argc, char** argv) {
         for (std::size_t vi : verts) {
             auto v = boost::vertex(vi, digraph);
             std::size_t cluster = digraph[v].id;                // recover cluster id
-            const pattern_sequence& pat = pseqs.at(cluster);
+            const prova::loga::pattern_sequence& pat = pseqs.at(cluster);
             std::cout << "    " << std::setw(4) << cluster << ": ";
             print_pattern(std::cout, pat);
             std::cout << std::endl;
