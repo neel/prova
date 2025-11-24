@@ -233,6 +233,40 @@ struct automata{
                 return {segit, ++tidx};
             }
         };
+
+        auto run_ref = [&find_match](vertex_type x_last_v, Iterator x_sit, std::size_t x_tindex, Iterator send, bool& found_ref, std::size_t& count_ref) -> std::pair<Iterator, std::size_t>{
+            assert(!found_ref);
+            assert(count_ref == 0);
+            for(;x_sit != send;) {
+                if(x_sit->tag() == prova::loga::zone::constant) {
+                    bool matched;
+                    std::tie(matched, x_tindex) = find_match(x_last_v, x_sit, x_tindex);
+                    if(matched) {
+                        found_ref = true;
+                        break;
+                    }
+                }
+                ++x_sit;                                                          // either no token found in sit segment or encountered a placeholder
+                x_tindex = 0;                                                     // segment which cannot be matched due to lack of tokens in it
+                ++count_ref;
+            }
+            return {x_sit, x_tindex};
+        };
+
+        auto run_base = [&pattern_graph, &match, &next_base](edge_type x_last_e, vertex_type x_last_v, Iterator x_sit, std::size_t x_tindex, bool& found_base, std::size_t& count_base) -> std::pair<edge_type, vertex_type>{
+            if(x_sit->tag() == prova::loga::zone::constant) {
+                while(!pattern_graph[x_last_v]._finish) {
+                    bool matched = match(x_last_v, x_sit, x_tindex);
+                    if(matched) {
+                        found_base = true;
+                        break;
+                    }
+                    std::tie(x_last_e, x_last_v) = next_base(x_last_v);
+                }
+                ++count_base;
+            }
+            return {x_last_e, x_last_v};
+        };
         
         edge_type   last_e;
         vertex_type last_v = start;
@@ -369,35 +403,39 @@ struct automata{
                 assert(base_type == segment_edge::placeholder || ref_type == prova::loga::zone::placeholder);
                 
                 if(ref_type == prova::loga::zone::placeholder){                         // if placeholder then there is no token in *sit
-                    ++sit;                                                              // skip the current segment
-                    tindex = 0;                                                         // move to the first token of the next segment
+                    // ++sit;                                                              // skip the current segment
+                    // tindex = 0;                                                         // move to the first token of the next segment
+                    std::tie(sit, tindex) = next_ref(sit, tindex);
                 }
                 
                 do{                                 // irrespective of base_type next vertex has an _str depicting a constant
-                    bool found = false;
-                    for(;sit != send;) {
-                        if(sit->tag() == prova::loga::zone::constant) {
-                            bool matched;
-                            std::tie(matched, tindex) = find_match(last_v, sit, tindex);
-                            if(matched) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        ++sit;                                                          // either no token found in sit segment or encountered a placeholder
-                        tindex = 0;                                                     // segment which cannot be matched due to lack of tokens in it
+                    bool found_ref          = false;
+                    bool found_base         = false;
+                    std::size_t count_ref   = 0;
+                    std::size_t count_base  = 0;
+
+                    auto x_tindex = tindex;
+                    auto x_sit    = sit;
+                    auto x_last_e = last_e;
+                    auto x_last_v = last_v;
+
+                    if(sit != send) {
+                        std::tie(x_sit, x_tindex)    = run_ref(last_v, sit, tindex, send, found_ref, count_ref);
+                        std::tie(x_last_e, x_last_v) = run_base(last_e, last_v, sit, tindex, found_base, count_base);
                     }
-                    if(found) {
+
+                    if(found_ref || found_base) {
                         aligned = true;
+                        if(found_ref) {
+                            sit    = x_sit;
+                            tindex = x_tindex;
+                        } else {
+                            last_e = x_last_e;
+                            last_v = x_last_v;
+                        }
                         break;
                     } else {
-                        if(!pattern_graph[last_v]._finish) {
-                            std::tie(last_e, last_v) = next_base(last_v);               // if base_type is constant then either last_v or more vertices will be eaten by the reference placeholder
-                            // if base_type is placeholder then also next base vertex is a constant which will be eaten by the reference placeholder
-                            sit = l_sit;
-                            std::advance(sit, 1);
-                            tindex = 0;
-                        } else {
+                        if(pattern_graph[last_v]._finish) {
                             // reached finish vertex of the base graph
                             // base_type == segment_edge::placeholder || ref_type == prova::loga::zone::placeholder -> at least one is a placeholder
                             // if sit == send
@@ -409,6 +447,7 @@ struct automata{
                                 aligned = true;
                             }
                         }
+                        break;
                     }
                 }while(!pattern_graph[last_v]._finish);
                 
@@ -766,7 +805,7 @@ struct automata{
     
     void directional_subset_generialize(thompson_digraph_type& pattern_graph, const prova::loga::pattern_sequence& pseq, std::size_t base_id, std::size_t ref_id);
     
-    prova::loga::pattern_sequence merge(std::size_t id, bool bidirectional = false) const;
+    prova::loga::pattern_sequence merge(std::size_t id, const std::set<std::size_t>& members, bool bidirectional = false) const;
 };
 
 }

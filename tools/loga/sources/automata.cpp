@@ -277,7 +277,7 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     }
 }
 
-prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, bool bidirectional) const {
+prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, const std::set<std::size_t> &members, bool bidirectional) const {
     vertex_type start  = _terminals.at(id).first;
     vertex_type finish = _terminals.at(id).second;
 
@@ -295,7 +295,8 @@ prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, bool 
                 base_e = *ei;
                 base_edge_found++;
             } else {
-                ref_edges.push_back(*ei);
+                if(members.contains(ep._id))
+                    ref_edges.push_back(*ei);
             }
         }
         assert(base_edge_found == 1);

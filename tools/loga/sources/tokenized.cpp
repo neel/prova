@@ -676,12 +676,18 @@ int main(int argc, char** argv) {
         std::sort(verts.begin(), verts.end(), [&](knn_graph_type::vertex_type u, knn_graph_type::vertex_type v) {
                                                       return boost::in_degree(u, digraph) > boost::in_degree(v, digraph);
                                                   });
+        std::set<std::size_t> members;
+        for (std::size_t vi : verts) {
+            auto v = boost::vertex(vi, digraph);
+            std::size_t cluster = digraph[v].id;                // recover cluster id
+            members.insert(cluster);
+        }
 
         // now iterate in sorted order
         std::size_t first_i = verts.at(0);
         auto first_v = boost::vertex(first_i, digraph);
         std::size_t first_c = digraph[first_v].id;
-        prova::loga::pattern_sequence merged = a.merge(first_c);
+        prova::loga::pattern_sequence merged = a.merge(first_c, members, true);
         std::cout << "    " << std::setw(4) << ": ";
         print_pattern(std::cout, merged);
         std::cout << std::endl;
