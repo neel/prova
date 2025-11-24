@@ -13,7 +13,7 @@ std::ostream &prova::loga::automata::graphml(std::ostream &stream){
         [&](const vertex_type& v) -> std::string {
             return std::format("{}", _graph[v]._id);
         }
-        );
+    );
 
     auto edge_label_map = boost::make_function_property_map<edge_type>(
         [&](const edge_type& e) -> std::string {
@@ -21,13 +21,13 @@ std::ostream &prova::loga::automata::graphml(std::ostream &stream){
             if(_graph[e]._type == segment_edge::epsilon)     return "ε";
             return _graph[e]._str;
         }
-        );
+    );
 
     auto edge_group_map = boost::make_function_property_map<edge_type>(
         [&](const edge_type& e) -> std::size_t {
             return _graph[e]._id;
         }
-        );
+    );
 
     boost::dynamic_properties properties;
     properties.property("label", vertex_label_map);
@@ -127,7 +127,141 @@ std::ostream &prova::loga::automata::graphviz(std::ostream &stream){
         vertex_writer{&_graph},
         edge_writer{&_graph},
         graph_writer{}         // *** CHANGED: provide graph-writer here ***
-        );
+    );
+    return stream;
+}
+
+void prova::loga::automata::subgraph(const std::set<std::size_t>& subset, prova::loga::automata::thompson_digraph_type& graph) {
+    boost::graph_traits<prova::loga::automata::thompson_digraph_type>::vertex_iterator vi, vi_end;
+    boost::tie(vi, vi_end) = boost::vertices(_graph);
+
+    std::map<vertex_type, vertex_type> vmap;
+
+    for (; vi != vi_end; ++vi) {
+        vertex_type u  = *vi;
+        const auto& up = _graph[u];
+        if(subset.contains(up._id)) {
+            vertex_type v = boost::add_vertex(graph);
+            graph[v] = up;
+            vmap[u]  = v;
+        }
+    }
+
+    boost::graph_traits<prova::loga::automata::thompson_digraph_type>::edge_iterator ei, ei_end;
+    std::tie(ei, ei_end) = boost::edges(_graph);
+
+    for (; ei != ei_end; ++ei) {
+        edge_type e = *ei;
+        const auto& ep = _graph[e];
+
+        if(subset.contains(ep._id)) {
+            vertex_type u = boost::source(e, _graph);
+            vertex_type v = boost::target(e, _graph);
+            if(!subset.contains(_graph[u]._id)) continue;
+            if(!subset.contains(_graph[v]._id)) continue;
+            auto [e, inserted] = boost::add_edge(vmap[u], vmap[v], graph);
+            if(inserted) {
+                graph[e]._id   = ep._id;
+                graph[e]._str  = ep._str;
+                graph[e]._type = ep._type;
+                for(const auto& captured: ep._captured) {
+                    prova::loga::wrapped w(captured);
+                    graph[e]._captured.emplace_back(std::move(w));
+                }
+            }
+        }
+    }
+}
+
+std::ostream &prova::loga::automata::graphviz(std::ostream &stream, const thompson_digraph_type &graph){
+    struct color_palette {
+        static const std::vector<std::string>& colors() {
+            static const std::vector<std::string> COLORS = {
+                "red","blue","green","orange","purple","brown","cyan","magenta","gold",
+                "darkgreen","darkorange","deepskyblue","limegreen","chocolate","indigo",
+                "darkgoldenrod","dodgerblue","coral","orchid","olivedrab","steelblue",
+                "rosybrown","slateblue","teal","peru","cadetblue","mediumseagreen",
+                "lightsalmon","darkkhaki","mediumorchid","mediumslateblue","firebrick",
+                "deeppink","navy","forestgreen","darkturquoise","maroon","darkolivegreen",
+                "midnightblue","saddlebrown","darkred","darkmagenta","darkblue"
+            };
+            return COLORS;
+        }
+        static std::string for_id(std::size_t id){
+            const auto& c = colors();
+            return c[id % c.size()];
+        }
+    };
+
+    struct vertex_writer {
+        const thompson_digraph_type& g;
+        void operator()(std::ostream& out, const vertex_type& v) const {
+            const auto& gv = g[v];
+            const std::string color = color_palette::for_id(gv._id);
+            std::string label = std::format("{}/{}", gv._id, (gv._str == " " ? std::string("□") : gv._str));
+            if(gv._start) {
+                label = std::format("^{}", gv._id);
+            } else if(gv._finish) {
+                label = std::format("{}$", gv._id);
+            }
+            out << "[label=\""   << label
+                << "\", shape=\"box\""          // rectangular node
+                << ", color=\""  << color       // border color
+                << "\", penwidth=2"             // make border visible
+                << ", fontname=\"Helvetica\"]";
+        }
+    };
+    struct edge_writer {
+        const thompson_digraph_type& g;
+        void operator()(std::ostream& out, const edge_type& e) const {
+            const auto& ge = g[e];
+            vertex_type u = boost::source(e, g);
+            const auto& up = g[u];
+
+            std::string lab;
+            if (ge._type == segment_edge::placeholder){
+                if(ge._id == up._id) {
+                    lab = "$";
+                } else {
+                    std::string captured;
+                    for(const auto& w: ge._captured) {
+                        captured.append(w.view());
+                    }
+                    lab = captured;
+                }
+            }
+            else if (ge._type == segment_edge::epsilon) lab = "ε";
+            else lab = ge._str;
+
+            std::string style;
+            switch (ge._type) {
+            case segment_edge::placeholder: style = "dashed"; break;
+            case segment_edge::epsilon:     style = "dotted"; break;
+            default:                        style = "solid";  break;
+            }
+
+            out << "[label=\"" << (lab == " " ? std::string("□") : lab)
+                << "\", color=\"" << color_palette::for_id(ge._id)
+                << "\", style=\"" << style
+                << "\", penwidth=2]";
+        }
+    };
+    struct graph_writer {
+        void operator()(std::ostream& out) const {
+            out << "graph [splines=true, overlap=false];\n"
+                << "node  [shape=circle, fontname=\"Helvetica\"];\n"
+                << "edge  [fontname=\"Helvetica\"];\n";
+        }
+    };
+    // --------------------------------------------------------------------
+
+    boost::write_graphviz(
+        stream,
+        graph,
+        vertex_writer{graph},
+        edge_writer{graph},
+        graph_writer{}         // *** CHANGED: provide graph-writer here ***
+    );
     return stream;
 }
 
@@ -277,7 +411,7 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     }
 }
 
-prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, const std::set<std::size_t> &members, bool bidirectional) const {
+prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id) const {
     vertex_type start  = _terminals.at(id).first;
     vertex_type finish = _terminals.at(id).second;
 
@@ -295,8 +429,7 @@ prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, const
                 base_e = *ei;
                 base_edge_found++;
             } else {
-                if(members.contains(ep._id))
-                    ref_edges.push_back(*ei);
+                ref_edges.push_back(*ei);
             }
         }
         assert(base_edge_found == 1);
@@ -346,6 +479,136 @@ prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id, const
             res.add(std::move(seg));
         }
     } while(last != finish);
+
+    return res;
+}
+
+prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t base_id, const std::set<std::size_t> &references) const {
+    vertex_type start  = _terminals.at(base_id).first;
+    vertex_type finish = _terminals.at(base_id).second;
+
+    std::map<vertex_type,  std::size_t> indexes;
+    {
+        vertex_type last  = start;
+        std::size_t count = 0;
+        indexes.insert(std::make_pair(last, count++));
+        do{
+            std::size_t base_found = 0;
+            for(auto [ei, ei_end] = boost::out_edges(last, _graph); ei != ei_end; ++ei) {
+                edge_type e = *ei;
+                const segment_edge& ep = _graph[e];
+                if(ep._id == base_id){
+                    last = boost::target(e, _graph);
+                    indexes.insert(std::make_pair(last, count++));
+                    base_found++;
+                    break;
+                }
+            }
+            assert(base_found == 1);// exactly one base edge expected
+        }while(last != finish);
+        assert(last == finish);
+    }
+
+    prova::loga::pattern_sequence res;
+
+    auto distance = [&indexes] (vertex_type source, vertex_type target) {
+        assert(indexes.contains(source));
+        assert(indexes.contains(target));
+
+        std::size_t d_target = indexes.at(target);
+        std::size_t d_source = indexes.at(source);
+
+        assert(d_target >= d_source);
+
+        return d_target - d_source;
+    };
+
+    vertex_type last = start;
+    while(last != finish){
+        edge_type base_e;
+        std::map<edge_type, std::pair<vertex_type, std::size_t>> targets;
+
+        std::size_t base_edge_found = 0;
+        for(auto [ei, ei_end] = boost::out_edges(last, _graph); ei != ei_end; ++ei) {
+            edge_type e              = *ei;
+            const segment_edge& ep   = _graph[e];
+            vertex_type target       = boost::target(e, _graph);
+            const auto& target_props = _graph[target];
+
+            if(target_props._id != base_id) continue;
+
+            if(ep._id == base_id){
+                base_e = e;
+                base_edge_found++;
+            } else if(references.contains(ep._id)) {
+                std::size_t d = distance(last, target);
+                targets.insert(std::make_pair(e, std::make_pair(target, d)));
+            }
+        }
+        const segment_edge& base_edge_props = _graph[base_e];
+
+        assert(base_edge_found == 1);
+        if(targets.empty()) {
+            break;
+        }
+
+        std::map<std::size_t, std::size_t, std::greater<std::size_t>> hop_ranks;
+        for(auto [e, el]: targets) {
+            auto [v, l] = el;
+
+            auto it = hop_ranks.find(l);
+            if (it == hop_ranks.end()) {
+                hop_ranks.emplace(l, 1);
+            } else {
+                ++it->second;
+            }
+        }
+        auto winner = std::ranges::max_element(hop_ranks, [](const auto& l, const auto& r){
+            return l.second < r.second;
+        });
+        // std::cout << "winner: " << winner->first << " " << winner->second << std::endl;
+        std::size_t longest = winner->first;
+        auto farthest = std::find_if(targets.cbegin(), targets.cend(), [longest](auto t){
+            return (t.second.second == longest);
+        });
+        assert(farthest != targets.cend());
+        auto longest_edge    = farthest->first;
+        auto farthest_vertex = farthest->second.first;
+        auto hop_length      = farthest->second.second;
+
+        bool overridden_placeholder = false;
+        if(hop_length > 1 || base_edge_props._type == segment_edge::placeholder) {
+            prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
+            res.add(std::move(seg));
+        } else{
+            assert(hop_length == 1);
+            assert(base_edge_props._type != segment_edge::placeholder);
+
+            std::set<segment_edge::type> ref_edge_types;
+            for(auto [e, el]: targets) {
+                auto [v, l] = el;
+
+                const segment_edge& re_props = _graph[e];
+                ref_edge_types.insert(re_props._type);
+            }
+
+            if(ref_edge_types.contains(segment_edge::placeholder)) {
+                prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
+                res.add(std::move(seg));
+                overridden_placeholder = true;
+            }
+        }
+
+        // constant hop    -> the next vertex contains the same token as the edge
+        // placeholder hop -> the next vertex contains the lookahead token while the edge contains nothing (except for $ symbol to denote placeholder for debugging)
+        if(!overridden_placeholder) {
+            const auto& farthest_props = _graph[farthest_vertex];
+            prova::loga::pattern_sequence::segment seg(prova::loga::zone::constant, farthest_props._str);
+            res.add(std::move(seg));
+        }
+
+        last = farthest_vertex;
+    }
 
     return res;
 }

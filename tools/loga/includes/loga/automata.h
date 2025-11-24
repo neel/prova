@@ -22,7 +22,7 @@ struct automata{
         bool _start  = false;
         bool _finish = false;
     };
-    
+
     struct segment_edge{
         enum type{
             constant, placeholder, epsilon
@@ -32,43 +32,43 @@ struct automata{
         std::size_t _id;
         std::vector<prova::loga::wrapped> _captured;
     };
-    
+
     using thompson_digraph_type = boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS, segment_vertex, segment_edge>;
     using vertex_type           = boost::graph_traits<thompson_digraph_type>::vertex_descriptor;
     using edge_type             = boost::graph_traits<thompson_digraph_type>::edge_descriptor;
     using terminal_pair_type    = std::pair<vertex_type, vertex_type>;
     using sequence_container    = std::vector<prova::loga::pattern_sequence>;
     using terminals_map         = std::map<std::size_t, terminal_pair_type>;
-    
+
     thompson_digraph_type  _graph;
     sequence_container     _pseqs;
     terminals_map          _terminals;
-    
+
     struct generialization_result{
         using segment_iterator = prova::loga::pattern_sequence::const_iterator;
         using progress_pair    = std::pair<std::size_t, std::size_t>;
-        
+
         struct edge_intent{
             vertex_type  source;
             vertex_type  target;
             segment_edge edge;
         };
-        
+
         using edges_container = std::vector<edge_intent>;
-        
+
         vertex_type      last_v;
         segment_iterator last_it;
         std::size_t      tokens;
         std::size_t      base_progress;
         std::size_t      ref_progress;
         edges_container  etrace;
-        
+
         generialization_result(vertex_type v, segment_iterator it, progress_pair progress); // implies that the last_it segment was not visited because number of tokens visited in last_it is 0
         generialization_result(vertex_type v, segment_iterator it, std::size_t n, progress_pair progress);
         generialization_result(const generialization_result&) = default;
         generialization_result& operator=(const generialization_result&) = default;
     };
-    
+
     template <typename Iterator>
     automata(Iterator begin, Iterator end): _pseqs(begin, end) {
         for(std::size_t i = 0; i < _pseqs.size(); ++i) {
@@ -81,28 +81,28 @@ struct automata{
                 ));
         }
     }
-    
+
     void build();
-    
+
     template <typename ValueT>
     void generialize(arma::Mat<ValueT>& coverage_mat, arma::Mat<ValueT>& capture_mat) {
         coverage_mat.set_size(_pseqs.size(), _pseqs.size());
         capture_mat.set_size(_pseqs.size(), _pseqs.size());
         coverage_mat.fill(0);
         capture_mat.fill(0);
-        
+
         for(std::size_t i = 0; i < _pseqs.size(); ++i) {
             const prova::loga::pattern_sequence& pseq_base = _pseqs.at(i);
             auto base_start  = _terminals.at(i).first;
             auto base_finish = _terminals.at(i).second;
-            
+
             for(std::size_t j = 0; j < _pseqs.size(); ++j) {
                 if(i == j) continue;
-                
+
                 const prova::loga::pattern_sequence& pseq_ref = _pseqs.at(j);
                 auto ref_start  = _terminals.at(j).first;
                 auto ref_finish = _terminals.at(j).second;
-                
+
                 generialization_result result = automata::directional_partial_generialize(_graph, pseq_ref, base_start, j);
                 std::size_t coverage = 0, capture = 0;
                 for (auto& e : result.etrace) {
@@ -111,9 +111,9 @@ struct automata{
                     }
                 }
                 // (i, j) -> {coverage, capture}
-                
+
                 capture_mat(i, j)  = capture;
-                
+
                 if(result.last_v == base_finish) {
                     // reached finish point
                     // find the edge connecting to the finish vertex with id j
@@ -160,12 +160,15 @@ struct automata{
             }
         }
     }
-    
+
     std::ostream& graphml(std::ostream& stream);
-    
+
     std::ostream& graphviz(std::ostream& stream);
-    
-    
+
+    void subgraph(const std::set<std::size_t>& subset, prova::loga::automata::thompson_digraph_type& graph);
+    static std::ostream& graphviz(std::ostream& stream, const thompson_digraph_type& graph);
+
+
     /**
      * @brief thompson_graph
      * @param pseq
@@ -175,26 +178,26 @@ struct automata{
      * @return
      */
     static std::pair<vertex_type, vertex_type> thompson_graph(thompson_digraph_type& graph, const prova::loga::pattern_sequence& pseq, std::size_t id);
-    
+
     static generialization_result directional_partial_generialize(thompson_digraph_type& pattern_graph, const prova::loga::pattern_sequence& pseq, vertex_type start, std::size_t ref_id);
-    
+
     template <typename Iterator>
     static generialization_result formalized_directional_partial_generialize(const thompson_digraph_type& pattern_graph, Iterator begin, Iterator end, vertex_type start, std::size_t ref_id) {
         std::size_t base_id = pattern_graph[start]._id;
-        
+
         auto match = [&pattern_graph](vertex_type lv, Iterator segit, std::size_t tidx) -> bool {
             if(segit->tag() == prova::loga::zone::placeholder) return false;
             if(tidx >= segit->tokens().count())                return false;
-            
+
             assert(segit->tag() == prova::loga::zone::constant);
             assert(tidx < segit->tokens().count());
-            
+
             const auto& token = segit->tokens().at(tidx);
             const segment_vertex& vp = pattern_graph[lv];
-            
+
             return token.view() == vp._str;
         };
-        
+
         auto find_match = [&pattern_graph, &match](vertex_type lv, Iterator segit, std::size_t tidx) -> std::pair<bool, std::size_t> {
             bool m = match(lv, segit, tidx++);
             while(!m) {
@@ -204,7 +207,7 @@ struct automata{
             }
             return std::make_pair(m, tidx -1);                                            // under all circumstances tidx was incremented
         };
-        
+
         /**
          * Doesn't updated shared variables only returns
          */
@@ -222,7 +225,7 @@ struct automata{
             assert(edge_found);
             return {e, boost::target(e, pattern_graph)};
         };
-        
+
         /**
          * Doesn't updated shared variables only returns
          */
@@ -267,21 +270,21 @@ struct automata{
             }
             return {x_last_e, x_last_v};
         };
-        
+
         edge_type   last_e;
         vertex_type last_v = start;
         auto sit    = begin;
         auto send   = end;
         std::size_t tindex = 0;
-        
+
         auto l_sit  = sit;                                                              // last matched reference segment
         auto l_v    = start;
         auto l_tidx = tindex;                                                           // last matched token index in the ;_sit reference segment
-        
+
         std::size_t base_progress = 0;
         std::size_t ref_progress  = 0;
         std::vector<generialization_result::edge_intent> edges;
-        
+
         auto advance_state = [&]() -> bool {
         // l_v to last_v read in base
         // l_sit:l_tidx to sit:tindex tokens read in reference
@@ -311,7 +314,7 @@ struct automata{
 #endif
             }
             base_progress += base_count;
-            
+
             prova::loga::zone ref_zone = prova::loga::zone::constant;
             generialization_result::edge_intent e;
             e.source     = l_v;
@@ -319,11 +322,11 @@ struct automata{
             e.edge._id   = ref_id;
             auto x_sit   = l_sit;
             auto x_tidx  = l_tidx;
-            
+
             if(sit > l_sit || tindex > l_tidx) {
                 std::tie(x_sit, x_tidx) = next_ref(x_sit, x_tidx);
             }
-            
+
             while(x_sit != send && (x_sit < sit || (x_sit == sit && x_tidx <= tindex))) {
                 ++ref_progress;
                 auto zone = x_sit->tag();
@@ -333,14 +336,14 @@ struct automata{
                 } else {
                     e.edge._str = "$";
                 }
-                
+
                 if(zone == prova::loga::zone::placeholder) { // placeholder has high precedence over other types
                     if(ref_zone != prova::loga::zone::placeholder)
                         ref_zone = prova::loga::zone::placeholder;
                 }
                 std::tie(x_sit, x_tidx) = next_ref(x_sit, x_tidx);
             }
-            
+
             e.edge._type = (ref_zone == prova::loga::zone::placeholder)
                                ? segment_edge::placeholder
                                : (base_hop == segment_edge::epsilon)
@@ -362,11 +365,11 @@ struct automata{
             }
 #endif
             edges.emplace_back(std::move(e));
-            
+
             l_v    = last_v;
             l_sit  = sit;
             l_tidx = tindex;
-            
+
             bool res = false;
             if(!pattern_graph[last_v]._finish){
                 std::tie(last_e, last_v) = next_base(last_v);
@@ -378,7 +381,7 @@ struct automata{
             }
             return res;
         };
-        
+
         std::tie(last_e, last_v) = next_base(last_v);
         while(sit != send) {
             const segment_edge& lep = pattern_graph[last_e];
@@ -399,15 +402,15 @@ struct automata{
                     }
                     else break; // unexpected
                 }
-                
+
                 assert(base_type == segment_edge::placeholder || ref_type == prova::loga::zone::placeholder);
-                
+
                 if(ref_type == prova::loga::zone::placeholder){                         // if placeholder then there is no token in *sit
                     // ++sit;                                                              // skip the current segment
                     // tindex = 0;                                                         // move to the first token of the next segment
                     std::tie(sit, tindex) = next_ref(sit, tindex);
                 }
-                
+
                 do{                                 // irrespective of base_type next vertex has an _str depicting a constant
                     bool found_ref          = false;
                     bool found_base         = false;
@@ -450,7 +453,7 @@ struct automata{
                         break;
                     }
                 }while(!pattern_graph[last_v]._finish);
-                
+
                 if(!aligned) break;
                 else {
                     if(!advance_state()){
@@ -469,7 +472,7 @@ struct automata{
         res.etrace = std::move(edges);
         return res;
     }
-    
+
     /**
      * @brief partial_generialize finds if the pattern_graph generializes pseq partially or not
      * @param pattern_graph
@@ -485,14 +488,14 @@ struct automata{
         auto sit    = begin;
         auto send   = end;
         auto presit = sit; // garunteed to be valid always
-        
+
         std::size_t debug_base_id = pattern_graph[last]._id;
-        
+
         std::size_t base_progress = 0;
         std::size_t ref_progress  = 0;
-        
+
         std::vector<generialization_result::edge_intent> edges;
-        
+
         std::size_t tconsumed = 0;
         std::vector<prova::loga::wrapped> token_buffer;
         for(;;) {
@@ -516,11 +519,11 @@ struct automata{
             }
             assert(edge_found);
             base_progress++;
-            
+
             vertex_type v = boost::target(e, pattern_graph);
             const segment_edge&   ep = pattern_graph[e];
             const segment_vertex& vp = pattern_graph[v];
-            
+
             if (vp._finish) {
                 if (ep._type == segment_edge::epsilon) {
                     {
@@ -555,7 +558,7 @@ struct automata{
                                 token_buffer.push_back(*tmp_it);
                             }
                         }
-                        
+
                         auto tmp_sit = sit;
                         auto tmp_sit_last = tmp_sit;
                         while(++tmp_sit != send) {
@@ -570,7 +573,7 @@ struct automata{
                                 tmp_sit_last = tmp_sit;
                             }
                         }
-                        
+
                         if(token_buffer.size() > 0 || placeholders_consumed > 0) {
                             {
                                 // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
@@ -596,7 +599,7 @@ struct automata{
                             res.etrace = std::move(edges);
                             return res;
                         }
-                        
+
                         // return last;
                         generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref semi-exhausted]
                         res.etrace = std::move(edges);
@@ -611,16 +614,16 @@ struct automata{
                     assert(ep._type != segment_edge::constant);
                 }
             }
-            
+
             bool placeholder_hop = ep._type == segment_edge::placeholder;
             const std::string& lookahead = vp._str;
-            
+
             bool advance_lookahead = false;
             while(sit != send) {    // segment loop
                 const prova::loga::pattern_sequence::segment& s = *sit;
                 prova::loga::zone zone = s.tag();
                 const prova::loga::tokenized& tokens = s.tokens();
-                
+
                 // if placeholder_hop then
                 //      if zone is constant
                 //          a subset of the tokens in the segment will align to the placeholder unless a token matches with the lookahead
@@ -640,7 +643,7 @@ struct automata{
                 //          thats the end of simulation
                 //      else
                 //          we need to advance the lookahead vertex as well as the token
-                
+
                 auto tbegin = tokens.begin();
                 auto tend   = tokens.end();
                 auto tit    = tbegin;
@@ -654,7 +657,7 @@ struct automata{
                     tconsumed = 0;
                     continue;
                 }
-                
+
                 if(placeholder_hop) {
                     if(zone == prova::loga::zone::constant) {
                         bool matched = false;
@@ -794,18 +797,19 @@ struct automata{
             }
             token_buffer.clear(); // clear because we are now changing the lookahead
         }
-        
+
         // return last;
         generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};
         res.etrace = std::move(edges);
         return res;
     }
-    
+
     static std::size_t apply_trace(thompson_digraph_type& graph, const generialization_result& res);
-    
+
     void directional_subset_generialize(thompson_digraph_type& pattern_graph, const prova::loga::pattern_sequence& pseq, std::size_t base_id, std::size_t ref_id);
-    
-    prova::loga::pattern_sequence merge(std::size_t id, const std::set<std::size_t>& members, bool bidirectional = false) const;
+
+    prova::loga::pattern_sequence merge(std::size_t id) const;
+    prova::loga::pattern_sequence merge(std::size_t base_id, const std::set<std::size_t>& references) const;
 };
 
 }

@@ -604,12 +604,12 @@ int main(int argc, char** argv) {
     // auto v = prova::loga::automata::directional_partial_generialize(graph, pseq_ref, starts.at(1), 7);
     // auto vp = graph[v.last_v];
 
-    prova::loga::automata a(pseqs.cbegin(), pseqs.cend());
-    a.build();
+    prova::loga::automata automata(pseqs.cbegin(), pseqs.cend());
+    automata.build();
     arma::Mat<std::size_t> coverage, capture;
-    a.generialize(coverage, capture);
+    automata.generialize(coverage, capture);
     std::ofstream astream(automata_dot_file_path);
-    a.graphviz(astream);
+    automata.graphviz(astream);
     using knn_graph_type = knn_digraph<std::size_t>;
     knn_graph_type knn(pseqs.size());
     knn.update(coverage, capture, 1, false);
@@ -676,22 +676,33 @@ int main(int argc, char** argv) {
         std::sort(verts.begin(), verts.end(), [&](knn_graph_type::vertex_type u, knn_graph_type::vertex_type v) {
                                                       return boost::in_degree(u, digraph) > boost::in_degree(v, digraph);
                                                   });
-        std::set<std::size_t> members;
+        std::set<std::size_t> ref_members;
         for (std::size_t vi : verts) {
             auto v = boost::vertex(vi, digraph);
             std::size_t cluster = digraph[v].id;                // recover cluster id
-            members.insert(cluster);
+            ref_members.insert(cluster);
         }
 
         // now iterate in sorted order
         std::size_t first_i = verts.at(0);
         auto first_v = boost::vertex(first_i, digraph);
         std::size_t first_c = digraph[first_v].id;
-        prova::loga::pattern_sequence merged = a.merge(first_c, members, true);
+        prova::loga::pattern_sequence merged = automata.merge(first_c, ref_members);
         std::cout << "    " << std::setw(4) << ": ";
         print_pattern(std::cout, merged);
         std::cout << std::endl;
         std::cout << "-----------------------------";
+
+        {
+            std::set<std::size_t> members = ref_members;
+            members.insert(first_c);
+            std::string component_subgraph = std::format("{}.component.{}.automata.dot", log_path, first_c);
+            std::ofstream component_subgraph_stream(component_subgraph);
+            prova::loga::automata::thompson_digraph_type subgraph;
+            automata.subgraph(ref_members, subgraph);
+            prova::loga::automata::graphviz(component_subgraph_stream, subgraph);
+        }
+
         std::cout << std::endl;
         for (std::size_t vi : verts) {
             auto v = boost::vertex(vi, digraph);
