@@ -28,7 +28,12 @@ class graph{
     segment _finish;
 public:
     explicit graph(segment_collection_type&& segments, segment&& start, segment&& finish);
-    void build();
+
+    /**
+     * @brief build a graph of segments
+     * @param ignore_indel ignore insertion and deletion only accept substitution
+     */
+    void build(bool ignore_indel = true);
     std::ostream& print(std::ostream& stream, const collection &collection);
     path shortest_path();
     const segment& largest_segment() const;

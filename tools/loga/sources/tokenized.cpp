@@ -24,6 +24,7 @@
 #include <loga/community.h>
 #include <loga/automata.h>
 #include <loga/pattern_sequence.h>
+#include <loga/outliers.h>
 
 class parsed{
     std::size_t _id;
@@ -237,18 +238,26 @@ int main(int argc, char** argv) {
         throw boost::program_options::error("missing required positional argument <path>");
     }
 
+    std::string log_name  = vm["input"].as<std::string>();
+    std::string base_name = log_name+"_d";
+    std::filesystem::path output_dir(base_name);
+    {
+        std::error_code ec;
+        if (!std::filesystem::exists(output_dir) && !std::filesystem::create_directories(output_dir, ec)) {
+            throw std::runtime_error( "Failed to create output directory '" + output_dir.string() + "': " + ec.message());
+        }
+    }
+
+    std::filesystem::path archive_file_path        = output_dir / std::format("{}.1g.paths",           log_name);
+    std::filesystem::path dist_file_path           = output_dir / std::format("{}.lev.dmat",           log_name);
+    std::filesystem::path graphml_file_path        = output_dir / std::format("{}.1nn.graphml",        log_name);
+    std::filesystem::path labels_file_path         = output_dir / std::format("{}.labels",             log_name);
+    std::filesystem::path automata_dot_file_path   = output_dir / std::format("{}.automata.dot",       log_name);
+    std::filesystem::path components_file_path     = output_dir / std::format("{}.components",         log_name);
+    std::filesystem::path phase2_graphml_file_path = output_dir / std::format("{}.components.graphml", log_name);
+
     prova::loga::tokenized_collection collection;
-    std::string log_path = vm["input"].as<std::string>();
-
-    std::string archive_file_path = std::format("{}.1g.paths",    log_path);
-    std::string dist_file_path    = std::format("{}.lev.dmat",    log_path);
-    std::string graphml_file_path = std::format("{}.1nn.graphml", log_path);
-    std::string labels_file_path  = std::format("{}.labels",     log_path);
-    std::string automata_dot_file_path = std::format("{}.automata.dot", log_path);
-    std::string components_file_path  = std::format("{}.components",     log_path);
-    std::string phase2_graphml_file_path = std::format("{}.components.graphml", log_path);
-
-    std::ifstream log(log_path);
+    std::ifstream log(log_name);
     collection.parse(log);
 
     prova::loga::tokenized_alignment::matrix_type all_paths;
@@ -357,98 +366,7 @@ int main(int argc, char** argv) {
         std::vector<double> confidence;
         arma::vec lof(count, arma::fill::none);
         if(count > 2){
-            std::size_t K = std::min<std::size_t>(3, count -1);
-            arma::mat local_distances(count, count, arma::fill::zeros);
-            arma::vec kdist(count, arma::fill::none);
-            {
-                std::condition_variable observer;
-                std::mutex mutex;
-                std::atomic_uint32_t jobs_completed = 0;
-                boost::asio::thread_pool pool(std::thread::hardware_concurrency());
-                for (std::size_t i = 0; i < count; ++i) {
-                    boost::asio::post(pool, [i,  count, &subcollection, &local_distances, &kdist, K, &jobs_completed, &observer]() {
-                        for (std::size_t j = i + 1; j < count; ++j) {
-                            const std::string& si = subcollection.at(i).raw();
-                            const std::string& sj = subcollection.at(j).raw();
-
-                            // std::size_t lcs_len  = prova::loga::lcs(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
-                            // std::size_t lcs_dist = std::max(si.size(), sj.size()) - lcs_len;
-                            // local_distances(i,j) = local_distances(j,i) = lcs_dist;
-
-                            // local_distances(i,j) = local_distances(j,i) = dmat(i, j);
-
-                            std::size_t lev_dist = prova::loga::levenshtein_distance(si.cbegin(), si.cend(), sj.cbegin(), sj.cend());
-                            local_distances(i,j) = local_distances(j,i) = lev_dist;// /std::max(si.size(), sj.size());
-                        }
-                        // arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
-                        // kdist(i) = sorted(K);
-                        jobs_completed.fetch_add(1);
-                        observer.notify_one();
-                    });
-                }
-
-                std::uint32_t printed = 0;
-                while (printed < count) {
-                    std::unique_lock<std::mutex> lock(mutex);
-                    observer.wait(lock, [&]{
-                        return jobs_completed.load() > printed;
-                    });
-
-                    const auto upto = jobs_completed.load();
-                    while (printed < upto) {
-                        ++printed;
-                        // std::cout << std::format("\rDistance Matrix rows {}/{}", printed, _count) << std::flush;
-
-                        double percent = ((double)printed / (double)count) * 10.0f;
-                        std::string progress(20, '|');
-                        std::fill(progress.begin()+(((int)percent)*2), progress.end(), '~');
-                        std::cout << std::format("\r{:.2f}% {}", percent*10, progress) << std::flush;
-                    }
-                }
-
-                pool.join();
-                std::cout << std::endl << std::endl << std::flush;
-                std::cout.flush();
-            }
-            {
-                boost::asio::thread_pool pool(std::thread::hardware_concurrency());
-                for (std::size_t i = 0; i < count; ++i) {
-                    boost::asio::post(pool, [i, K, &local_distances, &kdist]() {
-                        arma::rowvec sorted = arma::sort(local_distances.row(i), "ascend");
-                        kdist(i) = sorted(K);
-                    });
-                }
-                pool.join();
-            }
-
-            arma::field<arma::uvec> neighbours(count);  // each entry can have a different length
-            for (std::size_t i = 0; i < count; ++i) {
-                arma::uvec idx = arma::find(local_distances.row(i).t() <= kdist(i));
-                idx = idx(arma::find(idx != i));
-                neighbours(i) = idx;
-                assert(neighbours(i).n_elem >= K);
-            }
-
-            auto reach = [&](std::size_t x, std::size_t y) {
-                return std::max(kdist(y), local_distances(x, y));
-            };
-
-            arma::vec lrd(count, arma::fill::none);
-            for (arma::uword i = 0; i < count; ++i) {
-                const arma::uvec& locals_i = neighbours(i);
-                arma::vec r(locals_i.n_elem);
-                for (std::size_t t = 0; t < locals_i.n_elem; ++t)
-                    r(t) = reach(i, locals_i(t));
-
-                double mrd = arma::mean(r);
-                lrd(i) = 1.0 / std::max(mrd, std::numeric_limits<double>::epsilon());
-            }
-
-            for (arma::uword i = 0; i < count; ++i) {
-                const arma::uvec& N = neighbours(i);
-                double avgNbr = arma::mean(lrd(N));
-                lof(i) = avgNbr / lrd(i);
-            }
+            lof = prova::loga::outliers::lof(subcollection);
 
             // std::cout << lof << std::endl;
             std::vector<std::size_t> excluded;
@@ -493,7 +411,7 @@ int main(int argc, char** argv) {
         std::cout << std::format("Cache hits {}/{}", cache_hits, references.size()-1) << std::endl;
 
         prova::loga::tokenized_alignment subalignment(subcollection);
-        subalignment.bubble_all_pairwise(paths, subcollection.begin(), 1);
+        subalignment.bubble_all_pairwise(paths, subcollection.begin(), 1, false);
 
         for(const auto& [key, path]: paths) {
             auto global_key = std::make_pair(references.at(key.first), references.at(key.second));
@@ -646,10 +564,12 @@ int main(int argc, char** argv) {
 
     for (auto it = components_vertex_map.cbegin(); it != components_vertex_map.cend(); ) {
         int component_id = it->first;
-        std::cout << "T" << component_id << ":\n";
+        std::cout << prova::loga::colors::bright_yellow << "◈" << prova::loga::colors::reset << " T" << component_id << " ";
 
         auto range = components_vertex_map.equal_range(component_id);
         std::size_t count = std::distance(range.first, range.second);
+
+        std::cout << std::endl;
 
         if (count == 1) {
             // single-vertex component
@@ -658,7 +578,7 @@ int main(int argc, char** argv) {
             std::size_t cluster = digraph[v].id;
             const auto& pat    = cluster_patterns.at(cluster);
             const auto& sample = cluster_samples.at(cluster);
-            std::cout << "    ";
+            // std::cout << "    ";
             print_interval_set(std::cout, pat, sample);
             std::cout << std::endl;
             it = range.second;
@@ -688,7 +608,7 @@ int main(int argc, char** argv) {
         auto first_v = boost::vertex(first_i, digraph);
         std::size_t first_c = digraph[first_v].id;
         prova::loga::pattern_sequence merged = automata.merge(first_c, ref_members);
-        std::cout << "    " << std::setw(4) << ": ";
+        // std::cout << "    " << std::setw(4) << ": ";
         print_pattern(std::cout, merged);
         std::cout << std::endl;
         std::cout << "-----------------------------";
@@ -696,7 +616,7 @@ int main(int argc, char** argv) {
         {
             std::set<std::size_t> members = ref_members;
             members.insert(first_c);
-            std::string component_subgraph = std::format("{}.component.{}.automata.dot", log_path, first_c);
+            std::string component_subgraph = output_dir / std::format("{}.component.{}.automata.dot", log_name, first_c);
             std::ofstream component_subgraph_stream(component_subgraph);
             prova::loga::automata::thompson_digraph_type subgraph;
             automata.subgraph(ref_members, subgraph);

@@ -33,9 +33,9 @@ private:
     distance_matrix_type    _structural_distances;
 public:
     explicit tokenized_distance(const path_matrix_type& paths, std::size_t count);
-    double dist(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
+    // double dist(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
     double dist_structural(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
-    double dist_lcs(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
+    // double dist_lcs(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
     void compute(const prova::loga::tokenized_collection& collection, std::size_t threads = 0);
 
     bool load(std::istream& stream);

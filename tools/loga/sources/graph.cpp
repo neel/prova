@@ -16,7 +16,7 @@ prova::loga::graph::graph(segment_collection_type&& segments, segment &&start, s
 
 }
 
-void prova::loga::graph::build(){
+void prova::loga::graph::build(bool ignore_indel){
     // { formulas
     auto weight_fn = [](std::size_t h, std::size_t g){ return static_cast<std::int64_t>(h) - static_cast<std::int64_t>(g); };
     auto dist_from_start = [&weight_fn](const segment& s){
@@ -100,8 +100,9 @@ void prova::loga::graph::build(){
             bool q_starts_after_p_starts = std::ranges::all_of(boost::combine(ps, qs), [](const auto& zipped){
                 return zipped.template get<0>() < zipped.template get<1>();
             });
-            bool q_starts_after_p_ends = std::ranges::all_of(boost::combine(pe, qs), [](const auto& zipped){
-                return zipped.template get<0>() < zipped.template get<1>();
+            bool q_starts_after_p_ends = std::ranges::all_of(boost::combine(pe, qs), [ignore_indel](const auto& zipped){
+                if(ignore_indel) return zipped.template get<0>() <  zipped.template get<1>();
+                else             return zipped.template get<0>() <= zipped.template get<1>();
             });
             bool q_ends_after_p_ends = std::ranges::all_of(boost::combine(pe, qe), [](const auto& zipped){
                 return zipped.template get<0>() < zipped.template get<1>();

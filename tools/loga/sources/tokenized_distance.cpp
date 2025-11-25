@@ -10,35 +10,35 @@
 
 prova::loga::tokenized_distance::tokenized_distance(const path_matrix_type &paths, std::size_t count): _paths(paths), _count(count) {}
 
-double prova::loga::tokenized_distance::dist(const tokenized_collection &collection, std::size_t i, std::size_t j) const{
-    if(i == j) {
-        return 0.0;
-    } else {
-        key_type key{i, j};
-        try{
-            const prova::loga::path& path = _paths.at(key);
-            double score = path.score(collection); // / std::max(collection.at(i).raw().size(), collection.at(j).raw().size());
-            return score;
+// double prova::loga::tokenized_distance::dist(const tokenized_collection &collection, std::size_t i, std::size_t j) const{
+//     if(i == j) {
+//         return 0.0;
+//     } else {
+//         key_type key{i, j};
+//         try{
+//             const prova::loga::path& path = _paths.at(key);
+//             double score = path.score(collection); // / std::max(collection.at(i).raw().size(), collection.at(j).raw().size());
+//             return score;
 
-            if((i == 45 && j == 46)|| (i == 46 && j == 45)) {
-                std::cout << std::format("{}, {} - > {}", i, j, 1-score) << std::endl;
-            }
-            // return 1-score;
-            arma::rowvec vec(path.size());
-            std::size_t counter = 0;
-            for(const prova::loga::segment& s: path) {
-                vec[counter++] = s.length();
-            }
-            double length = arma::norm(vec, 2);
-            arma::rowvec utopia(1);
-            utopia[0] = std::ranges::max(path.finish());
-            return arma::norm(utopia) - length;
-        } catch(const std::out_of_range& ex) {
-            std::cout << std::format("key {}x{} out of range", i, j) << std::endl;
-            throw ex;
-        }
-    }
-}
+//             if((i == 45 && j == 46)|| (i == 46 && j == 45)) {
+//                 std::cout << std::format("{}, {} - > {}", i, j, 1-score) << std::endl;
+//             }
+//             // return 1-score;
+//             arma::rowvec vec(path.size());
+//             std::size_t counter = 0;
+//             for(const prova::loga::segment& s: path) {
+//                 vec[counter++] = s.length();
+//             }
+//             double length = arma::norm(vec, 2);
+//             arma::rowvec utopia(1);
+//             utopia[0] = std::ranges::max(path.finish());
+//             return arma::norm(utopia) - length;
+//         } catch(const std::out_of_range& ex) {
+//             std::cout << std::format("key {}x{} out of range", i, j) << std::endl;
+//             throw ex;
+//         }
+//     }
+// }
 
 double prova::loga::tokenized_distance::dist_structural(const tokenized_collection &collection, std::size_t i, std::size_t j) const {
     if(i == j) {
@@ -54,19 +54,19 @@ double prova::loga::tokenized_distance::dist_structural(const tokenized_collecti
     }
 }
 
-double prova::loga::tokenized_distance::dist_lcs(const tokenized_collection &collection, std::size_t i, std::size_t j) const {
-    if(i == j) {
-        return 0.0;
-    } else {
-        const std::string& l_str = collection.at(i).raw();
-        const std::string& r_str = collection.at(j).raw();
-        double distance = prova::loga::lcs(l_str.cbegin(), l_str.cend(), r_str.cbegin(), r_str.cend());
-        // double max = std::max(l_structure.size(), r_structure.size());
-        // double d = static_cast<double>(distance)/static_cast<double>(max);
-        // return d;
-        return distance;
-    }
-}
+// double prova::loga::tokenized_distance::dist_lcs(const tokenized_collection &collection, std::size_t i, std::size_t j) const {
+//     if(i == j) {
+//         return 0.0;
+//     } else {
+//         const std::string& l_str = collection.at(i).raw();
+//         const std::string& r_str = collection.at(j).raw();
+//         double distance = prova::loga::lcs(l_str.cbegin(), l_str.cend(), r_str.cbegin(), r_str.cend());
+//         // double max = std::max(l_structure.size(), r_structure.size());
+//         // double d = static_cast<double>(distance)/static_cast<double>(max);
+//         // return d;
+//         return distance;
+//     }
+// }
 
 void prova::loga::tokenized_distance::compute(const prova::loga::tokenized_collection &collection, std::size_t threads){
     _distances.set_size(_count, _count);

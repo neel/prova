@@ -48,6 +48,7 @@ set(SOURCES
   sources/knn_cluster.cpp
   sources/community.cpp
   sources/automata.cpp
+  sources/outliers.cpp
 )
 
 set(INCLUDES
@@ -77,6 +78,7 @@ set(INCLUDES
   includes/loga/community.h
   includes/loga/automata.h
   includes/loga/pattern_sequence.h
+  includes/loga/outliers.h
 )
 
 add_library(prova-loga SHARED ${SOURCES} ${INCLUDES})

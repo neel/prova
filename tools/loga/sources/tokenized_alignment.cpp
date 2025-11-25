@@ -79,7 +79,7 @@ void prova::loga::tokenized_alignment::bubble_pairwise(const_iterator u, const_i
 }
 
 
-void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, const_iterator base, std::size_t threshold, std::size_t threads) {
+void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, const_iterator base, std::size_t threshold, bool ignore_indel, std::size_t threads) {
     assert(threshold > 0);
     std::size_t N = 2;
 
@@ -99,7 +99,7 @@ void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, con
         }
 
         auto key = std::make_pair(u, v);
-        auto lambda = [key, base, ref, threshold, this, N, &mutex, u, v, &jobs_completed, total_jobs, &mat](){
+        auto lambda = [key, base, ref, threshold, this, N, &mutex, u, v, &jobs_completed, total_jobs, &mat, ignore_indel](){
             std::vector<std::size_t> L{base->count()-1, ref->count()-1};
             memo_type memo;
 
@@ -120,7 +120,7 @@ void prova::loga::tokenized_alignment::bubble_all_pairwise(matrix_type &mat, con
             segment finish{u, index{{base->count(), ref->count()}}, 0};
 
             prova::loga::graph graph{std::move(segments), std::move(start), std::move(finish)};
-            graph.build();
+            graph.build(ignore_indel);
             prova::loga::path path = graph.shortest_path();
 
             // std::cout << "score: " << path.score() << std::endl;

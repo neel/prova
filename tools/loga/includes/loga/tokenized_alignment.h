@@ -36,7 +36,7 @@ public:
 
     void bubble_pairwise(const_iterator u, const_iterator v, const index& idx, memo_type& memo, std::size_t threshold, std::size_t carry) const;
     void bubble_all_pairwise(prova::loga::tokenized_alignment::matrix_type& mat, std::size_t threshold = 1, std::size_t threads = 0);
-    void bubble_all_pairwise(prova::loga::tokenized_alignment::matrix_type& mat, const_iterator base, std::size_t threshold = 1, std::size_t threads = 0);
+    void bubble_all_pairwise(prova::loga::tokenized_alignment::matrix_type& mat, const_iterator base, std::size_t threshold = 1, bool ignore_indel = true, std::size_t threads = 0);
     void bubble_all_pairwise_ref(prova::loga::tokenized_alignment::matrix_type& mat, const_iterator ref, std::size_t threshold = 1, std::size_t threads = 0);
 };
 
