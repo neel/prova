@@ -25,17 +25,19 @@ public:
     };
 
     using directed_graph_type   = boost::adjacency_list<boost::setS, boost::vecS, boost::directedS,  vertex_props,  edge_props>;
+    using divertex_type         = boost::graph_traits<directed_graph_type>::vertex_descriptor;
+    using diedge_type           = boost::graph_traits<directed_graph_type>::edge_descriptor;
+
     using undirected_graph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::undirectedS, vertex_props, edge_props>;
+    using unvertex_type         = boost::graph_traits<undirected_graph_type>::vertex_descriptor;
+    using unedge_type           = boost::graph_traits<undirected_graph_type>::edge_descriptor;
 private:
-    const path_matrix_type& _paths;
     std::size_t             _count;
     distance_matrix_type    _distances;
     distance_matrix_type    _structural_distances;
 public:
-    explicit tokenized_distance(const path_matrix_type& paths, std::size_t count);
-    // double dist(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
+    explicit tokenized_distance(std::size_t count);
     double dist_structural(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
-    // double dist_lcs(const prova::loga::tokenized_collection& collection, std::size_t i, std::size_t j) const;
     void compute(const prova::loga::tokenized_collection& collection, std::size_t threads = 0);
 
     bool load(std::istream& stream);
@@ -44,7 +46,7 @@ public:
     directed_graph_type knn_digraph(std::size_t k) const;
     undirected_graph_type knn_graph(std::size_t k, bool soft = true) const;
 
-    bool computed() const;
+    // bool computed() const;
 public:
     const distance_matrix_type& matrix() const;
 };

@@ -8,37 +8,7 @@
 #include <boost/graph/graphml.hpp>
 #include <loga/path.h>
 
-prova::loga::tokenized_distance::tokenized_distance(const path_matrix_type &paths, std::size_t count): _paths(paths), _count(count) {}
-
-// double prova::loga::tokenized_distance::dist(const tokenized_collection &collection, std::size_t i, std::size_t j) const{
-//     if(i == j) {
-//         return 0.0;
-//     } else {
-//         key_type key{i, j};
-//         try{
-//             const prova::loga::path& path = _paths.at(key);
-//             double score = path.score(collection); // / std::max(collection.at(i).raw().size(), collection.at(j).raw().size());
-//             return score;
-
-//             if((i == 45 && j == 46)|| (i == 46 && j == 45)) {
-//                 std::cout << std::format("{}, {} - > {}", i, j, 1-score) << std::endl;
-//             }
-//             // return 1-score;
-//             arma::rowvec vec(path.size());
-//             std::size_t counter = 0;
-//             for(const prova::loga::segment& s: path) {
-//                 vec[counter++] = s.length();
-//             }
-//             double length = arma::norm(vec, 2);
-//             arma::rowvec utopia(1);
-//             utopia[0] = std::ranges::max(path.finish());
-//             return arma::norm(utopia) - length;
-//         } catch(const std::out_of_range& ex) {
-//             std::cout << std::format("key {}x{} out of range", i, j) << std::endl;
-//             throw ex;
-//         }
-//     }
-// }
+prova::loga::tokenized_distance::tokenized_distance(std::size_t count): _count(count) {}
 
 double prova::loga::tokenized_distance::dist_structural(const tokenized_collection &collection, std::size_t i, std::size_t j) const {
     if(i == j) {
@@ -47,26 +17,9 @@ double prova::loga::tokenized_distance::dist_structural(const tokenized_collecti
         const auto& l_structure = collection.at(i).structure();
         const auto& r_structure = collection.at(j).structure();
         double distance = prova::loga::levenshtein_distance(l_structure.cbegin(), l_structure.cend(), r_structure.cbegin(), r_structure.cend());
-        // double max = std::max(l_structure.size(), r_structure.size());
-        // double d = static_cast<double>(distance)/static_cast<double>(max);
-        // return d;
         return distance;
     }
 }
-
-// double prova::loga::tokenized_distance::dist_lcs(const tokenized_collection &collection, std::size_t i, std::size_t j) const {
-//     if(i == j) {
-//         return 0.0;
-//     } else {
-//         const std::string& l_str = collection.at(i).raw();
-//         const std::string& r_str = collection.at(j).raw();
-//         double distance = prova::loga::lcs(l_str.cbegin(), l_str.cend(), r_str.cbegin(), r_str.cend());
-//         // double max = std::max(l_structure.size(), r_structure.size());
-//         // double d = static_cast<double>(distance)/static_cast<double>(max);
-//         // return d;
-//         return distance;
-//     }
-// }
 
 void prova::loga::tokenized_distance::compute(const prova::loga::tokenized_collection &collection, std::size_t threads){
     _distances.set_size(_count, _count);
@@ -258,40 +211,6 @@ prova::loga::tokenized_distance::undirected_graph_type prova::loga::tokenized_di
     }
 
     return graph;
-}
-
-// std::ostream& prova::loga::tokenized_distance::print_graphml(std::ostream& stream) const {
-//     directed_graph_type graph = knn_digraph(5);
-
-//     using vertex_type = boost::graph_traits<directed_graph_type>::vertex_descriptor;
-//     using edge_type   = boost::graph_traits<directed_graph_type>::edge_descriptor;
-
-//     auto vertex_label_map = boost::make_function_property_map<vertex_type>(
-//         [&](const vertex_type& v) -> std::string {
-//             return boost::lexical_cast<std::string>(graph[v].id);
-//         }
-//     );
-
-//     auto edge_weight_map = boost::make_function_property_map<edge_type>(
-//         [&](const edge_type& e) -> double {
-//             double w = graph[e].weight;
-//             if(w == 0) {
-//                 return std::numeric_limits<double>::epsilon();
-//             }
-//             return w;
-//         }
-//     );
-
-//     boost::dynamic_properties properties;
-//     properties.property("label", vertex_label_map);
-//     properties.property("weight", edge_weight_map);
-
-//     boost::write_graphml(stream, graph, properties, true);
-//     return stream;
-// }
-
-bool prova::loga::tokenized_distance::computed() const {
-    return _paths.size() > 0;
 }
 
 const prova::loga::tokenized_distance::distance_matrix_type &prova::loga::tokenized_distance::matrix() const { return _structural_distances; }

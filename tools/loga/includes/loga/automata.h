@@ -166,6 +166,7 @@ struct automata{
     std::ostream& graphviz(std::ostream& stream);
 
     void subgraph(const std::set<std::size_t>& subset, prova::loga::automata::thompson_digraph_type& graph);
+    void subgraph(std::size_t base_id, prova::loga::automata::thompson_digraph_type& graph);
     static std::ostream& graphviz(std::ostream& stream, const thompson_digraph_type& graph);
 
 
@@ -389,7 +390,9 @@ struct automata{
             auto ref_type = sit->tag();
             if(base_type == segment_edge::constant && ref_type == prova::loga::zone::constant) {
                 bool found = match(last_v, sit, tindex);
-                if(!found) break;
+                if(!found) {
+                    break;
+                }
                 else advance_state();
             } else {
                 bool aligned = false;
@@ -473,342 +476,342 @@ struct automata{
         return res;
     }
 
-    /**
-     * @brief partial_generialize finds if the pattern_graph generializes pseq partially or not
-     * @param pattern_graph
-     * @param pseq
-     * @pre pseq contains a sequence of segments each having a zone (either constant or placeholder)
-     * @pre two consecutive segments would always have different zones
-     * @return
-     */
-    template <typename Iterator>
-    static generialization_result directional_partial_generialize(const thompson_digraph_type& pattern_graph, Iterator begin, Iterator end, vertex_type start, std::size_t ref_id) {
-        vertex_type last = start;
-        std::size_t length = 0;
-        auto sit    = begin;
-        auto send   = end;
-        auto presit = sit; // garunteed to be valid always
+    // /**
+    //  * @brief partial_generialize finds if the pattern_graph generializes pseq partially or not
+    //  * @param pattern_graph
+    //  * @param pseq
+    //  * @pre pseq contains a sequence of segments each having a zone (either constant or placeholder)
+    //  * @pre two consecutive segments would always have different zones
+    //  * @return
+    //  */
+    // template <typename Iterator>
+    // static generialization_result directional_partial_generialize(const thompson_digraph_type& pattern_graph, Iterator begin, Iterator end, vertex_type start, std::size_t ref_id) {
+    //     vertex_type last = start;
+    //     std::size_t length = 0;
+    //     auto sit    = begin;
+    //     auto send   = end;
+    //     auto presit = sit; // garunteed to be valid always
 
-        std::size_t debug_base_id = pattern_graph[last]._id;
+    //     std::size_t debug_base_id = pattern_graph[last]._id;
 
-        std::size_t base_progress = 0;
-        std::size_t ref_progress  = 0;
+    //     std::size_t base_progress = 0;
+    //     std::size_t ref_progress  = 0;
 
-        std::vector<generialization_result::edge_intent> edges;
+    //     std::vector<generialization_result::edge_intent> edges;
 
-        std::size_t tconsumed = 0;
-        std::vector<prova::loga::wrapped> token_buffer;
-        for(;;) {
-            // advance lookahead
-            auto [ei, ei_end] = boost::out_edges(last, pattern_graph);
-            if(ei == ei_end) {                                                  // exit: [base exhausted] no edge to follow
-                // return last;
-                generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};
-                res.etrace = std::move(edges);
-                return res;
-            }
-            edge_type e;
-            bool edge_found = false;
-            for(auto [ei, ei_end] = boost::out_edges(last, pattern_graph); ei != ei_end; ++ei) {
-                const segment_edge& ep = pattern_graph[*ei];
-                if(ep._id == pattern_graph[start]._id){
-                    e = *ei;
-                    edge_found = true;
-                    break;
-                }
-            }
-            assert(edge_found);
-            base_progress++;
+    //     std::size_t tconsumed = 0;
+    //     std::vector<prova::loga::wrapped> token_buffer;
+    //     for(;;) {
+    //         // advance lookahead
+    //         auto [ei, ei_end] = boost::out_edges(last, pattern_graph);
+    //         if(ei == ei_end) {                                                  // exit: [base exhausted] no edge to follow
+    //             // return last;
+    //             generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};
+    //             res.etrace = std::move(edges);
+    //             return res;
+    //         }
+    //         edge_type e;
+    //         bool edge_found = false;
+    //         for(auto [ei, ei_end] = boost::out_edges(last, pattern_graph); ei != ei_end; ++ei) {
+    //             const segment_edge& ep = pattern_graph[*ei];
+    //             if(ep._id == pattern_graph[start]._id){
+    //                 e = *ei;
+    //                 edge_found = true;
+    //                 break;
+    //             }
+    //         }
+    //         assert(edge_found);
+    //         base_progress++;
 
-            vertex_type v = boost::target(e, pattern_graph);
-            const segment_edge&   ep = pattern_graph[e];
-            const segment_vertex& vp = pattern_graph[v];
+    //         vertex_type v = boost::target(e, pattern_graph);
+    //         const segment_edge&   ep = pattern_graph[e];
+    //         const segment_vertex& vp = pattern_graph[v];
 
-            if (vp._finish) {
-                if (ep._type == segment_edge::epsilon) {
-                    {
-                        // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                        // assert(nins);
-                        // pattern_graph[ne]._type = segment_edge::epsilon;
-                        // pattern_graph[ne]._id   = ref_id;
-                        generialization_result::edge_intent e;
-                        e.source     = last;
-                        e.target     = v;
-                        e.edge._id   = ref_id;
-                        e.edge._type = segment_edge::epsilon;
-                        edges.emplace_back(std::move(e));
-                    }
-                    // return v;
-                    generialization_result res{v, sit, tconsumed, std::make_pair(base_progress, ref_progress)};           // exit: [constant ending in base]
-                    res.etrace = std::move(edges);
-                    return res;
-                } else if (ep._type == segment_edge::placeholder) {
-                    if(sit != send){
-                        // if tconsumed > 0 then
-                        // take the tokens that have been captured already
-                        // token_buffer is cleared in thend of segment loop
-                        std::size_t placeholders_consumed = 0;
-                        if(sit->tag() == prova::loga::zone::placeholder) {
-                            ++placeholders_consumed;
-                        } else {
-                            auto rest_current_begin = sit->tokens().begin();
-                            auto rest_current_end   = sit->tokens().end();
-                            std::advance(rest_current_begin, tconsumed);
-                            for(auto tmp_it = rest_current_begin; tmp_it != rest_current_end; ++tmp_it) {
-                                token_buffer.push_back(*tmp_it);
-                            }
-                        }
+    //         if (vp._finish) {
+    //             if (ep._type == segment_edge::epsilon) {
+    //                 {
+    //                     // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+    //                     // assert(nins);
+    //                     // pattern_graph[ne]._type = segment_edge::epsilon;
+    //                     // pattern_graph[ne]._id   = ref_id;
+    //                     generialization_result::edge_intent e;
+    //                     e.source     = last;
+    //                     e.target     = v;
+    //                     e.edge._id   = ref_id;
+    //                     e.edge._type = segment_edge::epsilon;
+    //                     edges.emplace_back(std::move(e));
+    //                 }
+    //                 // return v;
+    //                 generialization_result res{v, sit, tconsumed, std::make_pair(base_progress, ref_progress)};           // exit: [constant ending in base]
+    //                 res.etrace = std::move(edges);
+    //                 return res;
+    //             } else if (ep._type == segment_edge::placeholder) {
+    //                 if(sit != send){
+    //                     // if tconsumed > 0 then
+    //                     // take the tokens that have been captured already
+    //                     // token_buffer is cleared in thend of segment loop
+    //                     std::size_t placeholders_consumed = 0;
+    //                     if(sit->tag() == prova::loga::zone::placeholder) {
+    //                         ++placeholders_consumed;
+    //                     } else {
+    //                         auto rest_current_begin = sit->tokens().begin();
+    //                         auto rest_current_end   = sit->tokens().end();
+    //                         std::advance(rest_current_begin, tconsumed);
+    //                         for(auto tmp_it = rest_current_begin; tmp_it != rest_current_end; ++tmp_it) {
+    //                             token_buffer.push_back(*tmp_it);
+    //                         }
+    //                     }
 
-                        auto tmp_sit = sit;
-                        auto tmp_sit_last = tmp_sit;
-                        while(++tmp_sit != send) {
-                            if(tmp_sit->tag() == prova::loga::zone::placeholder) {
-                                ++placeholders_consumed;
-                            } else {
-                                auto rest_next_begin = tmp_sit->tokens().begin();
-                                auto rest_next_end   = tmp_sit->tokens().end();
-                                for(auto tmp_it = rest_next_begin; tmp_it != rest_next_end; ++tmp_it) {
-                                    token_buffer.push_back(*tmp_it);
-                                }
-                                tmp_sit_last = tmp_sit;
-                            }
-                        }
+    //                     auto tmp_sit = sit;
+    //                     auto tmp_sit_last = tmp_sit;
+    //                     while(++tmp_sit != send) {
+    //                         if(tmp_sit->tag() == prova::loga::zone::placeholder) {
+    //                             ++placeholders_consumed;
+    //                         } else {
+    //                             auto rest_next_begin = tmp_sit->tokens().begin();
+    //                             auto rest_next_end   = tmp_sit->tokens().end();
+    //                             for(auto tmp_it = rest_next_begin; tmp_it != rest_next_end; ++tmp_it) {
+    //                                 token_buffer.push_back(*tmp_it);
+    //                             }
+    //                             tmp_sit_last = tmp_sit;
+    //                         }
+    //                     }
 
-                        if(token_buffer.size() > 0 || placeholders_consumed > 0) {
-                            {
-                                // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                                // assert(nins);
-                                // pattern_graph[ne]._type = segment_edge::placeholder;
-                                // pattern_graph[ne]._id   = ref_id;
-                                // for(auto& token: token_buffer) {
-                                //     pattern_graph[ne]._captured.emplace_back(token);
-                                // }
-                                generialization_result::edge_intent e;
-                                e.source     = last;
-                                e.target     = v;
-                                e.edge._id   = ref_id;
-                                e.edge._type = segment_edge::placeholder;
-                                for(auto& token: token_buffer) {
-                                    e.edge._captured.emplace_back(token);
-                                }
-                                token_buffer.clear();
-                                edges.emplace_back(std::move(e));
-                            }
-                            // return v;
-                            generialization_result res{v, tmp_sit_last, tmp_sit_last->tokens().count(), std::make_pair(base_progress, ref_progress)};     // exit: [placeholder ending in base satisfied by ref]
-                            res.etrace = std::move(edges);
-                            return res;
-                        }
+    //                     if(token_buffer.size() > 0 || placeholders_consumed > 0) {
+    //                         {
+    //                             // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+    //                             // assert(nins);
+    //                             // pattern_graph[ne]._type = segment_edge::placeholder;
+    //                             // pattern_graph[ne]._id   = ref_id;
+    //                             // for(auto& token: token_buffer) {
+    //                             //     pattern_graph[ne]._captured.emplace_back(token);
+    //                             // }
+    //                             generialization_result::edge_intent e;
+    //                             e.source     = last;
+    //                             e.target     = v;
+    //                             e.edge._id   = ref_id;
+    //                             e.edge._type = segment_edge::placeholder;
+    //                             for(auto& token: token_buffer) {
+    //                                 e.edge._captured.emplace_back(token);
+    //                             }
+    //                             token_buffer.clear();
+    //                             edges.emplace_back(std::move(e));
+    //                         }
+    //                         // return v;
+    //                         generialization_result res{v, tmp_sit_last, tmp_sit_last->tokens().count(), std::make_pair(base_progress, ref_progress)};     // exit: [placeholder ending in base satisfied by ref]
+    //                         res.etrace = std::move(edges);
+    //                         return res;
+    //                     }
 
-                        // return last;
-                        generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref semi-exhausted]
-                        res.etrace = std::move(edges);
-                        return res;
-                    } else {
-                        // return last;
-                        generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref exhausted]
-                        res.etrace = std::move(edges);
-                        return res;
-                    }
-                } else {
-                    assert(ep._type != segment_edge::constant);
-                }
-            }
+    //                     // return last;
+    //                     generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref semi-exhausted]
+    //                     res.etrace = std::move(edges);
+    //                     return res;
+    //                 } else {
+    //                     // return last;
+    //                     generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                                    // exit: [placeholder ending in base but ref exhausted]
+    //                     res.etrace = std::move(edges);
+    //                     return res;
+    //                 }
+    //             } else {
+    //                 assert(ep._type != segment_edge::constant);
+    //             }
+    //         }
 
-            bool placeholder_hop = ep._type == segment_edge::placeholder;
-            const std::string& lookahead = vp._str;
+    //         bool placeholder_hop = ep._type == segment_edge::placeholder;
+    //         const std::string& lookahead = vp._str;
 
-            bool advance_lookahead = false;
-            while(sit != send) {    // segment loop
-                const prova::loga::pattern_sequence::segment& s = *sit;
-                prova::loga::zone zone = s.tag();
-                const prova::loga::tokenized& tokens = s.tokens();
+    //         bool advance_lookahead = false;
+    //         while(sit != send) {    // segment loop
+    //             const prova::loga::pattern_sequence::segment& s = *sit;
+    //             prova::loga::zone zone = s.tag();
+    //             const prova::loga::tokenized& tokens = s.tokens();
 
-                // if placeholder_hop then
-                //      if zone is constant
-                //          a subset of the tokens in the segment will align to the placeholder unless a token matches with the lookahead
-                //          loop t into segment.tokens
-                //              if t == lookahead
-                //                  advance lookahead
-                //              else
-                //                  since this is a placeholder_hop check the next token because the unmatched token could be eaten by a the placeholder
-                //      else
-                //          the tokens in the placeholder zone doesn't have a text to match against the lookahead
-                //          So, we have to skip all tokens in the current segment
-                //          The lookahead is still the same
-                //          next segment's zone is expected to be constant (because pseq is [c][p][c][p]...)
-                // else
-                //      we know exactly what we are expecting (the lookahead)
-                //      if the first token does not match with lookahead
-                //          thats the end of simulation
-                //      else
-                //          we need to advance the lookahead vertex as well as the token
+    //             // if placeholder_hop then
+    //             //      if zone is constant
+    //             //          a subset of the tokens in the segment will align to the placeholder unless a token matches with the lookahead
+    //             //          loop t into segment.tokens
+    //             //              if t == lookahead
+    //             //                  advance lookahead
+    //             //              else
+    //             //                  since this is a placeholder_hop check the next token because the unmatched token could be eaten by a the placeholder
+    //             //      else
+    //             //          the tokens in the placeholder zone doesn't have a text to match against the lookahead
+    //             //          So, we have to skip all tokens in the current segment
+    //             //          The lookahead is still the same
+    //             //          next segment's zone is expected to be constant (because pseq is [c][p][c][p]...)
+    //             // else
+    //             //      we know exactly what we are expecting (the lookahead)
+    //             //      if the first token does not match with lookahead
+    //             //          thats the end of simulation
+    //             //      else
+    //             //          we need to advance the lookahead vertex as well as the token
 
-                auto tbegin = tokens.begin();
-                auto tend   = tokens.end();
-                auto tit    = tbegin;
-                // resume tit iteration
-                if(tconsumed < tokens.count()) {
-                    std::advance(tit, tconsumed);
-                } else {
-                    presit = sit;
-                    ++sit;
-                    ++ref_progress;
-                    tconsumed = 0;
-                    continue;
-                }
+    //             auto tbegin = tokens.begin();
+    //             auto tend   = tokens.end();
+    //             auto tit    = tbegin;
+    //             // resume tit iteration
+    //             if(tconsumed < tokens.count()) {
+    //                 std::advance(tit, tconsumed);
+    //             } else {
+    //                 presit = sit;
+    //                 ++sit;
+    //                 ++ref_progress;
+    //                 tconsumed = 0;
+    //                 continue;
+    //             }
 
-                if(placeholder_hop) {
-                    if(zone == prova::loga::zone::constant) {
-                        bool matched = false;
-                        for(;tit != tend; ++tit) {
-                            bool lokahead_matched = (lookahead == tit->view());
-                            if(lokahead_matched) {
-                                {
-                                    // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                                    // assert(nins);
-                                    // pattern_graph[ne]._type = ep._type;
-                                    // pattern_graph[ne]._id   = ref_id;
-                                    // for(auto& token: token_buffer) {
-                                    //     pattern_graph[ne]._captured.emplace_back(token);
-                                    // }
-                                    generialization_result::edge_intent e;
-                                    e.source     = last;
-                                    e.target     = v;
-                                    e.edge._id   = ref_id;
-                                    // e.edge._str   = lookahead; // not collected because we favour _captured in this case
-                                    e.edge._type = segment_edge::placeholder;
-                                    for(auto& token: token_buffer) {
-                                        e.edge._captured.emplace_back(token);
-                                    }
-                                    token_buffer.clear();
-                                    edges.emplace_back(std::move(e));
-                                }
-                                last = v;
-                                tconsumed++;
-                                matched = true;
-                                break;
-                            } else {
-                                token_buffer.push_back(*tit);
-                                tconsumed++;
-                                // hope until we reach tend
-                            }
-                        }
-                        // given that the next segment will be placeholder zone
-                        // if loop continues till here (without breaking) then this is the furthest we can reach
-                        if(!matched){
-                            assert(tit == tend);
-                            // next segment is placeholder zone, next next is constant zone again
-                            // if advancing sit twice failes then last iterator that we could visit is presit
-                            presit = sit;
-                            if (++sit == send) {
-                                // return last;
-                                generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};          // exit: [base placeholder + ref exhausted while looking for lookahead]
-                                res.etrace = std::move(edges);
-                                return res;
-                            }
-                            // next next segment would be constant zone again
-                            tconsumed = 0;
-                            if (++sit == send) {
-                                // return last;
-                                generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};          // exit: [base placeholder + ref exhausted while looking for lookahead]
-                                res.etrace = std::move(edges);
-                                return res;
-                            }
-                            advance_lookahead = false;
-                            continue;
-                        } else {
-                            advance_lookahead = true;
-                            // sit is not advanced
-                            // we need a new lookahead
-                            // tconsumed will be used for [resume tit iteration] block to choose whether to advance segment or not
-                            // break the segment loop to first reach [advance lookahead] block due to advance_lookahead being true and then [resume tit iteration]
-                            break;
-                        }
-                    } else {
-                        advance_lookahead = false;
-                        for(;tit != tend; ++tit) {
-                            tconsumed++;
-                        }
-                        // no need to to sit++ because tconsumed reaches count which will lead to sit++ upon continue
-                        continue; // next segment is constant
-                    }
-                } else {
-                    if(zone == prova::loga::zone::constant) {
-                        bool matched = false;
-                        for(;tit != tend; ++tit) {
-                            bool lokahead_matched = (lookahead == tit->view());
-                            if(lokahead_matched) {
-                                {
-                                    // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
-                                    // assert(nins);
-                                    // pattern_graph[ne]._type = ep._type;
-                                    // pattern_graph[ne]._id   = ref_id;
-                                    generialization_result::edge_intent e;
-                                    e.source     = last;
-                                    e.target     = v;
-                                    e.edge._id   = ref_id;
-                                    e.edge._type = ep._type;
-                                    // e.edge._str   = lookahead; // not collected because it is obvious
-                                    edges.emplace_back(std::move(e));
-                                }
-                                last = v;
-                                tconsumed++;
-                                matched = true;
-                                break;
-                            } else {
-                                // not a placeholder_hop
-                                // lookahead could not be matched
-                                break;
-                            }
-                        }
-                        // given that the next segment will be placeholder zone
-                        // if loop continues till here (without breaking) then this is the furthest we can reach
-                        if(!matched) {
-                            // return last;
-                            generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                         // exit: [base constant + ref unmatched]
-                            res.etrace = std::move(edges);
-                            return res;
-                        } else {
-                            advance_lookahead = true;
-                            break; // break the segment loop because we have to change the lookahead now
-                        }
-                    } else {
-                        // tit->view() doesn't work here because we are in a placeholder segment
-                        // If the placeholder segment of the pseq generializes the constant segment of the linear graph
-                        // then that would be detected while going through the next segment
-                        if(debug_base_id == 1 && ref_id == 9)
-                            std::cout << "2CP" << std::endl;
-                        last = v;
-                        advance_lookahead = true;
-                        for(;tit != tend; ++tit) {
-                            tconsumed++;
-                        }
-                        break; // next segment is constant
-                    }
-                }
-            }
-            if(!advance_lookahead){
-                // return last;
-                generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};                            // exit: [base constant + ref unmatched]
-                res.etrace = std::move(edges);
-                return res;
-                // presit must be valid since sit is valid so dereferencing must be okay
-            }
-            token_buffer.clear(); // clear because we are now changing the lookahead
-        }
+    //             if(placeholder_hop) {
+    //                 if(zone == prova::loga::zone::constant) {
+    //                     bool matched = false;
+    //                     for(;tit != tend; ++tit) {
+    //                         bool lokahead_matched = (lookahead == tit->view());
+    //                         if(lokahead_matched) {
+    //                             {
+    //                                 // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+    //                                 // assert(nins);
+    //                                 // pattern_graph[ne]._type = ep._type;
+    //                                 // pattern_graph[ne]._id   = ref_id;
+    //                                 // for(auto& token: token_buffer) {
+    //                                 //     pattern_graph[ne]._captured.emplace_back(token);
+    //                                 // }
+    //                                 generialization_result::edge_intent e;
+    //                                 e.source     = last;
+    //                                 e.target     = v;
+    //                                 e.edge._id   = ref_id;
+    //                                 // e.edge._str   = lookahead; // not collected because we favour _captured in this case
+    //                                 e.edge._type = segment_edge::placeholder;
+    //                                 for(auto& token: token_buffer) {
+    //                                     e.edge._captured.emplace_back(token);
+    //                                 }
+    //                                 token_buffer.clear();
+    //                                 edges.emplace_back(std::move(e));
+    //                             }
+    //                             last = v;
+    //                             tconsumed++;
+    //                             matched = true;
+    //                             break;
+    //                         } else {
+    //                             token_buffer.push_back(*tit);
+    //                             tconsumed++;
+    //                             // hope until we reach tend
+    //                         }
+    //                     }
+    //                     // given that the next segment will be placeholder zone
+    //                     // if loop continues till here (without breaking) then this is the furthest we can reach
+    //                     if(!matched){
+    //                         assert(tit == tend);
+    //                         // next segment is placeholder zone, next next is constant zone again
+    //                         // if advancing sit twice failes then last iterator that we could visit is presit
+    //                         presit = sit;
+    //                         if (++sit == send) {
+    //                             // return last;
+    //                             generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};          // exit: [base placeholder + ref exhausted while looking for lookahead]
+    //                             res.etrace = std::move(edges);
+    //                             return res;
+    //                         }
+    //                         // next next segment would be constant zone again
+    //                         tconsumed = 0;
+    //                         if (++sit == send) {
+    //                             // return last;
+    //                             generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};          // exit: [base placeholder + ref exhausted while looking for lookahead]
+    //                             res.etrace = std::move(edges);
+    //                             return res;
+    //                         }
+    //                         advance_lookahead = false;
+    //                         continue;
+    //                     } else {
+    //                         advance_lookahead = true;
+    //                         // sit is not advanced
+    //                         // we need a new lookahead
+    //                         // tconsumed will be used for [resume tit iteration] block to choose whether to advance segment or not
+    //                         // break the segment loop to first reach [advance lookahead] block due to advance_lookahead being true and then [resume tit iteration]
+    //                         break;
+    //                     }
+    //                 } else {
+    //                     advance_lookahead = false;
+    //                     for(;tit != tend; ++tit) {
+    //                         tconsumed++;
+    //                     }
+    //                     // no need to to sit++ because tconsumed reaches count which will lead to sit++ upon continue
+    //                     continue; // next segment is constant
+    //                 }
+    //             } else {
+    //                 if(zone == prova::loga::zone::constant) {
+    //                     bool matched = false;
+    //                     for(;tit != tend; ++tit) {
+    //                         bool lokahead_matched = (lookahead == tit->view());
+    //                         if(lokahead_matched) {
+    //                             {
+    //                                 // auto [ne, nins] = boost::add_edge(last, v, pattern_graph);
+    //                                 // assert(nins);
+    //                                 // pattern_graph[ne]._type = ep._type;
+    //                                 // pattern_graph[ne]._id   = ref_id;
+    //                                 generialization_result::edge_intent e;
+    //                                 e.source     = last;
+    //                                 e.target     = v;
+    //                                 e.edge._id   = ref_id;
+    //                                 e.edge._type = ep._type;
+    //                                 // e.edge._str   = lookahead; // not collected because it is obvious
+    //                                 edges.emplace_back(std::move(e));
+    //                             }
+    //                             last = v;
+    //                             tconsumed++;
+    //                             matched = true;
+    //                             break;
+    //                         } else {
+    //                             // not a placeholder_hop
+    //                             // lookahead could not be matched
+    //                             break;
+    //                         }
+    //                     }
+    //                     // given that the next segment will be placeholder zone
+    //                     // if loop continues till here (without breaking) then this is the furthest we can reach
+    //                     if(!matched) {
+    //                         // return last;
+    //                         generialization_result res{last, sit, tconsumed, std::make_pair(base_progress, ref_progress)};                         // exit: [base constant + ref unmatched]
+    //                         res.etrace = std::move(edges);
+    //                         return res;
+    //                     } else {
+    //                         advance_lookahead = true;
+    //                         break; // break the segment loop because we have to change the lookahead now
+    //                     }
+    //                 } else {
+    //                     // tit->view() doesn't work here because we are in a placeholder segment
+    //                     // If the placeholder segment of the pseq generializes the constant segment of the linear graph
+    //                     // then that would be detected while going through the next segment
+    //                     if(debug_base_id == 1 && ref_id == 9)
+    //                         std::cout << "2CP" << std::endl;
+    //                     last = v;
+    //                     advance_lookahead = true;
+    //                     for(;tit != tend; ++tit) {
+    //                         tconsumed++;
+    //                     }
+    //                     break; // next segment is constant
+    //                 }
+    //             }
+    //         }
+    //         if(!advance_lookahead){
+    //             // return last;
+    //             generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};                            // exit: [base constant + ref unmatched]
+    //             res.etrace = std::move(edges);
+    //             return res;
+    //             // presit must be valid since sit is valid so dereferencing must be okay
+    //         }
+    //         token_buffer.clear(); // clear because we are now changing the lookahead
+    //     }
 
-        // return last;
-        generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};
-        res.etrace = std::move(edges);
-        return res;
-    }
+    //     // return last;
+    //     generialization_result res{last, presit, presit->tokens().count(), std::make_pair(base_progress, ref_progress)};
+    //     res.etrace = std::move(edges);
+    //     return res;
+    // }
 
     static std::size_t apply_trace(thompson_digraph_type& graph, const generialization_result& res);
 
     void directional_subset_generialize(thompson_digraph_type& pattern_graph, const prova::loga::pattern_sequence& pseq, std::size_t base_id, std::size_t ref_id);
 
-    prova::loga::pattern_sequence merge(std::size_t id) const;
+    // prova::loga::pattern_sequence merge(std::size_t id) const;
     prova::loga::pattern_sequence merge(std::size_t base_id, const std::set<std::size_t>& references) const;
 };
 

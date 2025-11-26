@@ -39,7 +39,7 @@ public:
 };
 
 template <typename WeightT>
-struct knn_digraph{
+struct intercluster_graph{
     using weight_type = std::conditional_t<std::is_integral_v<WeightT>, std::size_t, double>;
     using matrix_type = arma::Mat<weight_type>;
 
@@ -51,18 +51,14 @@ struct knn_digraph{
         weight_type weight;
     };
 
-    using digraph_type   = boost::adjacency_list<boost::setS, boost::vecS, boost::bidirectionalS, vertex_property, edge_property>;
-    using vertex_type    = boost::graph_traits<digraph_type>::vertex_descriptor;
-    using edge_type      = boost::graph_traits<digraph_type>::edge_descriptor;
+    using graph_type   = boost::adjacency_list<boost::setS, boost::vecS, boost::bidirectionalS, vertex_property, edge_property>;
+    using vertex_type  = boost::graph_traits<graph_type>::vertex_descriptor;
+    using edge_type    = boost::graph_traits<graph_type>::edge_descriptor;
 
-    using undigraph_type = boost::adjacency_list<boost::setS, boost::vecS, boost::undirectedS, vertex_property, edge_property>;
-    using unvertex_type  = boost::graph_traits<undigraph_type>::vertex_descriptor;
-    using unedge_type    = boost::graph_traits<undigraph_type>::edge_descriptor;
-
-    digraph_type _graph;
+    graph_type _graph;
     std::vector<vertex_type> _vertices;
 
-    knn_digraph(std::size_t N){
+    intercluster_graph(std::size_t N){
         _vertices.resize(N);
         for(std::size_t i = 0; i != N; ++i){
             vertex_type v = boost::add_vertex(_graph);
@@ -71,7 +67,7 @@ struct knn_digraph{
         }
     }
 
-    const digraph_type& graph() const { return _graph; }
+    const graph_type& graph() const { return _graph; }
 
     void update(const matrix_type& coverage, const matrix_type& captures, std::size_t K, bool soft) {
         assert(coverage.n_rows == coverage.n_cols);
@@ -115,28 +111,6 @@ struct knn_digraph{
             }
         }
     }
-
-    undigraph_type make_undirected() const {
-        undigraph_type g;
-        boost::copy_graph(_graph, g);
-        return g;
-    }
-
-    std::size_t weekly_connected_components(std::map<vertex_type, int>& component_map) const {
-        std::vector<int> comp;
-        undigraph_type g = make_undirected();
-        comp.resize(boost::num_vertices(g));
-        auto compmap = boost::make_iterator_property_map(comp.begin(), get(boost::vertex_index, g));
-        std::size_t n_components = boost::connected_components(g, compmap);
-        for(std::size_t i = 0; i != comp.size(); ++i) {
-            unvertex_type v = boost::vertex(i, g);
-            std::size_t id = g[v].id;
-            vertex_type v_di = _vertices.at(id);
-            component_map.insert(std::make_pair(v_di, comp.at(i)));
-        }
-        return n_components;
-    }
-
 };
 
 
@@ -270,7 +244,7 @@ int main(int argc, char** argv) {
         cereal::PortableBinaryOutputArchive archive(archive_file);
         archive(all_paths);
     }
-    prova::loga::tokenized_distance distance(all_paths, collection.count());
+    prova::loga::tokenized_distance distance(collection.count());
     if(std::filesystem::exists(dist_file_path)){
         std::ifstream dist_file(dist_file_path);
         if(!distance.load(dist_file)){
@@ -302,10 +276,18 @@ int main(int argc, char** argv) {
             return 1;
         }
     } else {
-        igraph_t igraph;
-        igraph_vector_t edges;
-        prova::loga::bgl_to_igraph(bgl_graph, &igraph, &edges);
-        prova::loga::leiden_membership(&igraph, &edges, labels);
+        // igraph_t igraph;
+        // igraph_vector_t edges;
+        // prova::loga::bgl_to_igraph(bgl_graph, &igraph, &edges);
+        // prova::loga::leiden_membership(&igraph, &edges, labels);
+
+        std::map<prova::loga::tokenized_distance::unvertex_type, std::size_t> vertex_cluster_map;
+        std::size_t num_clusters = prova::loga::detect_communities(bgl_graph, prova::loga::community_detection_algorithm::leiden, vertex_cluster_map);
+        for (auto ve = vertices(bgl_graph); ve.first != ve.second; ++ve.first) {
+            prova::loga::tokenized_distance::unvertex_type v = *ve.first;
+            const auto& vp = bgl_graph[v];
+            labels[vp.id] = vertex_cluster_map.at(v);
+        }
         std::ofstream labels_file(labels_file_path);
         if(!labels.save(labels_file)){
             std::cout << "failed to save labels" << std::endl;
@@ -368,7 +350,6 @@ int main(int argc, char** argv) {
         if(count > 2){
             lof = prova::loga::outliers::lof(subcollection);
 
-            // std::cout << lof << std::endl;
             std::vector<std::size_t> excluded;
             for (arma::uword i = 0; i < count; ++i) {
                 if(lof(i) >= 1.2f){
@@ -511,40 +492,27 @@ int main(int argc, char** argv) {
         pseqs.emplace_back(std::move(pseq));
     }
 
-    // prova::loga::automata::thompson_digraph_type graph;
-    // std::vector<prova::loga::automata::vertex_type> starts, finishes;
-    // for(std::size_t i = 0; i < pseqs.size(); ++i) {
-    //     auto [start, finish] = prova::loga::automata::thompson_graph(graph, pseqs.at(i), i);
-    //     starts.push_back(start);
-    //     finishes.push_back(finish);
-    // }
-    // const pattern_sequence& pseq_ref  = pseqs.at(7);
-    // auto v = prova::loga::automata::directional_partial_generialize(graph, pseq_ref, starts.at(1), 7);
-    // auto vp = graph[v.last_v];
-
     prova::loga::automata automata(pseqs.cbegin(), pseqs.cend());
     automata.build();
     arma::Mat<std::size_t> coverage, capture;
     automata.generialize(coverage, capture);
     std::ofstream astream(automata_dot_file_path);
     automata.graphviz(astream);
-    using knn_graph_type = knn_digraph<std::size_t>;
-    knn_graph_type knn(pseqs.size());
-    knn.update(coverage, capture, 1, false);
+    using intercluster_graph_type = intercluster_graph<std::size_t>;
+    intercluster_graph_type intercluster(pseqs.size());
+    intercluster.update(coverage, capture, 1, false);
     {
-        auto cluster_graph = knn.graph();
+        auto cluster_graph = intercluster.graph();
         std::ofstream graphml_knn(phase2_graphml_file_path);
         prova::loga::print_graphml(cluster_graph, graphml_knn);
     }
     std::vector<int> comp;
-    knn_graph_type::digraph_type digraph = knn.graph();
+    intercluster_graph_type::graph_type digraph = intercluster.graph();
 
-    std::map<knn_graph_type::vertex_type, std::size_t> vertex_components_map;
+    std::map<intercluster_graph_type::vertex_type, std::size_t> vertex_components_map;
     std::size_t num_components = prova::loga::detect_communities(digraph, prova::loga::community_detection_algorithm::leiden, vertex_components_map);
 
-    // std::map<knn_graph_type::vertex_type, int> vertex_components_map;
-    // std::size_t num_components = knn.weekly_connected_components(vertex_components_map);
-    std::multimap<std::size_t, knn_graph_type::vertex_type> components_vertex_map;
+    std::multimap<std::size_t, intercluster_graph_type::vertex_type> components_vertex_map;
     for(const auto& [v, c]: vertex_components_map) {
         components_vertex_map.insert(std::make_pair(c, v));
     }
@@ -552,48 +520,49 @@ int main(int argc, char** argv) {
     std::cout << "----------------------------" << std::endl;
     std::cout << "Summary: " << std::format("{} components", num_components) << std::endl;
     std::cout << "----------------------------" << std::endl;
-    // print_pattern(std::cout, pseqs.at(1));
-    // std::cout << std::endl;
-    // print_pattern(std::cout, pseqs.at(9));
-    // std::cout << std::endl;
-    // a.directional_partial_generialize(a._graph, pseqs.at(9), a._terminals.at(1).first, 9);
 
-    // auto test_1 = a.merge(1);
-    // print_pattern(std::cout, test_1);
-    // std::cout << std::endl;
+    std::set<std::size_t> outliers;
 
     for (auto it = components_vertex_map.cbegin(); it != components_vertex_map.cend(); ) {
+        std::cout << std::endl;
+
         int component_id = it->first;
         std::cout << prova::loga::colors::bright_yellow << "◈" << prova::loga::colors::reset << " T" << component_id << " ";
 
         auto range = components_vertex_map.equal_range(component_id);
         std::size_t count = std::distance(range.first, range.second);
 
-        std::cout << std::endl;
-
         if (count == 1) {
             // single-vertex component
             std::size_t vi = range.first->second;
             auto v = boost::vertex(vi, digraph);
             std::size_t cluster = digraph[v].id;
+            std::cout << "    " << std::setw(4) << cluster << ": ";
             const auto& pat    = cluster_patterns.at(cluster);
             const auto& sample = cluster_samples.at(cluster);
             // std::cout << "    ";
             print_interval_set(std::cout, pat, sample);
             std::cout << std::endl;
             it = range.second;
+
+            std::string component_subgraph = output_dir / std::format("{}.component.{}.automata.dot", log_name, cluster);
+            std::ofstream component_subgraph_stream(component_subgraph);
+            prova::loga::automata::thompson_digraph_type subgraph;
+            automata.subgraph(cluster, subgraph);
+            prova::loga::automata::graphviz(component_subgraph_stream, subgraph);
+
+            outliers.insert(cluster);
             continue;
         }
 
         // collect vertex indices of this component
-        std::vector<knn_graph_type::vertex_type> verts;
+        std::vector<intercluster_graph_type::vertex_type> verts;
         verts.reserve(count);
         for (auto jt = range.first; jt != range.second; ++jt) {
             verts.push_back(jt->second);                                         // vertex index
         }
 
-        // sort by in-degree (for undirected graphs, in_degree == degree)
-        std::sort(verts.begin(), verts.end(), [&](knn_graph_type::vertex_type u, knn_graph_type::vertex_type v) {
+        std::sort(verts.begin(), verts.end(), [&](intercluster_graph_type::vertex_type u, intercluster_graph_type::vertex_type v) {
                                                       return boost::in_degree(u, digraph) > boost::in_degree(v, digraph);
                                                   });
         std::set<std::size_t> ref_members;
@@ -636,6 +605,10 @@ int main(int argc, char** argv) {
         it = range.second;
     }
 
+    for(std::size_t cluster: outliers) {
+        // automata.directional_subset_generialize();
+    }
+
     prova::loga::cluster::labels_type components(collection.count());
     for (auto it = components_vertex_map.cbegin(); it != components_vertex_map.cend(); ) {
         int component_id = it->first;
@@ -659,73 +632,5 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "Plase 1 completed run loga again for phase 2" << std::endl;
-
-    if(phase_2) {
-        return 0;
-    }
-
-    // arma::imat cluster_distances;
-    // cluster_distances.set_size(pseqs.size(), pseqs.size());
-    // auto cluster_graph = constant_component_graph::apply(pseqs, cluster_distances, 10);
-    // std::ofstream stream(phase2_graphml_file_path);
-    // constant_component_graph::graphml(stream, cluster_graph);
-    // std::multimap<int, std::size_t> components_map;
-    // size_t num_components = constant_component_graph::cluster(cluster_graph, components_map);
-    // prova::loga::cluster::labels_type components(collection.count());
-    // for (auto it = components_map.cbegin(); it != components_map.cend(); ) {
-    //     int component_id = it->first;
-    //     auto range = components_map.equal_range(component_id);
-    //     for (auto jt = range.first; jt != range.second; ++jt) {
-    //         std::size_t cluster = jt->second;
-    //         prova::loga::tokenized_group::label_proxy proxy = group.proxy(cluster);
-    //         std::size_t count = proxy.count();                     // global ids of all items belonging to the same cluster
-    //         for(std::size_t i = 0; i < count; ++i) {
-    //             prova::loga::tokenized_group::label_proxy::value v = proxy.at(i);   // v: {str, id} where the id is the global id and the str is the string (not token list) value of the item
-    //             std::size_t global_id = v.id();
-    //             components[global_id] = component_id;
-    //         }
-    //     }
-    //     it = range.second;
-    // }
-    // std::ofstream components_file(components_file_path);
-    // if(!components.save(components_file)){
-    //     std::cout << "failed to save components" << std::endl;
-    //     return 1;
-    // }
-
-    // std::cout << "Number of connected components: " << num_components << std::endl;
-    // for (auto it = components_map.cbegin(); it != components_map.cend(); ) {
-    //     int component_id = it->first;
-    //     std::cout << "Component " << component_id << ": " << std::endl;
-
-    //     auto range = components_map.equal_range(component_id);
-    //     std::size_t count = std::distance(range.first, range.second);
-    //     if(count == 1) {
-    //         std::size_t cluster = range.first->second;
-    //         const prova::loga::tokenized_multi_alignment::interval_set& pat = cluster_patterns.at(cluster);
-    //         const prova::loga::tokenized& sample = cluster_samples.at(cluster);
-    //         print_interval_set(std::cout, pat, sample);
-    //         std::cout << std::endl;
-    //         it = range.second;
-
-    //         continue;
-    //     }
-
-    //     std::vector<pattern_sequence> cluster_pseqs;
-    //     for (auto jt = range.first; jt != range.second; ++jt) {
-    //         std::size_t cluster = jt->second;
-
-    //         const pattern_sequence& pat = pseqs.at(cluster);
-    //         cluster_pseqs.push_back(pat);
-    //         print_pattern(std::cout, pat);
-    //         std::cout << std::endl;
-    //     }
-
-
-    //     it = range.second;
-    // }
-
-    // std::cout << "Plase 1 completed run loga again for phase 2" << std::endl;
-
     return 0;
 }

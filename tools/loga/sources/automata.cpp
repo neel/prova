@@ -101,14 +101,15 @@ std::ostream &prova::loga::automata::graphviz(std::ostream &stream){
 
             std::string style;
             switch (ge._type) {
-            case segment_edge::placeholder: style = "dashed"; break;
-            case segment_edge::epsilon:     style = "dotted"; break;
-            default:                        style = "solid";  break;
+                case segment_edge::placeholder: style = "dashed"; break;
+                case segment_edge::epsilon:     style = "dotted"; break;
+                default:                        style = "solid";  break;
             }
 
             out << "[label=\"" << (lab == " " ? std::string("□") : lab)
                 << "\", color=\"" << color_palette::for_id(ge._id)
                 << "\", style=\"" << style
+                << "\", ref=\"" << ge._id
                 << "\", penwidth=2]";
         }
     };
@@ -168,6 +169,46 @@ void prova::loga::automata::subgraph(const std::set<std::size_t>& subset, prova:
                     prova::loga::wrapped w(captured);
                     graph[e]._captured.emplace_back(std::move(w));
                 }
+            }
+        }
+    }
+}
+
+void prova::loga::automata::subgraph(std::size_t base_id, thompson_digraph_type &graph) {
+    boost::graph_traits<prova::loga::automata::thompson_digraph_type>::vertex_iterator vi, vi_end;
+    boost::tie(vi, vi_end) = boost::vertices(_graph);
+
+    std::map<vertex_type, vertex_type> vmap;
+
+    for (; vi != vi_end; ++vi) {
+        vertex_type u  = *vi;
+        const auto& up = _graph[u];
+        if(up._id == base_id) {
+            vertex_type v = boost::add_vertex(graph);
+            graph[v] = up;
+            vmap[u]  = v;
+        }
+    }
+
+    boost::graph_traits<prova::loga::automata::thompson_digraph_type>::edge_iterator ei, ei_end;
+    std::tie(ei, ei_end) = boost::edges(_graph);
+
+    for (; ei != ei_end; ++ei) {
+        edge_type e = *ei;
+        const auto& ep = _graph[e];
+
+        vertex_type u = boost::source(e, _graph);
+        vertex_type v = boost::target(e, _graph);
+        if(_graph[u]._id != base_id) continue;
+        if(_graph[v]._id != base_id) continue;
+        auto [ce, inserted] = boost::add_edge(vmap[u], vmap[v], graph);
+        if(inserted) {
+            graph[ce]._id   = ep._id;
+            graph[ce]._str  = ep._str;
+            graph[ce]._type = ep._type;
+            for(const auto& captured: ep._captured) {
+                prova::loga::wrapped w(captured);
+                graph[ce]._captured.emplace_back(std::move(w));
             }
         }
     }
@@ -243,6 +284,7 @@ std::ostream &prova::loga::automata::graphviz(std::ostream &stream, const thomps
             out << "[label=\"" << (lab == " " ? std::string("□") : lab)
                 << "\", color=\"" << color_palette::for_id(ge._id)
                 << "\", style=\"" << style
+                << "\", ref=\"" << ge._id
                 << "\", penwidth=2]";
         }
     };
@@ -397,7 +439,7 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     std::size_t score = 0;
     bool base_finished = false;
     while(sbegin < send) {
-        generialization_result result = directional_partial_generialize(pattern_graph, sbegin, send, start, ref_id);
+        generialization_result result = formalized_directional_partial_generialize(pattern_graph, sbegin, send, start, ref_id);
         if(result.last_it == send){
             if(result.last_v == finish) {
                 base_finished = true;
@@ -411,77 +453,77 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     }
 }
 
-prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id) const {
-    vertex_type start  = _terminals.at(id).first;
-    vertex_type finish = _terminals.at(id).second;
+// prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id) const {
+//     vertex_type start  = _terminals.at(id).first;
+//     vertex_type finish = _terminals.at(id).second;
 
-    prova::loga::pattern_sequence res;
+//     prova::loga::pattern_sequence res;
 
-    vertex_type last = start;
-    do {
-        edge_type base_e;
-        std::vector<edge_type> ref_edges;
+//     vertex_type last = start;
+//     do {
+//         edge_type base_e;
+//         std::vector<edge_type> ref_edges;
 
-        std::size_t base_edge_found = 0;
-        for(auto [ei, ei_end] = boost::out_edges(last, _graph); ei != ei_end; ++ei) {
-            const segment_edge& ep = _graph[*ei];
-            if(ep._id == id){
-                base_e = *ei;
-                base_edge_found++;
-            } else {
-                ref_edges.push_back(*ei);
-            }
-        }
-        assert(base_edge_found == 1);
-        last = boost::target(base_e, _graph);
+//         std::size_t base_edge_found = 0;
+//         for(auto [ei, ei_end] = boost::out_edges(last, _graph); ei != ei_end; ++ei) {
+//             const segment_edge& ep = _graph[*ei];
+//             if(ep._id == id){
+//                 base_e = *ei;
+//                 base_edge_found++;
+//             } else {
+//                 ref_edges.push_back(*ei);
+//             }
+//         }
+//         assert(base_edge_found == 1);
+//         last = boost::target(base_e, _graph);
 
-        if(ref_edges.size() == 0){
-            break;
-        }
+//         if(ref_edges.size() == 0){
+//             break;
+//         }
 
-        bool is_ref_placeholder = false;
-        const segment_edge& base_edge_props = _graph[base_e];
-        if(base_edge_props._type == segment_edge::placeholder) {
-            // only if bidirectional is true
-            // if base edge is a placeholder and every other reference edge is constant
-            //   and the hash of these constants are same then
-            //   the base is actually not a placeholder
-            prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
-            res.add(std::move(seg));
-        } else { // base edge is constant
-            // if base edge is a constant and at least one reference edge is placeholder
-            //    then the base is actually a placeholder
-            std::set<segment_edge::type>     ref_edge_types;
-            // std::map<std::size_t, edge_type> transition_tokens;
-            for(edge_type re: ref_edges) {
-                const segment_edge& re_props = _graph[re];
-                ref_edge_types.insert(re_props._type);
-                // if(re_props._type == segment_edge::placeholder) continue;
-                // if(re_props._type == segment_edge::epsilon)     continue;
-                // std::size_t captured_tokens_hash = 0;
-                // for(const prova::loga::wrapped& w: re_props._captured){
-                //     boost::hash_combine(captured_tokens_hash, w.hash());
-                // }
-                // transition_tokens.insert(std::make_pair(captured_tokens_hash, re));
-            }
+//         bool is_ref_placeholder = false;
+//         const segment_edge& base_edge_props = _graph[base_e];
+//         if(base_edge_props._type == segment_edge::placeholder) {
+//             // only if bidirectional is true
+//             // if base edge is a placeholder and every other reference edge is constant
+//             //   and the hash of these constants are same then
+//             //   the base is actually not a placeholder
+//             prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
+//             res.add(std::move(seg));
+//         } else { // base edge is constant
+//             // if base edge is a constant and at least one reference edge is placeholder
+//             //    then the base is actually a placeholder
+//             std::set<segment_edge::type>     ref_edge_types;
+//             // std::map<std::size_t, edge_type> transition_tokens;
+//             for(edge_type re: ref_edges) {
+//                 const segment_edge& re_props = _graph[re];
+//                 ref_edge_types.insert(re_props._type);
+//                 // if(re_props._type == segment_edge::placeholder) continue;
+//                 // if(re_props._type == segment_edge::epsilon)     continue;
+//                 // std::size_t captured_tokens_hash = 0;
+//                 // for(const prova::loga::wrapped& w: re_props._captured){
+//                 //     boost::hash_combine(captured_tokens_hash, w.hash());
+//                 // }
+//                 // transition_tokens.insert(std::make_pair(captured_tokens_hash, re));
+//             }
 
-            if(ref_edge_types.contains(segment_edge::placeholder)) {
-                is_ref_placeholder = true;
-                prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
-                res.add(std::move(seg));
-            }
-        }
+//             if(ref_edge_types.contains(segment_edge::placeholder)) {
+//                 is_ref_placeholder = true;
+//                 prova::loga::pattern_sequence::segment seg(prova::loga::zone::placeholder);
+//                 res.add(std::move(seg));
+//             }
+//         }
 
-        // last has already been updated
-        if(!is_ref_placeholder) {
-            const auto& last_props = _graph[last];
-            prova::loga::pattern_sequence::segment seg(prova::loga::zone::constant, last_props._str);
-            res.add(std::move(seg));
-        }
-    } while(last != finish);
+//         // last has already been updated
+//         if(!is_ref_placeholder) {
+//             const auto& last_props = _graph[last];
+//             prova::loga::pattern_sequence::segment seg(prova::loga::zone::constant, last_props._str);
+//             res.add(std::move(seg));
+//         }
+//     } while(last != finish);
 
-    return res;
-}
+//     return res;
+// }
 
 prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t base_id, const std::set<std::size_t> &references) const {
     vertex_type start  = _terminals.at(base_id).first;
