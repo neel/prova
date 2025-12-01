@@ -49,6 +49,7 @@ set(SOURCES
   sources/community.cpp
   sources/automata.cpp
   sources/outliers.cpp
+  sources/pattern_sequence.cpp
 )
 
 set(INCLUDES

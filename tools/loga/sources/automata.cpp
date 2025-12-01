@@ -276,9 +276,9 @@ std::ostream &prova::loga::automata::graphviz(std::ostream &stream, const thomps
 
             std::string style;
             switch (ge._type) {
-            case segment_edge::placeholder: style = "dashed"; break;
-            case segment_edge::epsilon:     style = "dotted"; break;
-            default:                        style = "solid";  break;
+                case segment_edge::placeholder: style = "dashed"; break;
+                case segment_edge::epsilon:     style = "dotted"; break;
+                default:                        style = "solid";  break;
             }
 
             out << "[label=\"" << (lab == " " ? std::string("□") : lab)
@@ -310,8 +310,11 @@ std::ostream &prova::loga::automata::graphviz(std::ostream &stream, const thomps
 std::pair<prova::loga::automata::vertex_type, prova::loga::automata::vertex_type> prova::loga::automata::thompson_graph(thompson_digraph_type &graph, const prova::loga::pattern_sequence &pseq, std::size_t id) {
     vertex_type start = boost::add_vertex(graph);
     vertex_type last = start;
+    std::size_t count = 0;
+
     graph[last]._start = true;
     graph[last]._id = id;
+    graph[last]._count = count++;
     std::size_t placeholders = 0;
     for(const prova::loga::pattern_sequence::segment& s: pseq) {
         prova::loga::zone zone = s.tag(); // either constant or placeholder
@@ -320,6 +323,7 @@ std::pair<prova::loga::automata::vertex_type, prova::loga::automata::vertex_type
                 vertex_type v = boost::add_vertex(graph);
                 graph[v]._str = t.view();
                 graph[v]._id = id;
+                graph[v]._count = count++;
 
                 auto [e, inserted] = boost::add_edge(last, v, graph);
                 graph[e]._type = (placeholders > 0) ? segment_edge::placeholder : segment_edge::constant;
@@ -342,19 +346,27 @@ std::pair<prova::loga::automata::vertex_type, prova::loga::automata::vertex_type
     vertex_type finish = boost::add_vertex(graph);
     graph[finish]._finish = true;
     graph[finish]._id = id;
+    graph[finish]._count = count++;
+
     auto [e, inserted] = boost::add_edge(last, finish, graph);
     graph[e]._type = (placeholders > 0) ? segment_edge::placeholder : segment_edge::epsilon;
     graph[e]._id   = id;
     return {start, finish};
 }
 
-prova::loga::automata::generialization_result prova::loga::automata::directional_partial_generialize(thompson_digraph_type &pattern_graph, const prova::loga::pattern_sequence &pseq, vertex_type start, std::size_t ref_id) {
+prova::loga::automata::generialization_result prova::loga::automata::directional_partial_generialize(thompson_digraph_type &pattern_graph, vertex_type start, const prova::loga::pattern_sequence &pseq, std::size_t ref_id, bool skip) {
     assert(pseq.size() > 0);
 
     auto sbegin = pseq.begin();
     auto send   = pseq.end();
 
-    generialization_result result = formalized_directional_partial_generialize(pattern_graph, sbegin, send, start, ref_id);
+    generialization_result result;
+    if(!skip) {
+        result = formalized_directional_partial_generialize(pattern_graph, start, sbegin, send, 0, ref_id);
+    } else {
+        std::map<std::size_t, generialization_result> memo;
+        result = formalized_directional_partial_piecewise_generialize(memo, pattern_graph, start, sbegin, sbegin, send, 0, ref_id);
+    }
     apply_trace(pattern_graph, result);
     return result;
 }
@@ -385,13 +397,13 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     const vertex_type base_start  = _terminals.at(base_id).first;
     const vertex_type base_finish = _terminals.at(base_id).second;
 
+    // integer ids for DP table
     std::map<vertex_type, std::size_t> map_v_id;
     std::map<std::size_t, vertex_type> map_id_v;
     std::map<generialization_result::segment_iterator, std::size_t> map_ref_id;
     std::map<std::size_t, generialization_result::segment_iterator> map_id_ref;
 
-    // TODO populate four maps;
-    {
+    {   // populate map_v_id and map_id_v
         vertex_type v = base_start;
         std::size_t idx = 0;
         for (;;) {
@@ -411,15 +423,12 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
                     break;
                 }
             }
-            assert(found && "Base chain is expected to be linear for this id");
+            assert(found);
 
             v = boost::target(next_e, pattern_graph);
             ++idx;
         }
-    }
-
-    // Reference sequence: assign a dense index to each segment iterator.
-    {
+    } { // populate map_ref_id and map_id_ref
         std::size_t idx = 0;
         for (auto it = pseq.begin(); it != pseq.end(); ++it, ++idx) {
             map_ref_id.emplace(it, idx);
@@ -430,27 +439,73 @@ void prova::loga::automata::directional_subset_generialize(thompson_digraph_type
     arma::imat memo;
     memo.set_size(map_v_id.size(), map_ref_id.size());
 
-    vertex_type start = base_start;
-    auto sbegin = pseq.begin();
-    auto send   = pseq.end();
+    using Iterator = pattern_sequence::const_iterator;
+
+    auto next_base = [&pattern_graph, base_id](vertex_type lv) -> std::pair<edge_type, vertex_type> {
+        bool edge_found = false;
+        edge_type e;
+        for(auto [ei, ei_end] = boost::out_edges(lv, pattern_graph); ei != ei_end; ++ei) {
+            const segment_edge& ep = pattern_graph[*ei];
+            if(ep._id == base_id){
+                e = *ei;
+                edge_found = true;
+                break;
+            }
+        }
+        assert(edge_found);
+        return {e, boost::target(e, pattern_graph)};
+    };
+
+    auto next_ref = [](Iterator segit, std::size_t tidx) -> std::pair<Iterator, std::size_t> {
+        if(tidx +1 >= segit->tokens().count()) {
+            return {++segit, 0};
+        } else {
+            return {segit, ++tidx};
+        }
+    };
+
+    auto sbegin         = pseq.begin();
+    auto send           = pseq.end();
 
     vertex_type finish  = _terminals.at(base_id).second;
 
-    std::size_t score = 0;
-    bool base_finished = false;
-    while(sbegin < send) {
-        generialization_result result = formalized_directional_partial_generialize(pattern_graph, sbegin, send, start, ref_id);
-        if(result.last_it == send){
-            if(result.last_v == finish) {
-                base_finished = true;
+    vertex_type last_v  = base_start;
+    auto sit            = sbegin;
+    std::size_t tokens  = 0;
+
+
+    while(last_v != finish) {
+        // find the best sit for last_v
+        std::size_t vid = map_v_id.at(last_v);
+        std::map<pattern_sequence::const_iterator, generialization_result> scores;
+        while(sit < send) {
+            std::size_t sid = map_ref_id.at(sit);
+            generialization_result result = formalized_directional_partial_generialize(pattern_graph, last_v, sit, send, 0, ref_id);
+            if(result.last_it == send || result.last_v == finish){
+                break;
             }
-            ++score;
-            break;
+
+            memo(vid, sid) = result.base_progress + result.ref_progress;
+
+            scores.insert(std::make_pair(sit, result));
+            sit++;
         }
-        memo(map_v_id.at(start), map_ref_id.at(sbegin)) = score;
-        sbegin = result.last_it;
-        ++sbegin;
+        auto best_it = std::ranges::max_element(scores, [](auto l, auto r){
+            generialization_result l_result = l.second;
+            generialization_result r_result = r.second;
+
+            return (l_result.base_progress + l_result.ref_progress) < (r_result.base_progress + r_result.ref_progress);
+        });
+        // set last_v to the next base by following the best match w.r.t. the score
+        last_v  = best_it->second.last_v;   // in case of no match last_v == best_it->second.last_v
+        sit     = best_it->second.last_it;  // in case of no match sit    == best_it->second.last_it
+        tokens  = best_it->second.tokens;
+
+        edge_type e;
+        std::tie(e, last_v)   = next_base(last_v);
+        std::tie(sit, tokens) = next_ref(sit, tokens);
     }
+
 }
 
 // prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t id) const {
@@ -655,7 +710,55 @@ prova::loga::pattern_sequence prova::loga::automata::merge(std::size_t base_id, 
     return res;
 }
 
+void prova::loga::automata::clean(std::size_t base_id) {
+    vertex_type start  = _terminals.at(base_id).first;
+    vertex_type finish = _terminals.at(base_id).second;
+
+    std::map<vertex_type,  std::size_t> indexes;
+    {
+        vertex_type last  = start;
+        do{
+            std::vector<edge_type> ref_edges;
+            for(auto [ei, ei_end] = boost::out_edges(last, _graph); ei != ei_end; ++ei) {
+                edge_type e = *ei;
+                const segment_edge& ep = _graph[e];
+                if(ep._id == base_id){
+                    last = boost::target(e, _graph);
+                    break;
+                } else {
+                    ref_edges.push_back(e);
+                }
+            }
+
+            for(edge_type e: ref_edges) {
+                boost::remove_edge(e, _graph);
+            }
+        }while(last != finish);
+
+        assert(last == finish);
+    }
+}
+
 prova::loga::automata::generialization_result::generialization_result(vertex_type v, segment_iterator it, progress_pair progress): last_v(v), last_it(it), tokens(0), base_progress(progress.first), ref_progress(progress.second) {}
 
 prova::loga::automata::generialization_result::generialization_result(vertex_type v, segment_iterator it, std::size_t n, progress_pair progress): last_v(v), last_it(it), tokens(n), base_progress(progress.first), ref_progress(progress.second) {}
 
+prova::loga::automata::generialization_result &prova::loga::automata::generialization_result::extend(const generialization_result &next){
+    last_v         = next.last_v;
+    last_it        = next.last_it;
+    tokens         = next.tokens;
+    base_progress += next.base_progress;
+    ref_progress  += next.ref_progress;
+    etrace.append_range(next.etrace);
+
+    return *this;
+}
+
+// prova::loga::automata::generialization_result& prova::loga::automata::generialization_result::operator=(const prova::loga::automata::generialization_result& other){
+//     last_v = other.last_v;
+//     last_it = other.last_it;
+//     tokens  = other.tokens;
+//     base_progress = other.base_progress;
+//     ref_progress  = other.ref_progress;
+//     etrace        = other.etrace;
+// }

@@ -113,49 +113,6 @@ struct intercluster_graph{
     }
 };
 
-
-
-// constexpr const std::array<std::string, 209> label_names = {
-//     // Fruits (40) - Alphabetical
-//     "Apple", "Apricot", "Avocado", "Banana", "Blackberry", "Blueberry", "Cantaloupe", "Cherry", "Coconut",
-//     "Cranberry", "Date", "Dragonfruit", "Fig", "Grape", "Grapefruit", "Guava", "Honeydew", "Jackfruit", "Kiwi",
-//     "Lemon", "Lime", "Lychee", "Mango", "Mandarin", "Mulberry", "Nectarine", "Orange", "Papaya", "Peach",
-//     "Pear", "Persimmon", "Pineapple", "Plum", "Pomegranate", "Raspberry", "Starfruit", "Strawberry",
-//     "Tangerine", "Watermelon",
-
-//     // Flowers (40) - Alphabetical (with "Heather" replacing the stray "Sweet")
-//     "Anemone", "Aster", "Azalea", "Begonia", "Bluebell", "Buttercup", "Camellia", "Carnation", "Chrysanthemum",
-//     "Daffodil", "Dahlia", "Daisy", "Foxglove", "Freesia", "Gardenia", "Geranium", "Gladiolus", "Heather",
-//     "Hibiscus", "Hyacinth", "Hydrangea", "Iris", "Jasmine", "Lavender", "Lilac", "Lily", "Lotus", "Magnolia",
-//     "Marigold", "Orchid", "Pansy", "Peony", "Petunia", "Poppy", "Primrose", "Rose", "Snapdragon", "Sunflower",
-//     "Tulip", "Violet",
-
-//     // Animals (40) - Alphabetical
-//     "Bear", "Buffalo", "Camel", "Cat", "Cheetah", "Chicken", "Chimpanzee", "Cow", "Deer", "Dog",
-//     "Dolphin", "Donkey", "Duck", "Eagle", "Elephant", "Falcon", "Fox", "Giraffe", "Goat", "Goose",
-//     "Gorilla", "Hippopotamus", "Horse", "Kangaroo", "Koala", "Leopard", "Lion", "Monkey", "Owl", "Panda",
-//     "Penguin", "Pig", "Rabbit", "Rhinoceros", "Sheep", "Shark", "Tiger", "Whale", "Wolf", "Zebra",
-
-//     // Trees (20) - Alphabetical
-//     "Ash", "Bamboo", "Baobab", "Birch", "Cedar", "Cypress", "Elm", "Fir", "Maple", "Oak",
-//     "Olive", "Palm", "Pine", "Poplar", "Redwood", "Sequoia", "Spruce", "Teak", "Walnut", "Willow",
-
-//     // Insects (20) - Alphabetical
-//     "Ant", "Aphid", "Bee", "Beetle", "Butterfly", "Cockroach", "Cricket", "Dragonfly", "Earwig", "Firefly",
-//     "Flea", "Fly", "Gnat", "Grasshopper", "Ladybug", "Locust", "Mantis", "Mosquito", "Moth", "Termite",
-
-//     // Fish (20) - Alphabetical
-//     "Anchovy", "Bass", "Carp", "Catfish", "Cod", "Eel", "Goldfish", "Haddock", "Halibut", "Herring",
-//     "Mackerel", "Perch", "Pike", "Salmon", "Sardine", "Swordfish", "Tilapia", "Trout", "Tuna", "Walleye",
-
-//     // Planets (9) - Alphabetical
-//     "Earth", "Jupiter", "Mars", "Mercury", "Neptune", "Pluto", "Saturn", "Uranus", "Venus",
-
-//     // Periodic Table Elements (20) - Alphabetical
-//     "Calcium", "Carbon", "Chlorine", "Copper", "Fluorine", "Gold", "Helium", "Hydrogen", "Iron", "Lithium",
-//     "Magnesium", "Neon", "Nitrogen", "Oxygen", "Phosphorus", "Potassium", "Silicon", "Silver", "Sodium", "Sulfur"
-// };
-
 constexpr const std::array<std::string, 0> label_names = {};
 
 constexpr const std::size_t label_names_max_size = (label_names.size() == 0) ? 4 : std::ranges::max_element(label_names, [](const std::string& l, const std::string& r){
@@ -495,7 +452,7 @@ int main(int argc, char** argv) {
     prova::loga::automata automata(pseqs.cbegin(), pseqs.cend());
     automata.build();
     arma::Mat<std::size_t> coverage, capture;
-    automata.generialize(coverage, capture);
+    automata.generialize(coverage, capture, true);
     std::ofstream astream(automata_dot_file_path);
     automata.graphviz(astream);
     using intercluster_graph_type = intercluster_graph<std::size_t>;
@@ -521,13 +478,10 @@ int main(int argc, char** argv) {
     std::cout << "Summary: " << std::format("{} components", num_components) << std::endl;
     std::cout << "----------------------------" << std::endl;
 
+    std::map<std::size_t, prova::loga::pattern_sequence> component_patterns;
     std::set<std::size_t> outliers;
-
     for (auto it = components_vertex_map.cbegin(); it != components_vertex_map.cend(); ) {
-        std::cout << std::endl;
-
         int component_id = it->first;
-        std::cout << prova::loga::colors::bright_yellow << "◈" << prova::loga::colors::reset << " T" << component_id << " ";
 
         auto range = components_vertex_map.equal_range(component_id);
         std::size_t count = std::distance(range.first, range.second);
@@ -537,21 +491,9 @@ int main(int argc, char** argv) {
             std::size_t vi = range.first->second;
             auto v = boost::vertex(vi, digraph);
             std::size_t cluster = digraph[v].id;
-            std::cout << "    " << std::setw(4) << cluster << ": ";
-            const auto& pat    = cluster_patterns.at(cluster);
-            const auto& sample = cluster_samples.at(cluster);
-            // std::cout << "    ";
-            print_interval_set(std::cout, pat, sample);
-            std::cout << std::endl;
-            it = range.second;
-
-            std::string component_subgraph = output_dir / std::format("{}.component.{}.automata.dot", log_name, cluster);
-            std::ofstream component_subgraph_stream(component_subgraph);
-            prova::loga::automata::thompson_digraph_type subgraph;
-            automata.subgraph(cluster, subgraph);
-            prova::loga::automata::graphviz(component_subgraph_stream, subgraph);
-
             outliers.insert(cluster);
+
+            it = range.second;
             continue;
         }
 
@@ -572,13 +514,14 @@ int main(int argc, char** argv) {
             ref_members.insert(cluster);
         }
 
+
         // now iterate in sorted order
         std::size_t first_i = verts.at(0);
         auto first_v = boost::vertex(first_i, digraph);
         std::size_t first_c = digraph[first_v].id;
         prova::loga::pattern_sequence merged = automata.merge(first_c, ref_members);
-        // std::cout << "    " << std::setw(4) << ": ";
-        print_pattern(std::cout, merged);
+        component_patterns.insert(std::make_pair(component_id, merged));
+        std::cout << prova::loga::colors::bright_yellow << "◈" << prova::loga::colors::reset << " T" << component_id << " " << merged;
         std::cout << std::endl;
         std::cout << "-----------------------------";
 
@@ -597,15 +540,34 @@ int main(int argc, char** argv) {
             auto v = boost::vertex(vi, digraph);
             std::size_t cluster = digraph[v].id;                // recover cluster id
             const prova::loga::pattern_sequence& pat = pseqs.at(cluster);
-            std::cout << "    " << std::setw(4) << cluster << ": ";
-            print_pattern(std::cout, pat);
+            std::cout << "    " << std::setw(4) << cluster << ": " << pat;
             std::cout << std::endl;
         }
 
         it = range.second;
+        std::cout << std::endl;
     }
 
+    std::cout << "Components list: " << std::endl;
+    for(const auto& [component_id, pat]: component_patterns) {
+        std::cout << prova::loga::colors::bright_yellow << "◈" << prova::loga::colors::reset << " T" << component_id << " " << pat << std::endl;
+    }
+
+    std::cout << std::format("Singletons: ({})", outliers.size()) << std::endl;
     for(std::size_t cluster: outliers) {
+        std::cout << "    " << std::setw(4) << cluster << ": ";
+        const auto& pat    = cluster_patterns.at(cluster);
+        const auto& sample = cluster_samples.at(cluster);
+        print_interval_set(std::cout, pat, sample);
+        std::cout << std::endl;
+
+        std::string component_subgraph = output_dir / std::format("{}.component.{}.automata.dot", log_name, cluster);
+        std::ofstream component_subgraph_stream(component_subgraph);
+        prova::loga::automata::thompson_digraph_type subgraph;
+        automata.subgraph(cluster, subgraph);
+        prova::loga::automata::graphviz(component_subgraph_stream, subgraph);
+
+
         // automata.directional_subset_generialize();
     }
 
